@@ -22086,6 +22086,11 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_name TEXT`).catch(() => {});
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_description TEXT`).catch(() => {});
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_features JSONB`).catch(() => {});
+    // Standard Rate cancellation policy — same options as offers.refund_policy_override.
+    // 'inherit' (default) means fall back to the property's deposit_rules refund_policy.
+    // Any other value overrides at the standard-rate level. Both the guest-facing rate
+    // card and refund calculations honour this.
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_refund_policy VARCHAR(40)`).catch(() => {});
 
     // Standard Rate booking-restriction rules (2026-07-28). GAS is the source
     // of truth for check-in/out days, min/max stay, lead time. Widget +
@@ -60002,7 +60007,7 @@ app.post('/api/db/properties', async (req, res) => {
 // for that account — the existing authHeaders middleware handles this).
 app.post('/api/admin/properties/standard-rate-display/apply-all', async (req, res) => {
   try {
-    const { account_id, standard_rate_name, standard_rate_description, standard_rate_features } = req.body;
+    const { account_id, standard_rate_name, standard_rate_description, standard_rate_features, standard_rate_refund_policy } = req.body;
     if (!account_id) return res.json({ success: false, error: 'account_id required' });
     const featuresJson = Array.isArray(standard_rate_features) ? JSON.stringify(standard_rate_features) : null;
     const result = await pool.query(
@@ -60010,10 +60015,11 @@ app.post('/api/admin/properties/standard-rate-display/apply-all', async (req, re
           SET standard_rate_name = $1,
               standard_rate_description = $2,
               standard_rate_features = $3::jsonb,
+              standard_rate_refund_policy = $4,
               updated_at = NOW()
-        WHERE account_id = $4
+        WHERE account_id = $5
         RETURNING id`,
-      [standard_rate_name ?? '', standard_rate_description ?? '', featuresJson, account_id]
+      [standard_rate_name ?? '', standard_rate_description ?? '', featuresJson, standard_rate_refund_policy || 'inherit', account_id]
     );
     res.json({ success: true, updated: result.rowCount });
   } catch (e) {
@@ -60249,6 +60255,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
       district, state, zip_code, latitude, longitude, account_id, currency,
       display_name, show_on_portfolio, portfolio_display,
       standard_rate_name, standard_rate_description, standard_rate_features,
+      standard_rate_refund_policy,
       same_day_cutoff_time, min_advance_hours,
       // 2026-08-04 — property-level phone + timezone. Needed by the
       // GAS→Channex content push so Google Hotel Search accepts the
@@ -60325,6 +60332,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
           check_out_time  = COALESCE($29, check_out_time),
           house_rules     = COALESCE($30::jsonb, house_rules),
           facilities      = COALESCE($31::jsonb, facilities),
+          standard_rate_refund_policy = COALESCE($32, standard_rate_refund_policy),
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
@@ -60349,7 +60357,8 @@ app.put('/api/db/properties/:id', async (req, res) => {
          check_in_time !== undefined ? (check_in_time || null) : null,
          check_out_time !== undefined ? (check_out_time || null) : null,
          houseRulesJson,
-         facilities !== undefined ? JSON.stringify(Array.isArray(facilities) ? facilities : []) : null]
+         facilities !== undefined ? JSON.stringify(Array.isArray(facilities) ? facilities : []) : null,
+         standard_rate_refund_policy !== undefined ? (standard_rate_refund_policy || null) : null]
       );
     } catch (queryErr) {
       // Fallback if new columns don't exist yet (pre-migration)

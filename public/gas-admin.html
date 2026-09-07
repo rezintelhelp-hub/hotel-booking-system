@@ -31547,6 +31547,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <small style="color: #94a3b8; display: block; margin-top: 0.25rem;">Each line becomes a bullet point on the rate card.</small>
                 </div>
 
+                <!-- Cancellation Policy — same dropdown used on paid offers so the
+                     Standard Rate can carry a proper refund policy without needing
+                     to create a full offer just to set one. -->
+                <div style="margin-top: 0.75rem; background: #ecfeff; border: 1px solid #67e8f9; border-radius: 8px; padding: 0.75rem 0.9rem;">
+                    <label style="display:block; font-size: 0.85rem; font-weight: 600; color: #155e75; margin-bottom: 0.25rem;">↩️ Cancellation Policy</label>
+                    <p style="font-size: 0.75rem; color: #155e75; margin: 0 0 0.5rem 0;">Applied to bookings made on the Standard Rate. Same options as the paid-offer policy — pick one and both the guest-facing rate card and refund calculations use it.</p>
+                    <select id="std-refund-policy" class="form-input" style="padding: 0.45rem 0.6rem; border-radius: 6px; width: 100%; max-width: 420px; font-size: 0.85rem;">
+                        <option value="inherit">Inherit from property's deposit rule</option>
+                        <option value="flexible">Flexible — full refund up to 24h before check-in</option>
+                        <option value="moderate">Moderate — full refund up to 5 days before</option>
+                        <option value="strict">Strict — 50% refund up to 7 days before</option>
+                        <option value="refund_90_14">90% refund up to 14 days before</option>
+                        <option value="refund_90_30">90% refund up to 30 days before</option>
+                        <option value="refund_90_60">90% refund up to 60 days before</option>
+                        <option value="refund_60">100% refund up to 60 days before</option>
+                        <option value="refund_30">100% refund up to 30 days before</option>
+                        <option value="refund_14">100% refund up to 14 days before</option>
+                        <option value="deposit_kept_30">Deposit non-refundable · balance refundable if cancelled 30+ days before</option>
+                        <option value="deposit_kept_60">Deposit non-refundable · balance refundable if cancelled 60+ days before</option>
+                        <option value="deposit_kept_90">Deposit non-refundable · balance refundable if cancelled 90+ days before</option>
+                        <option value="non_refundable">Non-refundable</option>
+                    </select>
+                </div>
+
                 <!-- Booking Rules — GAS source of truth. Widget + /api/public/book
                      preflight enforce these on every channel. On save, the rules
                      also get pushed to Hostfully (matching sub-units). Leave any
@@ -62901,6 +62925,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('std-rate-description').value = prop.standard_rate_description || '';
                 const featuresArr = Array.isArray(prop.standard_rate_features) ? prop.standard_rate_features : [];
                 document.getElementById('std-rate-features').value = featuresArr.join('\n');
+                document.getElementById('std-refund-policy').value = prop.standard_rate_refund_policy || 'inherit';
                 // Update the collapsed preview line so the operator can see the
                 // current state without opening the modal.
                 const previewEl = document.getElementById('std-rate-display-preview');
@@ -63036,12 +63061,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             const desc = document.getElementById('std-rate-description').value.trim();
             const featuresRaw = document.getElementById('std-rate-features').value;
             const features = featuresRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-            return { name, desc, features };
+            const refund_policy = document.getElementById('std-refund-policy')?.value || 'inherit';
+            return { name, desc, features, refund_policy };
         }
 
         async function applyStandardRateDisplayToAll() {
             if (!_stdRateAccountId) return showNotification('Pick a property first', 'error');
-            const { name, desc, features } = _collectStandardRateFields();
+            const { name, desc, features, refund_policy } = _collectStandardRateFields();
             if (!confirm('Apply this Standard Rate Display to EVERY property in this account? Existing values on other properties will be overwritten.')) return;
             try {
                 const r = await fetch('/api/admin/properties/standard-rate-display/apply-all', {
@@ -63051,7 +63077,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         account_id: _stdRateAccountId,
                         standard_rate_name: name,
                         standard_rate_description: desc,
-                        standard_rate_features: features
+                        standard_rate_features: features,
+                        standard_rate_refund_policy: refund_policy
                     })
                 });
                 const d = await r.json();
@@ -63073,7 +63100,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!propertyId) return showNotification('Pick a property first', 'error');
             // Empty string instead of null so COALESCE in the UPDATE actually
             // overwrites — null would leave the existing value untouched.
-            const { name, desc, features } = _collectStandardRateFields();
+            const { name, desc, features, refund_policy } = _collectStandardRateFields();
             try {
                 const r = await fetch(`/api/db/properties/${propertyId}`, {
                     method: 'PUT',
@@ -63081,7 +63108,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         standard_rate_name: name,
                         standard_rate_description: desc,
-                        standard_rate_features: features
+                        standard_rate_features: features,
+                        standard_rate_refund_policy: refund_policy
                     })
                 });
                 const d = await r.json();
