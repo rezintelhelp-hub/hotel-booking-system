@@ -37,6 +37,13 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#ef4444;background:#450a0a;">
+        <h2 style="color:#fecaca;">🚨 EMERGENCY: push correct availability to Channex (B.com etc.)</h2>
+        <p class="hint" style="color:#fca5a5;">For every Belmont room × next 90 days, recompute from live confirmed/pending bookings + push to Channex. Immediately closes days that are actually booked. Ignores 'copied' phantoms. Run this NOW to stop OTA overselling.</p>
+        <button class="save-all" onclick="emergencyPushAvail()" style="background:#dc2626;">Push corrected availability to Channex now</button>
+        <pre id="emergency-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:300px;margin-top:0.75rem;"></pre>
+    </div>
+
     <div class="card" style="border-color:#dc2626;">
         <h2 style="color:#fca5a5;">🗑️ Purge Belmont status='copied' phantoms</h2>
         <p class="hint">2026-08-24 batch created 22+ shadow "copied" bookings that block moves + paint ghost cells. Dry run first; then execute to delete every status='copied' row on Belmont. Real confirmed bookings untouched.</p>
@@ -310,6 +317,23 @@ async function undoExecute() {
 }
 
 let _purgeDryOk = false;
+async function emergencyPushAvail() {
+    const out = document.getElementById('emergency-output');
+    out.textContent = 'Pushing — this can take 30-60s for 90 days × all rooms…';
+    try {
+        const r = await fetch('/api/admin/emergency-push-availability-to-channex', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ property_id: 106, days: 90 })
+        });
+        const d = await r.json();
+        if (!d.success) { out.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+        out.textContent = 'DONE. Rooms: ' + d.rooms + ' · Pushes enqueued: ' + d.enqueued + '\n\nPer room:\n' + JSON.stringify(d.per_room, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+    }
+}
+
 async function purgeCopiesDry() {
     const out = document.getElementById('purge-output');
     out.textContent = 'Loading…';

@@ -25360,6 +25360,43 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — EMERGENCY push of correct availability to Channex
+// for every Belmont bookable_unit × every date in the next N days. Reads
+// live bookings (excludes cancelled/copied via status filter inside
+// recomputeAndEnqueueAvailabilityForRoom), enqueues corrected counts to
+// the Channex outbox. Fixes B.com selling rooms that are actually booked.
+app.post('/api/admin/emergency-push-availability-to-channex', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.body?.property_id, 10);
+    const days = parseInt(req.body?.days, 10) || 90;
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+    const { recomputeAndEnqueueAvailabilityForRoom } = require('./gas-sync/channex-outbox');
+    const rooms = await pool.query(
+      `SELECT id, name FROM bookable_units WHERE property_id = $1 AND COALESCE(is_hidden, false) = false`,
+      [propertyId]);
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    let enqueued = 0;
+    const perRoom = {};
+    for (const r of rooms.rows) {
+      perRoom[r.name] = 0;
+      for (let i = 0; i < days; i++) {
+        const d = new Date(today); d.setUTCDate(d.getUTCDate() + i);
+        const dStr = d.toISOString().slice(0, 10);
+        try {
+          const ok = await recomputeAndEnqueueAvailabilityForRoom(pool, r.id, dStr);
+          if (ok) { enqueued++; perRoom[r.name]++; }
+        } catch (e) { /* skip individual failures */ }
+      }
+    }
+    res.json({ success: true, property_id: propertyId, days, rooms: rooms.rowCount, enqueued, per_room: perRoom });
+  } catch (e) {
+    console.error('[emergency-push-availability-to-channex]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — one-shot purge of every status='copied' booking on
 // a property. These are phantom shadow rows from an earlier Copy-Booking
 // batch and were blocking every move + painting ghost cells. Read-back
@@ -25381,8 +25418,16 @@ app.post('/api/admin/purge-copied-bookings', async (req, res) => {
          FROM bookings c
         WHERE c.property_id = $1 AND c.status = 'copied'
         ORDER BY c.arrival_date, c.id`, [propertyId]);
-    const safe = found.rows.filter(r => r.copied_from_booking_id && r.original_status);
-    const unsafe = found.rows.filter(r => !r.copied_from_booking_id || !r.original_status);
+    // Safe = copy points to a live original that is still confirmed/pending.
+    // If the original was cancelled after the copy was made, we don't know if
+    // the copy was meant to inherit the reservation — kick to unsafe for a
+    // manual eye rather than delete blind.
+    const safe = found.rows.filter(r =>
+      r.copied_from_booking_id &&
+      ['confirmed', 'pending'].includes(r.original_status || ''));
+    const unsafe = found.rows.filter(r =>
+      !r.copied_from_booking_id ||
+      !['confirmed', 'pending'].includes(r.original_status || ''));
     if (dryRun) {
       return res.json({
         success: true, dry_run: true,
