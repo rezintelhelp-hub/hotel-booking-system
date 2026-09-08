@@ -29371,7 +29371,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 <div id="invoice-preview-loading" style="padding:2rem; text-align:center; color:#94a3b8;">Loading invoice…</div>
-                <div id="invoice-preview-body" contenteditable="true" style="display:none; flex:1 1 0; min-height:400px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; padding: 0; background: white;"></div>
+                <!-- Iframe (not a bare div) — the invoice HTML is a full document
+                     with its own <style> block using generic class names
+                     (.header/.section/.footer) that collide with the admin UI.
+                     Sandbox in an iframe + toggle designMode='on' below for edits. -->
+                <iframe id="invoice-preview-iframe" style="display:none; flex:1 1 0; min-height:400px; width:100%; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; background: white;"></iframe>
             </div>
             <div style="padding: 0.75rem 1.5rem 1.25rem; border-top:1px solid #e5e7eb; display:flex; gap:0.75rem; justify-content:space-between; align-items:center;">
                 <div id="invoice-preview-status" style="font-size:0.85rem; color:#64748b;"></div>
@@ -75978,31 +75982,38 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // Opens the Preview & Send Invoice modal — loads the on-the-fly
-        // invoice HTML, pre-fills guest email + subject, drops the HTML into
-        // a contenteditable div for last-minute tweaks (price, line items,
-        // notes), then sendInvoiceFromPreview() ships it via sendEmail().
+        // invoice HTML into an isolated iframe, flips designMode='on' so
+        // the operator can click anywhere in the rendered invoice and
+        // tweak prices/lines/notes before send. Iframe (rather than a bare
+        // contenteditable div) is required because the invoice HTML is a
+        // full document with a <style> block using generic class names
+        // (.header/.section/.footer) that would collide with the admin UI.
         async function openInvoicePreview(bookingId) {
             if (!bookingId) return;
             document.getElementById('invoice-preview-booking-id').value = bookingId;
             document.getElementById('invoice-preview-loading').style.display = 'block';
-            document.getElementById('invoice-preview-body').style.display = 'none';
-            document.getElementById('invoice-preview-body').innerHTML = '';
+            const iframe = document.getElementById('invoice-preview-iframe');
+            iframe.style.display = 'none';
+            iframe.srcdoc = '';
             document.getElementById('invoice-preview-status').textContent = '';
             document.getElementById('invoice-preview-to-email').value = '';
             document.getElementById('invoice-preview-subject').value = `Invoice - Booking #${bookingId}`;
             openModal('invoicePreviewModal');
             try {
-                // Fetch the raw invoice HTML (noprint=1 suppresses window.print()
-                // firing inside the modal's contenteditable).
                 const [htmlRes, bkRes] = await Promise.all([
                     fetch(`/api/bookings/${bookingId}/invoice?noprint=1`, { headers: authHeaders() }),
                     fetch(`/api/bookings/${bookingId}`, { headers: authHeaders() })
                 ]);
                 const html = await htmlRes.text();
-                document.getElementById('invoice-preview-body').innerHTML = html;
+                iframe.onload = () => {
+                    try {
+                        // designMode makes every element inside the iframe editable.
+                        iframe.contentDocument.designMode = 'on';
+                    } catch (_) { /* cross-origin should never happen with srcdoc, but guard anyway */ }
+                };
+                iframe.srcdoc = html;
                 document.getElementById('invoice-preview-loading').style.display = 'none';
-                document.getElementById('invoice-preview-body').style.display = 'block';
-                // Pre-fill To with guest_direct_email (preferred) or guest_email.
+                iframe.style.display = 'block';
                 try {
                     const bk = await bkRes.json();
                     const b = bk.booking || bk;
@@ -76024,17 +76035,25 @@ const promo = await fetch('/api/v1/offers/validate', {
             openInvoicePreview(id);
         }
 
+        // Reads the current (edited) HTML out of the preview iframe.
+        function _getInvoicePreviewHtml() {
+            const iframe = document.getElementById('invoice-preview-iframe');
+            try {
+                return iframe.contentDocument?.documentElement?.outerHTML || '';
+            } catch (_) { return ''; }
+        }
+
         function printInvoiceFromPreview() {
-            const body = document.getElementById('invoice-preview-body').innerHTML;
-            if (!body) return;
+            const html = _getInvoicePreviewHtml();
+            if (!html) return;
             const w = window.open('', '_blank');
-            w.document.write(body + '<script>window.print();<\/script>');
+            w.document.write(html + '<script>window.print();<\/script>');
             w.document.close();
         }
 
         async function sendInvoiceFromPreview() {
             const bookingId = document.getElementById('invoice-preview-booking-id').value;
-            const html = document.getElementById('invoice-preview-body').innerHTML;
+            const html = _getInvoicePreviewHtml();
             const to = document.getElementById('invoice-preview-to-email').value.trim();
             const subject = document.getElementById('invoice-preview-subject').value.trim();
             if (!bookingId || !html) return;
