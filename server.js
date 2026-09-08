@@ -24260,19 +24260,38 @@ app.post('/api/onboarding/beds24-marketplace-signup-multi', async (req, res) => 
         message: 'This owner has no properties enabled for Rezintel yet. Go to Beds24 → Settings → Marketplace → Rezintel, tick each property to share, then click Save.'
       });
     }
-    const ownerEmail = String(owner.email || '').toLowerCase().trim();
-    if (!ownerEmail) return res.status(422).json({ success: false, error: 'Owner has no email in Beds24 — cannot create GAS account without one' });
+    // Beds24 marketplace `getAccounts` returns `username` (often an email for hosts) but no dedicated `email` field.
+    // Prefer whatever Beds24 gives us if it looks like an email; otherwise synthesise a placeholder keyed on the owner ID
+    // — the Beds24 owner ID is the stable identity, and the client can set a real email after first login.
+    const rawEmail = String(owner.email || owner.username || '').toLowerCase().trim();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
+    const ownerEmail = isEmail ? rawEmail : `beds24-${ownerId}@pending.gas.travel`;
 
-    // 2. Existing account guard. If email already has a GAS account, refuse
-    //    and tell them to log in (avoids silent-merge surprises).
-    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [ownerEmail]);
-    if (existing.rows.length > 0) {
+    // 2. Existing account guard — dedup by Beds24 owner ID (the stable key), not email.
+    const existingConn = await pool.query(`
+      SELECT a.id, a.email FROM gas_sync_connections c
+      JOIN accounts a ON a.id = c.account_id
+      WHERE c.adapter_code = 'beds24-marketplace' AND c.external_account_id = $1
+      LIMIT 1
+    `, [String(ownerId)]);
+    if (existingConn.rows.length > 0) {
       return res.status(409).json({
         success: false,
         error: 'account_exists',
-        message: `A GAS account already exists for ${ownerEmail}. Please log in and add properties from your dashboard.`,
+        message: `A GAS account already exists for Beds24 account ${ownerId}. Please log in and add properties from your dashboard.`,
         login_url: '/login.html'
       });
+    }
+    if (isEmail) {
+      const existingEmail = await pool.query('SELECT id FROM accounts WHERE email = $1', [ownerEmail]);
+      if (existingEmail.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'account_exists',
+          message: `A GAS account already exists for ${ownerEmail}. Please log in and add properties from your dashboard.`,
+          login_url: '/login.html'
+        });
+      }
     }
 
     // 3. Create GAS account.
