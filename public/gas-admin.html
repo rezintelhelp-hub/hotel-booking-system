@@ -5767,6 +5767,7 @@
                             <button class="btn btn-secondary" id="mobile-cal-toggle-btn" onclick="_mobCalToggle()" title="Mobile month view — one room per screen" style="padding: 0.5rem 0.75rem;">📱</button>
                             <button class="btn btn-secondary" id="grid-refresh-btn" onclick="refreshGrid(this)" title="Reload the calendar without changing the date" style="padding: 0.5rem 0.75rem;">🔄</button>
                             <button class="btn btn-secondary" onclick="openBlockUnblockModal()" title="Block or unblock one or more rooms across a date range" style="padding: 0.5rem 0.75rem;">🚫 Block / Unblock</button>
+                            <button class="btn btn-secondary" onclick="openSwapBookingsModal()" title="Atomically swap two bookings' rooms (for when both destinations are occupied)" style="padding: 0.5rem 0.75rem;">🔄 Swap bookings</button>
                             <input type="date" id="grid-date-picker" title="Jump to a specific date" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
                         </div>
                     </div>
@@ -59331,6 +59332,77 @@ const promo = await fetch('/api/v1/offers/validate', {
                 await loadGridData();
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            }
+        }
+
+        // ── Swap two bookings modal (Steve 2026-09-08) ─────────────────
+        // Atomic swap of two bookings' rooms — used when both destinations
+        // are occupied and the operator wants to flip guests between them.
+        // Hits /api/admin/swap-two-bookings which UPDATEs both in one txn.
+        function openSwapBookingsModal() {
+            let modal = document.getElementById('swapBookingsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'swapBookingsModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width:460px;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#65a30d,#4d7c0f); color:white; padding:1rem 1.25rem; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
+                            <h3 style="margin:0; font-size:1.1rem;">🔄 Swap two bookings</h3>
+                            <button onclick="closeModal('swapBookingsModal')" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
+                        </div>
+                        <div style="padding:1.25rem;">
+                            <p style="font-size:0.85rem; color:#475569; margin:0 0 1rem;">Flips both bookings' rooms in one transaction. Use when both destinations are occupied and you want to swap guests between them.</p>
+                            <div style="margin-bottom:0.75rem;">
+                                <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.25rem;">Booking A ID</label>
+                                <input type="text" id="swap-id-a" class="form-input" placeholder="e.g. 121674" style="width:100%;">
+                            </div>
+                            <div style="margin-bottom:0.75rem;">
+                                <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.25rem;">Booking B ID</label>
+                                <input type="text" id="swap-id-b" class="form-input" placeholder="e.g. 831878" style="width:100%;">
+                            </div>
+                            <div id="swap-status" style="font-size:0.85rem; margin:0.5rem 0 0;"></div>
+                        </div>
+                        <div style="padding:0.75rem 1.25rem 1.25rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+                            <button class="btn btn-secondary" onclick="closeModal('swapBookingsModal')">Cancel</button>
+                            <button class="btn" id="swap-submit-btn" onclick="submitSwapBookings()" style="background:linear-gradient(135deg,#65a30d,#4d7c0f);">Swap</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+            }
+            document.getElementById('swap-id-a').value = '';
+            document.getElementById('swap-id-b').value = '';
+            document.getElementById('swap-status').textContent = '';
+            openModal('swapBookingsModal');
+        }
+        async function submitSwapBookings() {
+            const a = document.getElementById('swap-id-a').value.trim();
+            const b = document.getElementById('swap-id-b').value.trim();
+            const statusEl = document.getElementById('swap-status');
+            const btn = document.getElementById('swap-submit-btn');
+            if (!a || !b) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Both IDs required.'; return; }
+            if (a === b) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'IDs must be different.'; return; }
+            btn.disabled = true; const orig = btn.innerHTML; btn.innerHTML = '⏳ Swapping…';
+            try {
+                const r = await fetch('/api/admin/swap-two-bookings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ booking_id_a: parseInt(a), booking_id_b: parseInt(b) })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showNotification('Swapped ' + d.swap.a.guest + ' ↔ ' + d.swap.b.guest, 'success');
+                    closeModal('swapBookingsModal');
+                    if (typeof loadGridData === 'function') loadGridData();
+                } else {
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = 'Error: ' + (d.error || 'swap failed');
+                }
+            } catch (e) {
+                statusEl.style.color = '#dc2626';
+                statusEl.textContent = 'Error: ' + e.message;
+            } finally {
+                btn.disabled = false; btn.innerHTML = orig;
             }
         }
 
