@@ -25109,6 +25109,35 @@ app.get('/api/admin/beds24/find-v1-key-by-suffix', async (req, res) => {
   }
 });
 
+// Master-admin one-shot: fix Belmont/Adelphi deployed_sites swap after
+// the 2026-09-07 misconnect (thebelmonthotel.co.uk went to Adelphi's
+// blog 18 by mistake). WP side already fixed via wp_blogs +
+// wp_options SQL; this heals the GAS-side deployed_sites rows.
+app.post('/api/admin/fix-belmont-adelphi-swap', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const a = await pool.query(
+      `UPDATE deployed_sites
+          SET custom_domain = NULL,
+              site_url = 'https://adelphi-blackpool.sites.gas.travel/',
+              updated_at = NOW()
+        WHERE blog_id = 18
+        RETURNING id, blog_id, site_url, custom_domain`);
+    const b = await pool.query(
+      `UPDATE deployed_sites
+          SET custom_domain = 'thebelmonthotel.co.uk',
+              site_url = 'https://thebelmonthotel.co.uk/',
+              site_status = 'live',
+              updated_at = NOW()
+        WHERE blog_id = 19
+        RETURNING id, blog_id, site_url, custom_domain, site_status`);
+    res.json({ success: true, adelphi: a.rows, belmont: b.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Master-admin one-shot: backfill properties.stripe_account_id from
 // payment_configurations where a per-property Stripe row exists but
 // the properties column is empty. Fixes the missing 'acct ···xxxx'
