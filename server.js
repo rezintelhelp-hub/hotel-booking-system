@@ -87663,6 +87663,28 @@ app.get('/api/availability/:roomId', async (req, res) => {
         throw new Error('Room ID column not found');
       }
       
+      // Include bookings on THIS room + any child rooms that Beds24 marks
+      // as dependent on this room (dependencies.includeBookingsRoomId1 in
+      // Beds24 raw_data — see server.js:11144). Belmont Hotel 2026-09-08
+      // driver: physical rooms (Room 1, Room 8, Room 20 etc, is_hidden=true,
+      // quantity=1) hang off wrapper room types (Deluxe Rear Facing etc,
+      // visible on calendar). Beds24 tags OTA bookings to the physical
+      // rooms, so the wrapper's calendar was empty even though the bookings
+      // list showed the guests. Now the wrapper's availability includes
+      // every child physical room's bookings.
+      const linkedRoomsRes = await pool.query(
+        `WITH me AS (
+           SELECT gsrt.external_id AS my_beds24_room_id
+             FROM gas_sync_room_types gsrt
+            WHERE gsrt.gas_room_id = $1 LIMIT 1
+         )
+         SELECT DISTINCT gsrt2.gas_room_id
+           FROM gas_sync_room_types gsrt2, me
+          WHERE me.my_beds24_room_id IS NOT NULL
+            AND gsrt2.raw_data #>> '{dependencies,includeBookingsRoomId1}' = me.my_beds24_room_id::text`,
+        [roomId]);
+      const linkedRoomIds = [parseInt(roomId, 10), ...linkedRoomsRes.rows.map(r => r.gas_room_id).filter(Boolean)];
+
       const bookings = await pool.query(`
         SELECT
           id as booking_id,
@@ -87671,13 +87693,14 @@ app.get('/api/availability/:roomId', async (req, res) => {
           COALESCE(guest_first_name, '') || ' ' || COALESCE(guest_last_name, '') as guest_name,
           individual_unit_id,
           booking_source,
-          status
+          status,
+          "${roomIdCol}" as source_room_id
         FROM bookings
-        WHERE "${roomIdCol}" = $1
+        WHERE "${roomIdCol}" = ANY($1::int[])
           AND status NOT IN ('cancelled', 'rejected')
           AND "${checkInCol}" <= $3
           AND "${checkOutCol}" >= $2
-      `, [roomId, from, to]);
+      `, [linkedRoomIds, from, to]);
 
       // Mark booked dates — top-level availMap reflects the room as a whole;
       // bookings_by_date keyed on (date,unit_id) is what the multi-unit grid needs.
