@@ -84947,8 +84947,11 @@ app.delete('/api/bookings/:id', async (req, res) => {
   }
 });
 
-// Generate invoice for booking
-app.post('/api/bookings/:id/invoice', async (req, res) => {
+// Generate invoice for booking.
+// Registered for both GET and POST — the booking-detail modal opens this via
+// window.open() (GET), while some legacy callers still POST. Same handler,
+// same HTML output either way.
+app.all('/api/bookings/:id/invoice', async (req, res) => {
   try {
     const { id } = req.params;
     
