@@ -88325,11 +88325,18 @@ app.get('/api/availability/:roomId', async (req, res) => {
         // explicit operator block — Belmont 2026-09-08: HONOUR is_blocked
         // when source indicates operator action, only strip for webhook-
         // derived false positives.
-        const isOperatorBlock = dayData.is_blocked === true &&
-          !['beds24_webhook', 'beds24', 'channex_webhook'].includes(dayData.source || '');
-        dayData.is_available = isOperatorBlock ? false : (unitsAvailable > 0);
+        // Strip is_blocked ONLY when it's a clear webhook false-positive:
+        // source came from a channel-manager webhook AND at least one booking
+        // exists on that date (the webhook flag was set as a side-effect of
+        // the booking, not as a real stop-sell). Otherwise HONOUR is_blocked
+        // — operator blocks with unknown source shouldn't get silently wiped.
+        const isWebhookFalsePositive = dayData.is_blocked === true &&
+          ['beds24_webhook', 'channex_webhook'].includes(dayData.source || '') &&
+          bookingsCount > 0;
+        const keepBlocked = dayData.is_blocked === true && !isWebhookFalsePositive;
+        dayData.is_available = keepBlocked ? false : (unitsAvailable > 0);
         dayData.is_booked = unitsAvailable === 0 && bookingsCount > 0;
-        dayData.is_blocked = isOperatorBlock ? true : false;
+        dayData.is_blocked = keepBlocked;
       }
     }
 
