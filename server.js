@@ -25406,6 +25406,44 @@ app.post('/api/admin/close-iu-for-dates', async (req, res) => {
   }
 });
 
+// Belmont 2026-09-08 — inverse of close-iu-for-dates: delete the status=
+// blocked booking(s) on this iu overlapping the range. Safe: only touches
+// status='blocked' rows, never real guest bookings.
+app.post('/api/admin/open-iu-for-dates', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.body?.property_id, 10);
+    const iuName = String(req.body?.iu_name || '').trim();
+    const fromDate = String(req.body?.from || '').trim();
+    const toDate = String(req.body?.to || '').trim();
+    if (!propertyId || !iuName || !fromDate || !toDate) {
+      return res.status(400).json({ success: false, error: 'property_id + iu_name + from + to required' });
+    }
+    const iuRow = await pool.query(
+      `SELECT iu.id AS iu_id FROM individual_units iu
+         JOIN bookable_units bu ON bu.id = iu.bookable_unit_id
+        WHERE bu.property_id = $1
+          AND COALESCE(bu.is_hidden, false) = false
+          AND LOWER(iu.unit_name) = LOWER($2)`,
+      [propertyId, iuName]);
+    if (iuRow.rows.length === 0) return res.status(404).json({ success: false, error: `no iu called "${iuName}"` });
+    const iuId = iuRow.rows[0].iu_id;
+    const del = await pool.query(
+      `DELETE FROM bookings
+        WHERE individual_unit_id = $1
+          AND status = 'blocked'
+          AND arrival_date < $3::date
+          AND departure_date > $2::date
+        RETURNING id`,
+      [iuId, fromDate, toDate]);
+    res.json({ success: true, deleted: del.rowCount, ids: del.rows.map(r => r.id) });
+  } catch (e) {
+    console.error('[open-iu-for-dates]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — resolve iu name → (wrapper, iu) and move a booking.
 // Only considers non-hidden wrappers so Steve can't pick a shadow slot.
 app.post('/api/admin/move-booking-to-iu-name', async (req, res) => {

@@ -59416,6 +59416,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     label.style.cssText = 'display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; padding:0.15rem 0;';
                     label.innerHTML = `<input type="checkbox" class="block-modal-room-cb" value="${r.id}" style="width:16px; height:16px;"> <span>${r.name}</span>`;
                     wrap.appendChild(label);
+                    // Belmont 2026-09-08 — multi-qty wrappers get an indented
+                    // list of individual sub-rooms so operators can block a
+                    // single room (e.g. Room 15) without blocking the whole
+                    // wrapper. Sub-room boxes carry data-iu-id + data-property-id
+                    // and are applied via /api/admin/close-iu-for-dates.
+                    const ius = (typeof gridRoomUnits !== 'undefined' && gridRoomUnits[r.id]) || [];
+                    if (ius.length > 1) {
+                        ius.forEach(iu => {
+                            const sub = document.createElement('label');
+                            sub.style.cssText = 'display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.82rem; padding:0.15rem 0 0.15rem 1.75rem; color:#475569;';
+                            sub.innerHTML = `<input type="checkbox" class="block-modal-iu-cb" data-iu-name="${(iu.unit_name || '').replace(/"/g, '&quot;')}" data-property-id="${r.property_id || ''}" style="width:14px; height:14px;"> <span>↳ ${iu.unit_name || 'sub-unit'}</span>`;
+                            wrap.appendChild(sub);
+                        });
+                    }
                 });
             } else {
                 wrap.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; margin:0;">No rooms loaded yet — refresh the calendar first.</p>';
@@ -59499,13 +59513,22 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function applyBlockUnblock(btn) {
             const roomIds = Array.from(document.querySelectorAll('.block-modal-room-cb:checked')).map(cb => parseInt(cb.value, 10));
+            const iuChecks = Array.from(document.querySelectorAll('.block-modal-iu-cb:checked')).map(cb => ({
+                iu_name: cb.dataset.iuName,
+                property_id: parseInt(cb.dataset.propertyId, 10)
+            }));
             const fromDate = document.getElementById('block-modal-from').value;
             const toDate = document.getElementById('block-modal-to').value;
             const action = document.querySelector('input[name="block-modal-action"]:checked')?.value || 'block';
             const weekdays = Array.from(document.querySelectorAll('.block-modal-dow:checked')).map(cb => parseInt(cb.value, 10));
             const statusEl = document.getElementById('block-modal-status');
-            if (!roomIds.length || !fromDate || !toDate) {
-                statusEl.textContent = '⚠️ Tick at least one room and pick both dates.';
+            if (!roomIds.length && !iuChecks.length) {
+                statusEl.textContent = '⚠️ Tick at least one room (or sub-room) and pick both dates.';
+                statusEl.style.color = '#dc2626';
+                return;
+            }
+            if (!fromDate || !toDate) {
+                statusEl.textContent = '⚠️ Pick both dates.';
                 statusEl.style.color = '#dc2626';
                 return;
             }
@@ -59529,7 +59552,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Fan out per room to the bulk-apply endpoint. Server handles
                 // block + OTA hide + weekday filter + Channex re-push in one
                 // atomic call per room.
-                const results = await Promise.all(roomIds.map(async roomId => {
+                const wrapperResults = await Promise.all(roomIds.map(async roomId => {
                     try {
                         const r = await fetch(`/api/admin/units/${roomId}/bulk-apply`, {
                             method: 'POST',
@@ -59546,6 +59569,33 @@ const promo = await fetch('/api/v1/offers/validate', {
                         return { roomId, ok: false, error: e.message };
                     }
                 }));
+                // IU-level blocks (individual sub-rooms): only supports block/unblock,
+                // not website-only/restore_otas (those are wrapper-level concepts).
+                const iuResults = await Promise.all(iuChecks.map(async chk => {
+                    try {
+                        if (action === 'block') {
+                            const r = await fetch('/api/admin/close-iu-for-dates', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify({ property_id: chk.property_id, iu_name: chk.iu_name, from: fromDate, to: toDate, reason: 'operator block from UI' })
+                            });
+                            const d = await r.json();
+                            return { roomId: chk.iu_name, ok: !!d.success, count: 1, error: d.error };
+                        } else if (action === 'unblock') {
+                            const r = await fetch('/api/admin/open-iu-for-dates', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify({ property_id: chk.property_id, iu_name: chk.iu_name, from: fromDate, to: toDate })
+                            });
+                            const d = await r.json();
+                            return { roomId: chk.iu_name, ok: !!d.success, count: d.deleted || 0, error: d.error };
+                        }
+                        return { roomId: chk.iu_name, ok: false, error: 'IU rows only support Block or Unblock' };
+                    } catch (e) {
+                        return { roomId: chk.iu_name, ok: false, error: e.message };
+                    }
+                }));
+                const results = [...wrapperResults, ...iuResults];
                 const ok = results.filter(r => r.ok);
                 const failed = results.filter(r => !r.ok);
                 const totalDates = ok.reduce((s, r) => s + (r.count || 0), 0);
