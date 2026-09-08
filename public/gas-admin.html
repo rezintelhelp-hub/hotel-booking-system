@@ -31344,6 +31344,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                      Steve 2026-08-04 redesign: kill the "visibility" panel,
                      replace with plain-English checkboxes. -->
                 <div style="margin-bottom: 1.25rem; padding: 0.85rem 1rem; background:#fafafa; border:1px solid #e2e8f0; border-radius:8px;">
+                    <!-- Multi-qty scope selector — only shown when the room has
+                         >1 individual_units. Lets the operator block ONE sub-room
+                         (Room 15) instead of the entire wrapper (which blocks all
+                         5 sub-rooms). Belmont 2026-09-08 (Steve). -->
+                    <div id="cell-edit-iu-scope-wrap" style="display:none; margin-bottom:12px; padding:8px 10px; background:#fff; border:1px solid #e2e8f0; border-radius:6px;">
+                        <label style="display:block; font-size:0.78rem; color:#475569; margin-bottom:4px; font-weight:600;">Apply block to:</label>
+                        <select id="cell-edit-iu-scope" class="form-input" style="width:100%; font-size:0.85rem; padding:0.35rem 0.5rem;">
+                            <option value="">Whole room type (all sub-rooms)</option>
+                        </select>
+                    </div>
                     <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
                         <input type="checkbox" id="cell-edit-blocked" style="width: 18px; height: 18px; margin-top:2px;">
                         <span>
@@ -60919,6 +60929,27 @@ const promo = await fetch('/api/v1/offers/validate', {
             const room = (typeof gridRooms !== 'undefined' && gridRooms.find(r => String(r.id) === String(roomId)));
             document.getElementById('cell-edit-room-label').textContent = room ? room.name : ('Room #' + roomId);
             document.getElementById('cell-edit-date-label').textContent = formatCellEditDate(dateStr);
+            // Populate the sub-room scope selector if this wrapper has ius.
+            // Belmont 2026-09-08 (Steve). Empty select = wrapper-level; picked
+            // iu name → applies block only to that iu via close-iu-for-dates.
+            try {
+                const iuWrap = document.getElementById('cell-edit-iu-scope-wrap');
+                const iuSel = document.getElementById('cell-edit-iu-scope');
+                const ius = (typeof gridRoomUnits !== 'undefined' && gridRoomUnits[roomId]) || [];
+                iuSel.innerHTML = '<option value="">Whole room type (all sub-rooms)</option>';
+                if (ius.length > 1) {
+                    ius.forEach(iu => {
+                        const opt = document.createElement('option');
+                        opt.value = iu.unit_name || '';
+                        opt.textContent = '↳ only ' + (iu.unit_name || 'sub-unit');
+                        iuSel.appendChild(opt);
+                    });
+                    iuWrap.style.display = 'block';
+                } else {
+                    iuWrap.style.display = 'none';
+                }
+                _cellEditCtx.property_id = room ? room.property_id : null;
+            } catch (_) { /* soft-fail */ }
             // Defaults
             document.getElementById('cell-edit-price').value = '';
             document.getElementById('cell-edit-minstay').value = '';
@@ -61033,12 +61064,49 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function cellEditSave() {
             if (!_cellEditCtx) return;
-            const { roomId, dateStr } = _cellEditCtx;
+            const { roomId, dateStr, property_id } = _cellEditCtx;
             const priceRaw = document.getElementById('cell-edit-price').value.trim();
             const minStayRaw = document.getElementById('cell-edit-minstay').value.trim();
             const blocked = document.getElementById('cell-edit-blocked').checked;
             const cta = document.getElementById('cell-edit-cta').checked;
             const ctd = document.getElementById('cell-edit-ctd').checked;
+            // Sub-room scoped block: if the operator picked a specific iu name
+            // AND ticked "Block this date", route the block through the
+            // close-iu-for-dates endpoint (inserts a status='blocked' booking
+            // on JUST that iu — doesn't touch the wrapper). Unblock routes
+            // through open-iu-for-dates. All other fields (price, min_stay,
+            // CTA/CTD) still fall through to the wrapper endpoint below
+            // because they're wrapper-level concepts.
+            const iuName = (document.getElementById('cell-edit-iu-scope') || {}).value || '';
+            if (iuName && property_id) {
+                try {
+                    if (blocked) {
+                        const r = await fetch('/api/admin/close-iu-for-dates', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({ property_id, iu_name: iuName, from: dateStr, to: dateStr, reason: 'operator block from cell modal' })
+                        });
+                        const d = await r.json();
+                        if (!d.success) { showNotification('Sub-room block failed: ' + (d.error || 'unknown'), 'error'); return; }
+                        showNotification('Blocked ' + iuName + ' on ' + dateStr, 'success');
+                    } else {
+                        const r = await fetch('/api/admin/open-iu-for-dates', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({ property_id, iu_name: iuName, from: dateStr, to: dateStr })
+                        });
+                        const d = await r.json();
+                        if (!d.success) { showNotification('Sub-room unblock failed: ' + (d.error || 'unknown'), 'error'); return; }
+                        showNotification('Unblocked ' + iuName + ' on ' + dateStr, 'success');
+                    }
+                    closeModal('cellRateEditModal');
+                    if (typeof loadGridData === 'function') loadGridData();
+                    return;
+                } catch (e) {
+                    showNotification('Error: ' + e.message, 'error');
+                    return;
+                }
+            }
             const body = {
                 room_id: roomId,
                 from_date: dateStr,
