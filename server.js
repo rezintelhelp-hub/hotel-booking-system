@@ -87854,9 +87854,13 @@ app.get('/api/availability/:roomId', async (req, res) => {
                         allCols.find(c => c === 'departure_date') ||
                         allCols.find(c => c === 'end_date');
       
-      // Find room ID column
-      let roomIdCol = allCols.find(c => c === 'room_id') ||
-                      allCols.find(c => c === 'bookable_unit_id') ||
+      // Find room ID column. bookable_unit_id is the modern authoritative
+      // column — every save endpoint updates it. room_id is a legacy
+      // sibling that reassign paths do NOT touch, so preferring it made the
+      // calendar show moved bookings on their ORIGINAL room forever
+      // (Belmont 2026-09-08 Steve).
+      let roomIdCol = allCols.find(c => c === 'bookable_unit_id') ||
+                      allCols.find(c => c === 'room_id') ||
                       allCols.find(c => c === 'unit_id');
       
       if (!checkInCol || !checkOutCol) {
