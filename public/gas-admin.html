@@ -31515,6 +31515,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <label style="display:block; font-weight:500; margin-bottom:0.25rem; font-size:0.9rem;">Min Stay Override (nights)</label>
                     <input type="number" min="1" id="bulk-edit-minstay" class="form-input" placeholder="Leave blank to skip" style="width:100%;">
                 </div>
+                <div id="bulk-edit-iu-scope-wrap" style="display:none; margin-bottom:12px; padding:8px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px;">
+                    <label style="display:block; font-size:0.78rem; color:#1e40af; margin-bottom:4px; font-weight:600;">Apply block to:</label>
+                    <select id="bulk-edit-iu-scope" class="form-input" style="width:100%; font-size:0.85rem; padding:0.35rem 0.5rem;">
+                        <option value="">Whole room type (all sub-rooms)</option>
+                    </select>
+                </div>
                 <div style="margin-bottom: 1.25rem;">
                     <label style="display:block; font-weight:500; margin-bottom:0.5rem; font-size:0.9rem;">Block status</label>
                     <div style="display:flex; flex-direction:column; gap:0.5rem;">
@@ -61745,6 +61751,25 @@ const promo = await fetch('/api/v1/offers/validate', {
             _bulkEditAvail = [];
             const room = (typeof gridRooms !== 'undefined' && gridRooms.find(r => String(r.id) === String(roomId)));
             document.getElementById('bulk-edit-room-label').textContent = room ? room.name : ('Room #' + roomId);
+            // Populate iu scope selector for multi-qty wrappers.
+            try {
+                const iuWrap = document.getElementById('bulk-edit-iu-scope-wrap');
+                const iuSel = document.getElementById('bulk-edit-iu-scope');
+                const ius = (typeof gridRoomUnits !== 'undefined' && gridRoomUnits[roomId]) || [];
+                iuSel.innerHTML = '<option value="">Whole room type (all sub-rooms)</option>';
+                if (ius.length > 1) {
+                    ius.forEach(iu => {
+                        const opt = document.createElement('option');
+                        opt.value = iu.unit_name || '';
+                        opt.textContent = '↳ only ' + (iu.unit_name || 'sub-unit');
+                        iuSel.appendChild(opt);
+                    });
+                    iuWrap.style.display = 'block';
+                } else {
+                    iuWrap.style.display = 'none';
+                }
+                _bulkEditCtx.property_id = room ? room.property_id : null;
+            } catch (_) { /* soft-fail */ }
             const ms = 86400000;
             const dayCount = Math.round((new Date(toDate + 'T00:00:00') - new Date(fromDate + 'T00:00:00')) / ms) + 1;
             document.getElementById('bulk-edit-range-label').textContent =
@@ -61853,7 +61878,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function bulkCellEditSave() {
             if (!_bulkEditCtx) return;
-            const { roomId, fromDate, toDate } = _bulkEditCtx;
+            const { roomId, fromDate, toDate, property_id } = _bulkEditCtx;
             const priceRaw = document.getElementById('bulk-edit-price').value.trim();
             const minStayRaw = document.getElementById('bulk-edit-minstay').value.trim();
             const blockAction = (document.querySelector('input[name="bulk-edit-block-action"]:checked') || {}).value || 'leave';
@@ -61861,6 +61886,31 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (priceRaw === '' && minStayRaw === '' && blockAction === 'leave') {
                 showNotification('Fill at least one field to apply', 'error');
                 return;
+            }
+            // Sub-room scoped bulk block/unblock — route only the block action
+            // through close/open-iu-for-dates (per-iu). Other fields still go
+            // to the wrapper endpoint (wrapper-level concepts).
+            const iuName = (document.getElementById('bulk-edit-iu-scope') || {}).value || '';
+            if (iuName && property_id && (blockAction === 'block' || blockAction === 'unblock')) {
+                try {
+                    const url = blockAction === 'block' ? '/api/admin/close-iu-for-dates' : '/api/admin/open-iu-for-dates';
+                    const payload = { property_id, iu_name: iuName, from: fromDate, to: toDate };
+                    if (blockAction === 'block') payload.reason = 'operator bulk block from cell modal';
+                    const r = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(payload)
+                    });
+                    const d = await r.json();
+                    if (!d.success) { showNotification('Sub-room ' + blockAction + ' failed: ' + (d.error || 'unknown'), 'error'); return; }
+                    showNotification((blockAction === 'block' ? 'Blocked ' : 'Unblocked ') + iuName + ' ' + fromDate + ' → ' + toDate, 'success');
+                    closeModal('bulkCellEditModal');
+                    if (typeof loadGridData === 'function') loadGridData();
+                    return;
+                } catch (e) {
+                    showNotification('Error: ' + e.message, 'error');
+                    return;
+                }
             }
 
             const body = { room_id: roomId, from_date: fromDate, to_date: toDate };
