@@ -37,6 +37,16 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#38bdf8;">
+        <h2 style="color:#7dd3fc;">🔎 Inspect a booking (which room is she actually on?)</h2>
+        <p class="hint">Type a booking ID (e.g. 831878 for Sandra) to see the actual bookable_unit_id + which room-wrappers the calendar would paint her on.</p>
+        <div class="filter-bar">
+            <input id="inspect-id" type="text" placeholder="Booking ID" style="width:140px;">
+            <button onclick="inspectBooking()">Inspect</button>
+        </div>
+        <pre id="inspect-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:400px;"></pre>
+    </div>
+
     <div class="card" style="border-color:#22c55e;">
         <h2 style="color:#4ade80;">🧹 Heal calendar ghosts (run once after moves)</h2>
         <p class="hint">If bookings were moved BEFORE the room_availability fix landed, the source room's calendar cells still say "booked" even though the booking is gone. This recomputes is_booked/is_available for every Belmont room from live bookings. Safe to re-run.</p>
@@ -279,6 +289,20 @@ async function undoExecute() {
     } catch (e) {
         out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
         btn.disabled = false;
+    }
+}
+
+async function inspectBooking() {
+    const out = document.getElementById('inspect-output');
+    const id = document.getElementById('inspect-id').value.trim();
+    if (!id) { out.textContent = 'Enter a booking ID first.'; return; }
+    out.textContent = 'Loading…';
+    try {
+        const r = await fetch('/api/admin/booking-inspect/' + encodeURIComponent(id), { headers: auth() });
+        const d = await r.json();
+        out.textContent = JSON.stringify(d, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
     }
 }
 

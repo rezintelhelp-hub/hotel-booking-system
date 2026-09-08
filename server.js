@@ -25360,6 +25360,49 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — inspect a booking's actual room + which rooms'
+// calendars would render it (including Beds24 dependency links).
+app.get('/api/admin/booking-inspect/:id', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'bookingId required' });
+    const b = await pool.query(
+      `SELECT b.id, b.property_id, p.name AS property_name,
+              b.bookable_unit_id, bu.name AS room_name, bu.is_hidden, bu.quantity,
+              b.individual_unit_id, iu.unit_name AS iu_name,
+              b.arrival_date, b.departure_date, b.status,
+              b.guest_first_name, b.guest_last_name,
+              b.room_id AS legacy_room_id
+         FROM bookings b
+    LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+    LEFT JOIN properties p ON p.id = b.property_id
+    LEFT JOIN individual_units iu ON iu.id = b.individual_unit_id
+        WHERE b.id = $1`, [bookingId]);
+    if (b.rows.length === 0) return res.status(404).json({ success: false, error: 'not found' });
+    const row = b.rows[0];
+    // Which rooms would render her? Answer = every wrapper whose availability
+    // endpoint would include bookable_unit_id via linkedRoomIds
+    // (dependencies.includeBookingsRoomId1) OR direct match.
+    const paintedOn = await pool.query(
+      `SELECT DISTINCT bu.id, bu.name, bu.is_hidden
+         FROM bookable_units bu
+        WHERE bu.id = $1
+        UNION
+       SELECT DISTINCT bu2.id, bu2.name, bu2.is_hidden
+         FROM gas_sync_room_types me
+         JOIN gas_sync_room_types child
+           ON child.raw_data #>> '{dependencies,includeBookingsRoomId1}' = me.external_id
+         JOIN bookable_units bu2 ON bu2.id = me.gas_room_id
+        WHERE child.gas_room_id = $1`,
+      [row.bookable_unit_id]);
+    res.json({ success: true, booking: row, calendar_renders_on: paintedOn.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — recompute is_booked/is_available for every room in
 // a property purely from live bookings. Fixes ghosts left over from moves
 // that happened BEFORE the room_availability refresh fix landed (source
