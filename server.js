@@ -25371,18 +25371,34 @@ app.post('/api/admin/purge-copied-bookings', async (req, res) => {
     const propertyId = parseInt(req.body?.property_id, 10);
     const dryRun = req.body?.dry_run !== false; // default true — dry run unless explicitly false
     if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+    // Safety: only delete copies whose original still exists. Any 'copied'
+    // row without a live original is left alone + reported separately so
+    // Steve can eyeball before nuking.
     const found = await pool.query(
-      `SELECT id, guest_first_name, guest_last_name, arrival_date, departure_date, bookable_unit_id
-         FROM bookings
-        WHERE property_id = $1 AND status = 'copied'
-        ORDER BY arrival_date, id`, [propertyId]);
+      `SELECT c.id, c.guest_first_name, c.guest_last_name, c.arrival_date, c.departure_date,
+              c.bookable_unit_id, c.copied_from_booking_id,
+              (SELECT o.status FROM bookings o WHERE o.id = c.copied_from_booking_id) AS original_status
+         FROM bookings c
+        WHERE c.property_id = $1 AND c.status = 'copied'
+        ORDER BY c.arrival_date, c.id`, [propertyId]);
+    const safe = found.rows.filter(r => r.copied_from_booking_id && r.original_status);
+    const unsafe = found.rows.filter(r => !r.copied_from_booking_id || !r.original_status);
     if (dryRun) {
-      return res.json({ success: true, dry_run: true, would_delete: found.rowCount, rows: found.rows });
+      return res.json({
+        success: true, dry_run: true,
+        total_copies: found.rowCount,
+        safe_to_delete: safe.length,
+        unsafe_skip: unsafe.length,
+        safe, unsafe
+      });
     }
+    if (safe.length === 0) {
+      return res.json({ success: true, dry_run: false, deleted: 0, ids: [], note: 'nothing safe to delete' });
+    }
+    const safeIds = safe.map(r => r.id);
     const del = await pool.query(
-      `DELETE FROM bookings WHERE property_id = $1 AND status = 'copied' RETURNING id`,
-      [propertyId]);
-    res.json({ success: true, dry_run: false, deleted: del.rowCount, ids: del.rows.map(r => r.id) });
+      `DELETE FROM bookings WHERE id = ANY($1::bigint[]) RETURNING id`, [safeIds]);
+    res.json({ success: true, dry_run: false, deleted: del.rowCount, ids: del.rows.map(r => r.id), skipped_unsafe: unsafe.length });
   } catch (e) {
     console.error('[purge-copied-bookings]', e);
     res.status(500).json({ success: false, error: e.message });

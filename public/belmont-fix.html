@@ -321,9 +321,14 @@ async function purgeCopiesDry() {
         });
         const d = await r.json();
         if (!d.success) { out.textContent = 'Error: ' + (d.error || 'unknown'); return; }
-        out.textContent = 'Would delete ' + d.would_delete + ' rows:\n\n' + JSON.stringify(d.rows, null, 2);
-        _purgeDryOk = true;
-        document.getElementById('btn-purge').disabled = false;
+        let msg = 'Total copies: ' + d.total_copies + '\n';
+        msg += 'Safe to delete (original still exists): ' + d.safe_to_delete + '\n';
+        msg += 'Unsafe / skip (no original — will NOT be deleted): ' + d.unsafe_skip + '\n\n';
+        msg += 'SAFE:\n' + JSON.stringify(d.safe, null, 2);
+        if (d.unsafe && d.unsafe.length) msg += '\n\nUNSAFE (kept, review manually):\n' + JSON.stringify(d.unsafe, null, 2);
+        out.textContent = msg;
+        _purgeDryOk = d.safe_to_delete > 0;
+        document.getElementById('btn-purge').disabled = !_purgeDryOk;
     } catch (e) {
         out.textContent = 'Error: ' + e.message;
     }
