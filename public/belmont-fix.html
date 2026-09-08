@@ -48,11 +48,10 @@
         <pre id="mv-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:200px;margin-top:0.75rem;"></pre>
     </div>
 
-    <div class="card" style="border-color:#ef4444;background:#450a0a;">
-        <h2 style="color:#fecaca;">🚨 EMERGENCY: push correct availability to Channex (B.com etc.)</h2>
-        <p class="hint" style="color:#fca5a5;">For every Belmont room × next 90 days, recompute from live confirmed/pending bookings + push to Channex. Immediately closes days that are actually booked. Ignores 'copied' phantoms. Run this NOW to stop OTA overselling.</p>
-        <button class="save-all" onclick="emergencyPushAvail()" style="background:#dc2626;">Push corrected availability to Channex now</button>
-        <pre id="emergency-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:300px;margin-top:0.75rem;"></pre>
+    <div class="card" style="border-color:#525252;background:#171717;opacity:0.5;">
+        <h2 style="color:#a3a3a3;">🚫 DISABLED — Channex push (do NOT use)</h2>
+        <p class="hint" style="color:#737373;">Steve 2026-09-08: Channex currently has correct room blocks; GAS has stale phantoms. Pushing GAS→Channex would OPEN rooms that shouldn't be open. Fix GAS's data first, only push to Channex once GAS matches reality.</p>
+        <button disabled style="background:#525252;cursor:not-allowed;">Disabled</button>
     </div>
 
     <div class="card" style="border-color:#dc2626;">
