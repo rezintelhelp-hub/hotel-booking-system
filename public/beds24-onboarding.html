@@ -230,9 +230,11 @@ async function startBuild() {
             return;
         }
         stepState(4, 'done');
-        // Store the session token so opening the admin dashboard auto-authenticates
+        // Store the session token under the key gas-admin.html reads.
+        // Overwrites any prior session (e.g. a master session used to demo the wizard),
+        // so the "Go to my dashboard" link lands on the newly created account.
         if (d.session_token) {
-            try { localStorage.setItem('gas_session_token', d.session_token); } catch (_) {}
+            try { localStorage.setItem('gas_token', d.session_token); } catch (_) {}
         }
         setTimeout(() => {
             document.getElementById('entry-panel').style.display = 'none';
