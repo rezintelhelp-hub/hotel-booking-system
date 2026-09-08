@@ -5753,6 +5753,10 @@
                                 <!-- Populated by JS -->
                             </select>
                             <button class="btn btn-secondary" onclick="shiftGridMonths(1)" title="Next month" style="padding: 0.5rem 0.75rem; font-size: 1.1rem;">›</button>
+                            <!-- Day-level nudge — steps the window 7 days at a time
+                                 without jumping a full month (Steve 2026-09-08). -->
+                            <button class="btn btn-secondary" onclick="shiftGridDays(-7)" title="Back 7 days" style="padding: 0.5rem 0.6rem; font-size: 0.85rem;">← 7d</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(7)" title="Forward 7 days" style="padding: 0.5rem 0.6rem; font-size: 0.85rem;">7d →</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
                             <!-- Day-window dropdown. Selection persisted in localStorage by setGridDays. -->
                             <select id="grid-days-select" title="Days to show" onchange="setGridDays(parseInt(this.value, 10))" style="padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem; cursor:pointer; background:#ffffff;">
