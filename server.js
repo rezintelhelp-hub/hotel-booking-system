@@ -25109,6 +25109,45 @@ app.get('/api/admin/beds24/find-v1-key-by-suffix', async (req, res) => {
   }
 });
 
+// Master-admin one-shot: ensure contract_instances has all the deposit
+// columns the sign endpoint writes to. The startup migration wraps each
+// ALTER in .catch(()=>{}) which silently swallows failures — so if any
+// column ever fails to add on first startup (permissions, deadlock,
+// etc.) the schema stays broken until a real deploy retries. Contract
+// sign on 2026-09-08 (Virginie Leblanc, booking 1041873) blew up on
+// `column "payment_method" of relation "contract_instances" does not
+// exist`. This endpoint re-runs all the ALTERs + returns real errors
+// per column so we can see what actually failed.
+app.post('/api/admin/heal-contract-instances-schema', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  const cols = [
+    ['payment_method',                'VARCHAR(20)'],
+    ['deposit_status',                "VARCHAR(30) DEFAULT 'not_required'"],
+    ['deposit_amount',                'NUMERIC(10,2)'],
+    ['deposit_currency',              'VARCHAR(10)'],
+    ['deposit_payment_intent_id',     'VARCHAR(255)'],
+    ['deposit_paid_at',               'TIMESTAMP'],
+    ['signature_data_url',            'TEXT'],
+    ['signature_typed_name',          'VARCHAR(255)'],
+    ['signature_ip',                  'VARCHAR(50)'],
+    ['signature_ua',                  'TEXT'],
+    ['signed_at',                     'TIMESTAMP'],
+    ['filled_html',                   'TEXT'],
+    ['pdf_r2_key',                    'TEXT'],
+  ];
+  const results = [];
+  for (const [name, type] of cols) {
+    try {
+      await pool.query(`ALTER TABLE contract_instances ADD COLUMN IF NOT EXISTS ${name} ${type}`);
+      results.push({ column: name, status: 'ok' });
+    } catch (e) {
+      results.push({ column: name, status: 'failed', error: e.message });
+    }
+  }
+  res.json({ success: true, results });
+});
+
 // Master-admin one-shot: fix Belmont/Adelphi deployed_sites swap after
 // the 2026-09-07 misconnect (thebelmonthotel.co.uk went to Adelphi's
 // blog 18 by mistake). WP side already fixed via wp_blogs +
