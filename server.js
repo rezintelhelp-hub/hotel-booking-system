@@ -25360,6 +25360,35 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — one-shot purge of every status='copied' booking on
+// a property. These are phantom shadow rows from an earlier Copy-Booking
+// batch and were blocking every move + painting ghost cells. Read-back
+// list first for confirmation. Body: { property_id, dry_run? }
+app.post('/api/admin/purge-copied-bookings', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.body?.property_id, 10);
+    const dryRun = req.body?.dry_run !== false; // default true — dry run unless explicitly false
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+    const found = await pool.query(
+      `SELECT id, guest_first_name, guest_last_name, arrival_date, departure_date, bookable_unit_id
+         FROM bookings
+        WHERE property_id = $1 AND status = 'copied'
+        ORDER BY arrival_date, id`, [propertyId]);
+    if (dryRun) {
+      return res.json({ success: true, dry_run: true, would_delete: found.rowCount, rows: found.rows });
+    }
+    const del = await pool.query(
+      `DELETE FROM bookings WHERE property_id = $1 AND status = 'copied' RETURNING id`,
+      [propertyId]);
+    res.json({ success: true, dry_run: false, deleted: del.rowCount, ids: del.rows.map(r => r.id) });
+  } catch (e) {
+    console.error('[purge-copied-bookings]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — find duplicate bookings on a property (same
 // guest last name + same arrival + same departure, different IDs). Common
 // on accounts wired to Beds24 AND Channex simultaneously — each connector
