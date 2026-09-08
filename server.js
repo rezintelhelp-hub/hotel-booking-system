@@ -88926,6 +88926,29 @@ app.get('/api/availability/:roomId', async (req, res) => {
   }
 });
 
+// Debug: list every bookable_unit for a property with id/name/quantity/is_hidden.
+// Companion to /api/admin/debug/room-day — use this first to find the wrapper's
+// numeric room_id when you only know the property.
+// Usage: /api/admin/debug/rooms-for-property?property=Belmont
+app.get('/api/admin/debug/rooms-for-property', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const q = String(req.query.property || '').trim();
+    if (!q) return res.status(400).json({ success: false, error: 'property (name substring) required' });
+    const rows = await pool.query(
+      `SELECT bu.id, bu.name, bu.quantity, bu.is_hidden, bu.beds24_room_id, bu.property_id,
+              p.name AS property_name,
+              (SELECT COUNT(*) FROM individual_units iu WHERE iu.bookable_unit_id = bu.id) AS iu_count
+         FROM bookable_units bu JOIN properties p ON p.id = bu.property_id
+        WHERE LOWER(p.name) LIKE LOWER($1)
+        ORDER BY bu.is_hidden NULLS FIRST, bu.name, bu.id`, [`%${q}%`]);
+    res.json({ success: true, count: rows.rows.length, rooms: rows.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Debug: dump the full booking picture for one wrapper room on one date.
 // Answers "why does the badge say N?" — lists the wrapper, its
 // individual_units, any linked hidden child bookable_units (Beds24
