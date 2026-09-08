@@ -25148,6 +25148,67 @@ app.post('/api/admin/heal-contract-instances-schema', async (req, res) => {
   res.json({ success: true, results });
 });
 
+// Emergency reflector: walk every confirmed booking for a given account
+// (optional: specific property) and mark room_availability rows blocked
+// for the stay dates. Steve 2026-09-08 Belmont — Beds24-synced bookings
+// were in the bookings table on the correct room but never wrote to
+// room_availability, so the availability calendar showed them as free.
+// Idempotent — an already-blocked date stays blocked; source stamped
+// 'booking_reflector' so we can trace healed rows.
+app.post('/api/admin/reflect-bookings-to-availability', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const accountId = parseInt(req.body?.account_id, 10);
+    const propertyId = req.body?.property_id ? parseInt(req.body.property_id, 10) : null;
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+
+    // Confirmed / pending bookings whose stay hasn't ended. Scope to the
+    // account (and optionally property) so a mass-heal doesn't touch
+    // every account. Each booking's dates get generated day-by-day and
+    // upserted into room_availability with is_available=false + is_blocked=true.
+    const rows = await pool.query(`
+      SELECT b.id, b.bookable_unit_id, b.arrival_date, b.departure_date, b.status
+        FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+       WHERE p.account_id = $1
+         ${propertyId ? 'AND b.property_id = $2' : ''}
+         AND b.status IN ('confirmed', 'pending')
+         AND b.departure_date >= CURRENT_DATE
+         AND b.bookable_unit_id IS NOT NULL
+       ORDER BY b.arrival_date`,
+      propertyId ? [accountId, propertyId] : [accountId]);
+
+    let blocked = 0;
+    let bookingsProcessed = 0;
+    for (const b of rows.rows) {
+      // Generate each night of the stay (arrival inclusive, departure exclusive)
+      const arr = new Date(b.arrival_date);
+      const dep = new Date(b.departure_date);
+      const cursor = new Date(arr);
+      while (cursor < dep) {
+        const dStr = cursor.toISOString().slice(0, 10);
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
+          VALUES ($1, $2, false, true, 'booking_reflector', NOW())
+          ON CONFLICT (room_id, date) DO UPDATE
+            SET is_available = false, is_blocked = true,
+                source = 'booking_reflector', updated_at = NOW()
+          WHERE room_availability.is_available IS DISTINCT FROM false
+             OR room_availability.is_blocked IS DISTINCT FROM true
+        `, [b.bookable_unit_id, dStr]);
+        blocked++;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      bookingsProcessed++;
+    }
+    res.json({ success: true, bookings_processed: bookingsProcessed, dates_blocked: blocked, account_id: accountId, property_id: propertyId });
+  } catch (e) {
+    console.error('[reflect-bookings-to-availability]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Reassign a booking to a different bookable_unit (same property). Used by
 // the /belmont-fix bulk tool + can also be called individually. Master-admin
 // only. Verifies the target room belongs to the same property to prevent
