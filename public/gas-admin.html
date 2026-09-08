@@ -77668,8 +77668,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // memory, refetch its data immediately after any save
                     // so the operator sees the move land in place.
                     try {
-                        if (typeof loadGridData === 'function' && Array.isArray(window.gridRooms) && window.gridRooms.length > 0) {
-                            loadGridData().then(() => { try { if (typeof renderGrid === 'function') renderGrid(); } catch (_) {} });
+                        if (typeof loadGridData === 'function' && typeof gridRooms !== 'undefined' && Array.isArray(gridRooms) && gridRooms.length > 0) {
+                            loadGridData();
                         }
                     } catch (_) { /* non-fatal */ }
                     // Show sync status
