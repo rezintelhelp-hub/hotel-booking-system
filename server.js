@@ -88926,6 +88926,76 @@ app.get('/api/availability/:roomId', async (req, res) => {
   }
 });
 
+// Debug: dump the full booking picture for one wrapper room on one date.
+// Answers "why does the badge say N?" — lists the wrapper, its
+// individual_units, any linked hidden child bookable_units (Beds24
+// includeBookingsRoomId1 pattern), and every booking that overlaps the
+// date across the whole linked set. Master-admin only. One-shot.
+// Usage: /api/admin/debug/room-day/:roomId?date=YYYY-MM-DD
+app.get('/api/admin/debug/room-day/:roomId', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    const roomId = parseInt(req.params.roomId, 10);
+    const date = String(req.query.date || '').trim();
+    if (!roomId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ success: false, error: 'roomId + date=YYYY-MM-DD required' });
+
+    const wrapper = await pool.query(
+      `SELECT bu.id, bu.name, bu.property_id, bu.quantity, bu.beds24_room_id, bu.is_hidden,
+              p.name AS property_name, p.account_id
+         FROM bookable_units bu JOIN properties p ON p.id = bu.property_id
+        WHERE bu.id = $1`, [roomId]);
+
+    const ius = await pool.query(
+      `SELECT id, unit_name, unit_number, status FROM individual_units WHERE bookable_unit_id = $1 ORDER BY id`, [roomId]);
+
+    // Linked child rooms — Beds24 wrappers point at us via dependencies.
+    const linked = await pool.query(
+      `WITH me AS (
+         SELECT external_id AS my_beds24 FROM gas_sync_room_types WHERE gas_room_id = $1 LIMIT 1
+       )
+       SELECT bu.id, bu.name, bu.quantity, bu.is_hidden, bu.beds24_room_id,
+              gsrt.raw_data #>> '{dependencies,includeBookingsRoomId1}' AS depends_on_beds24_id
+         FROM gas_sync_room_types gsrt
+         JOIN bookable_units bu ON bu.id = gsrt.gas_room_id
+              , me
+        WHERE me.my_beds24 IS NOT NULL
+          AND gsrt.raw_data #>> '{dependencies,includeBookingsRoomId1}' = me.my_beds24::text`,
+      [roomId]);
+
+    const linkedIds = [roomId, ...linked.rows.map(r => r.id)];
+    const bookings = await pool.query(
+      `SELECT id, bookable_unit_id, guest_first_name || ' ' || guest_last_name AS guest,
+              arrival_date, departure_date, individual_unit_id, booking_source, status,
+              channel, beds24_booking_id
+         FROM bookings
+        WHERE bookable_unit_id = ANY($1::int[])
+          AND arrival_date <= $2
+          AND departure_date >= $2
+        ORDER BY status, id`, [linkedIds, date]);
+
+    res.json({
+      success: true,
+      date,
+      wrapper: wrapper.rows[0] || null,
+      wrapper_individual_units: ius.rows,
+      linked_hidden_children: linked.rows,
+      linked_bookable_unit_ids: linkedIds,
+      bookings_overlapping_date: bookings.rows,
+      summary: {
+        wrapper_quantity: wrapper.rows[0]?.quantity || 0,
+        wrapper_iu_count: ius.rows.length,
+        linked_child_count: linked.rows.length,
+        overlapping_booking_count: bookings.rows.length,
+        non_cancelled_count: bookings.rows.filter(b => !['cancelled', 'rejected', 'copied'].includes(String(b.status || '').toLowerCase())).length
+      }
+    });
+  } catch (e) {
+    console.error('[debug/room-day]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Debug: Check Beds24 room mappings
 app.get('/api/admin/debug/beds24-rooms', async (req, res) => {
   try {
