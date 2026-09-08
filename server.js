@@ -25148,6 +25148,89 @@ app.post('/api/admin/heal-contract-instances-schema', async (req, res) => {
   res.json({ success: true, results });
 });
 
+// Belmont emergency 2026-09-08. Belmont has two representations per
+// physical room: a wrapper bookable_unit (Deluxe Rear Facing) with
+// individual_units (Room 8, Room 20 etc), AND a duplicate hidden
+// bookable_unit named "Room 8" that Beds24 sync writes bookings to.
+// The calendar renders wrappers + individual_units, so bookings on the
+// shadow bookable_units are invisible.
+//
+// This endpoint matches bookings on hidden bookable_units to a wrapper
+// + individual_unit_id combination by matching unit_name, and rewrites
+// bookable_unit_id + individual_unit_id on each booking.
+//
+// dry_run=true returns the plan without writing.
+app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const accountId = parseInt(req.body?.account_id, 10);
+    const propertyId = req.body?.property_id ? parseInt(req.body.property_id, 10) : null;
+    const dryRun = req.body?.dry_run === true;
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+
+    // Find every booking whose bookable_unit is hidden (a shadow),
+    // together with its matching individual_unit under a wrapper in
+    // the SAME property with matching unit_name.
+    const q = await pool.query(`
+      SELECT b.id AS booking_id,
+             b.bookable_unit_id AS shadow_id,
+             shadow.name AS shadow_name,
+             shadow.property_id,
+             iu.id AS target_iu_id,
+             iu.unit_name AS target_iu_name,
+             iu.bookable_unit_id AS target_wrapper_id,
+             wrapper.name AS target_wrapper_name,
+             b.arrival_date, b.departure_date, b.guest_first_name, b.guest_last_name, b.status
+        FROM bookings b
+        JOIN bookable_units shadow ON shadow.id = b.bookable_unit_id
+        JOIN properties p ON p.id = b.property_id
+        LEFT JOIN individual_units iu
+               ON iu.unit_name = shadow.name
+        LEFT JOIN bookable_units wrapper
+               ON wrapper.id = iu.bookable_unit_id
+              AND wrapper.property_id = shadow.property_id
+              AND COALESCE(wrapper.is_hidden, false) = false
+       WHERE p.account_id = $1
+         ${propertyId ? 'AND b.property_id = $2' : ''}
+         AND COALESCE(shadow.is_hidden, false) = true
+         AND b.status NOT IN ('cancelled', 'rejected')
+       ORDER BY b.arrival_date`,
+      propertyId ? [accountId, propertyId] : [accountId]);
+
+    const plan = q.rows.map(r => ({
+      booking_id: r.booking_id,
+      guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
+      arrival: r.arrival_date,
+      departure: r.departure_date,
+      status: r.status,
+      from: { bookable_unit_id: r.shadow_id, name: r.shadow_name },
+      to: r.target_wrapper_id ? { bookable_unit_id: r.target_wrapper_id, wrapper: r.target_wrapper_name, individual_unit_id: r.target_iu_id, individual_unit_name: r.target_iu_name } : null,
+      resolvable: !!r.target_wrapper_id
+    }));
+
+    if (dryRun) return res.json({ success: true, dry_run: true, total: plan.length, resolvable: plan.filter(p => p.resolvable).length, unresolvable: plan.filter(p => !p.resolvable).length, plan });
+
+    let updated = 0;
+    const failures = [];
+    for (const item of plan) {
+      if (!item.resolvable) { failures.push({ ...item, reason: 'no matching wrapper+individual_unit' }); continue; }
+      try {
+        await pool.query(
+          `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+          [item.to.bookable_unit_id, item.to.individual_unit_id, item.booking_id]);
+        updated++;
+      } catch (e) {
+        failures.push({ ...item, reason: e.message });
+      }
+    }
+    res.json({ success: true, updated, failures });
+  } catch (e) {
+    console.error('[migrate-shadow-room-bookings]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Emergency reflector: walk every confirmed booking for a given account
 // (optional: specific property) and mark room_availability rows blocked
 // for the stay dates. Steve 2026-09-08 Belmont — Beds24-synced bookings
