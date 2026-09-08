@@ -60819,13 +60819,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     }
-                    // Min-stay badge: when min_stay_override is set on this
-                    // date, render a small superscript-ish "m{N}" next to the
-                    // price. Blue so it stands out against grey price text
-                    // without competing with the green-when-override colour.
-                    const _ms = dayData && dayData.min_stay_override;
-                    const minStayBadge = (_ms && _ms > 0)
-                        ? ` <span style="font-size:0.55rem; color:#0ea5e9; font-weight:700; vertical-align:super;" title="Min stay ${_ms} night${_ms === 1 ? '' : 's'}">m${_ms}</span>`
+                    // Min-stay badge — small superscript "m{N}" next to price.
+                    // Blue = per-date override (operator-set); grey = default
+                    // from the room's min_stay (pulled from Beds24 marketplace
+                    // sync). Suppresses m1 to keep the grid uncluttered.
+                    const _msOv = dayData && dayData.min_stay_override;
+                    const _msDef = dayData && dayData.min_stay;
+                    const _ms = (_msOv && _msOv > 0) ? _msOv : (_msDef && _msDef > 0 ? _msDef : 0);
+                    const _isOv = !!(_msOv && _msOv > 0);
+                    const minStayBadge = (_ms > 1)
+                        ? ` <span style="font-size:0.55rem; color:${_isOv ? '#0ea5e9' : '#94a3b8'}; font-weight:700; vertical-align:super;" title="Min stay ${_ms} night${_ms === 1 ? '' : 's'}${_isOv ? ' (override)' : ' (default)'}">m${_ms}</span>`
                         : '';
                     const click = isPast ? '' : `openCellRateEdit('${room.id}', '${dateStr}')`;
                     const cursor = isPast ? 'default' : 'pointer';
