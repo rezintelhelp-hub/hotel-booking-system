@@ -37,6 +37,18 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#facc15;background:#422006;">
+        <h2 style="color:#fef08a;">🚫 Close a specific room (by iu name + date range)</h2>
+        <p class="hint" style="color:#fde68a;">Inserts a status=blocked booking on that iu so the calendar shows it as occupied. Use to mirror Channex blocks in GAS. NOT pushed to Channex — GAS only.</p>
+        <div class="filter-bar">
+            <input id="cl-iu-name" placeholder='iu name (e.g. Room 15)' style="width:180px;">
+            <input id="cl-from" type="date" style="width:160px;">
+            <input id="cl-to" type="date" style="width:160px;">
+            <button class="save-all" onclick="closeIu()" style="background:#ca8a04;">Close room for dates</button>
+        </div>
+        <pre id="cl-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:200px;margin-top:0.75rem;"></pre>
+    </div>
+
     <div class="card" style="border-color:#f97316;background:#431407;">
         <h2 style="color:#fed7aa;">🎯 Move a booking to a REAL room (by iu name)</h2>
         <p class="hint" style="color:#fdba74;">Type booking ID and the iu name as it appears on the calendar (e.g. "Room 10"). Resolves both wrapper + individual_unit + updates both fields. Only shows non-hidden wrappers.</p>
@@ -327,6 +339,26 @@ async function undoExecute() {
 }
 
 let _purgeDryOk = false;
+async function closeIu() {
+    const out = document.getElementById('cl-output');
+    const iu = document.getElementById('cl-iu-name').value.trim();
+    const from = document.getElementById('cl-from').value;
+    const to = document.getElementById('cl-to').value;
+    if (!iu || !from || !to) { out.textContent = 'Fill all three fields.'; return; }
+    out.textContent = 'Closing…';
+    try {
+        const r = await fetch('/api/admin/close-iu-for-dates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ property_id: 106, iu_name: iu, from, to, reason: 'Belmont sync mirror ' + new Date().toISOString().slice(0,10) })
+        });
+        const d = await r.json();
+        out.textContent = JSON.stringify(d, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+    }
+}
+
 async function moveByIuName() {
     const out = document.getElementById('mv-output');
     const id = document.getElementById('mv-booking-id').value.trim();

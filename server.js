@@ -25360,6 +25360,52 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — close a specific individual room (by iu name) for
+// a date range by inserting a status='blocked' booking on that iu. Multi-qty
+// wrappers count status='blocked' as occupied (per recomputeAndEnqueue…
+// server.js:729), so this correctly reduces units_available without
+// touching the wrapper. No Channex push — GAS state only.
+app.post('/api/admin/close-iu-for-dates', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.body?.property_id, 10);
+    const iuName = String(req.body?.iu_name || '').trim();
+    const fromDate = String(req.body?.from || '').trim();
+    const toDate = String(req.body?.to || '').trim();
+    const reason = String(req.body?.reason || 'operator block').trim();
+    if (!propertyId || !iuName || !fromDate || !toDate) {
+      return res.status(400).json({ success: false, error: 'property_id + iu_name + from + to required' });
+    }
+    const iuRow = await pool.query(
+      `SELECT iu.id AS iu_id, iu.unit_name, iu.bookable_unit_id, bu.name AS wrapper_name
+         FROM individual_units iu
+         JOIN bookable_units bu ON bu.id = iu.bookable_unit_id
+        WHERE bu.property_id = $1
+          AND COALESCE(bu.is_hidden, false) = false
+          AND LOWER(iu.unit_name) = LOWER($2)`,
+      [propertyId, iuName]);
+    if (iuRow.rows.length === 0) return res.status(404).json({ success: false, error: `no iu called "${iuName}"` });
+    if (iuRow.rows.length > 1) return res.status(400).json({ success: false, error: `multiple matches` });
+    const target = iuRow.rows[0];
+    // Insert a single booking spanning the range. Booking-source 'block'
+    // marks it as an operator block (searchable if we ever remove it).
+    const ins = await pool.query(
+      `INSERT INTO bookings (property_id, bookable_unit_id, individual_unit_id, arrival_date, departure_date,
+                             guest_first_name, guest_last_name, guest_email,
+                             status, booking_source, notes, num_adults, num_children,
+                             grand_total, deposit_amount, balance_amount,
+                             created_at, updated_at)
+       VALUES ($1, $2, $3, $4::date, $5::date, 'BLOCK', $6, '', 'blocked', 'direct', $7, 0, 0, 0, 0, 0, NOW(), NOW())
+       RETURNING id`,
+      [propertyId, target.bookable_unit_id, target.iu_id, fromDate, toDate, target.unit_name, reason]);
+    res.json({ success: true, block_booking_id: ins.rows[0].id, iu: target, from: fromDate, to: toDate });
+  } catch (e) {
+    console.error('[close-iu-for-dates]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — resolve iu name → (wrapper, iu) and move a booking.
 // Only considers non-hidden wrappers so Steve can't pick a shadow slot.
 app.post('/api/admin/move-booking-to-iu-name', async (req, res) => {
