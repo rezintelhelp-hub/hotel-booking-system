@@ -10661,8 +10661,11 @@ async function _checkUnitFreeForDates(newBu, newIu, arrivalDate, departureDate, 
   );
   if (q.rows.length === 0) return { ok: true };
   const c = q.rows[0];
-  const arrStr = c.arrival_date.toISOString().slice(0,10);
-  const depStr = c.departure_date.toISOString().slice(0,10);
+  // Postgres driver may return date columns as Date OR string depending on
+  // node-postgres version + column type. Handle both without crashing.
+  const _ymd = (v) => v instanceof Date ? v.toISOString().slice(0,10) : String(v || '').slice(0,10);
+  const arrStr = _ymd(c.arrival_date);
+  const depStr = _ymd(c.departure_date);
   const name = `${c.guest_first_name || ''} ${c.guest_last_name || ''}`.trim() || 'existing booking';
   return {
     ok: false,
