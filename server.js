@@ -78385,11 +78385,13 @@ app.post('/api/admin/units/:unitId/bulk-apply', async (req, res) => {
         // Route through the availability endpoint's underlying update so
         // room_availability gets the correct is_blocked + is_available flip.
         await pool.query(
-          `INSERT INTO room_availability (room_id, date, is_available, is_blocked)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
+           VALUES ($1, $2, $3, $4, 'operator_block', NOW())
            ON CONFLICT (room_id, date) DO UPDATE
              SET is_available = EXCLUDED.is_available,
-                 is_blocked = EXCLUDED.is_blocked`,
+                 is_blocked = EXCLUDED.is_blocked,
+                 source = 'operator_block',
+                 updated_at = NOW()`,
           [unitId, dateStr, !doBlock, doBlock]).catch(e => console.warn('[bulk-apply block]', dateStr, e.message));
         blockWrites++;
       }
