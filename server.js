@@ -25359,6 +25359,54 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — recompute is_booked/is_available for every room in
+// a property purely from live bookings. Fixes ghosts left over from moves
+// that happened BEFORE the room_availability refresh fix landed (source
+// room's is_booked stayed true even though the booking was gone). Scoped
+// to one property + a date window; safe to re-run.
+app.post('/api/admin/resync-availability-from-bookings', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.body?.property_id, 10);
+    const fromDate = req.body?.from || new Date().toISOString().slice(0, 10);
+    const toDate = req.body?.to || null;
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property_id required' });
+    // Default window = 180 days if no `to` supplied.
+    const toEff = toDate || new Date(Date.now() + 180 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    const r = await pool.query(`
+      UPDATE room_availability ra
+         SET is_booked = EXISTS (
+               SELECT 1 FROM bookings b
+                WHERE b.bookable_unit_id = ra.room_id
+                  AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+                  AND b.arrival_date <= ra.date
+                  AND b.departure_date > ra.date
+             ),
+             is_available = NOT EXISTS (
+               SELECT 1 FROM bookings b
+                WHERE b.bookable_unit_id = ra.room_id
+                  AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+                  AND b.arrival_date <= ra.date
+                  AND b.departure_date > ra.date
+             ),
+             updated_at = NOW()
+        FROM bookable_units bu
+       WHERE bu.id = ra.room_id
+         AND bu.property_id = $1
+         AND ra.date >= $2::date
+         AND ra.date <= $3::date
+     RETURNING ra.room_id, ra.date, ra.is_booked
+    `, [propertyId, fromDate, toEff]);
+
+    res.json({ success: true, property_id: propertyId, from: fromDate, to: toEff, rows_updated: r.rowCount });
+  } catch (e) {
+    console.error('[resync-availability-from-bookings]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/admin/reflect-bookings-to-availability', async (req, res) => {
   const admin = await requireMasterAdmin(req, res);
   if (!admin) return;
