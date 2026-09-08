@@ -37,6 +37,16 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#f59e0b;">
+        <h2 style="color:#fbbf24;">🔙 UNDO: my broken migration crosstalk</h2>
+        <p class="hint">My previous migration accidentally moved some bookings to rooms in OTHER properties (e.g. Jamie ended up on Chester Court's Room 8 instead of Belmont's). This finds those + moves them back to the correct room in the booking's actual property. Dry-run first, always.</p>
+        <div class="filter-bar">
+            <button onclick="undoDryRun()">1. Dry run — show contaminated bookings</button>
+            <button class="save-all" id="btn-undo" onclick="undoExecute()" disabled>2. Execute undo</button>
+        </div>
+        <div id="undo-output"><div class="empty">Click "Dry run" to scan.</div></div>
+    </div>
+
     <div class="card" style="border-color:#dc2626;">
         <h2 style="color:#f87171;">🚨 Fix: shadow → wrapper room migration</h2>
         <p class="hint">Belmont bookings are landing on hidden shadow bookable_units (Room 1, Room 8, Room 20 etc). They're NOT on the calendar. This migrates them to the correct wrapper + individual_unit so they appear on the availability grid. Run dry-run first, review, then execute.</p>
@@ -204,6 +214,66 @@ async function saveAll() {
 document.getElementById('only-room1').addEventListener('change', renderTable);
 document.getElementById('date-from').addEventListener('change', renderTable);
 document.getElementById('date-to').addEventListener('change', renderTable);
+
+async function undoDryRun() {
+    const out = document.getElementById('undo-output');
+    out.innerHTML = '<div class="empty">Scanning for cross-property contamination…</div>';
+    try {
+        const r = await fetch('/api/admin/undo-shadow-migration-crosstalk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ dry_run: true })
+        });
+        const d = await r.json();
+        if (!d.success) { out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(d.error || 'unknown') + '</div>'; return; }
+        let html = `<p style="color:#fbbf24;"><strong>Contaminated bookings: ${d.total}</strong> · Fixable: ${d.resolvable} · Unresolvable: ${d.unresolvable}</p>`;
+        if (d.plan && d.plan.length) {
+            html += '<table><thead><tr><th>Booking</th><th>Guest</th><th>Arrival</th><th>Booking Property</th><th>Currently on (wrong)</th><th>→ Fix to (correct)</th></tr></thead><tbody>';
+            for (const p of d.plan) {
+                html += `<tr>
+                    <td>${esc(p.booking_id)}</td>
+                    <td>${esc(p.guest)}</td>
+                    <td>${esc(p.arrival)}</td>
+                    <td>${esc(p.booking_property_id)}</td>
+                    <td>bu=${esc(p.wrong.bookable_unit_id)} · iu=${esc(p.wrong.individual_unit_id)} · prop=${esc(p.wrong.wrong_property_id)} · name=${esc(p.wrong.matched_name)}</td>
+                    <td>${p.correct ? 'bu=' + esc(p.correct.bookable_unit_id) + ' · iu=' + esc(p.correct.individual_unit_id) + ' · ' + esc(p.correct.wrapper_name) : '<span style="color:#fca5a5;">no match found</span>'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            if (d.resolvable > 0) document.getElementById('btn-undo').disabled = false;
+        } else {
+            html += '<div class="empty" style="color:#22c55e;">✓ No contamination found. Every booking\'s room belongs to its own property.</div>';
+        }
+        out.innerHTML = html;
+    } catch (e) {
+        out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
+    }
+}
+
+async function undoExecute() {
+    if (!confirm('Execute undo? This moves bookings back to their correct room in their booking property.')) return;
+    const btn = document.getElementById('btn-undo');
+    const out = document.getElementById('undo-output');
+    btn.disabled = true;
+    out.innerHTML = '<div class="empty">Undoing…</div>';
+    try {
+        const r = await fetch('/api/admin/undo-shadow-migration-crosstalk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ dry_run: false })
+        });
+        const d = await r.json();
+        if (!d.success) { out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(d.error || 'unknown') + '</div>'; btn.disabled = false; return; }
+        let html = `<p style="color:#22c55e;"><strong>✓ Reverted ${d.updated} booking(s).</strong></p>`;
+        if (d.failures && d.failures.length) {
+            html += `<p style="color:#fca5a5;">${d.failures.length} failed:</p><pre style="font-size:0.75rem; max-height:300px; overflow:auto;">` + esc(JSON.stringify(d.failures, null, 2)) + '</pre>';
+        }
+        out.innerHTML = html;
+    } catch (e) {
+        out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
+        btn.disabled = false;
+    }
+}
 
 async function migrateDryRun() {
     const out = document.getElementById('migration-output');

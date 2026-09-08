@@ -25148,6 +25148,90 @@ app.post('/api/admin/heal-contract-instances-schema', async (req, res) => {
   res.json({ success: true, results });
 });
 
+// UNDO the buggy shadow migration. My previous migrate-shadow-room-bookings
+// endpoint had a broken join — resolvable was set from iu.bookable_unit_id
+// (any property) instead of the property-scoped wrapper. Result: some
+// Belmont bookings ended up on Chester Court rooms (and possibly others).
+//
+// Fix criteria: any booking where bookings.property_id does NOT match
+// bookable_units.property_id (of the booking's current bookable_unit_id).
+// Those are the cross-contaminated ones. For each, find the correct room
+// in the BOOKING's property with matching individual_unit_name.
+//
+// dry_run=true shows the plan without writing. Master-admin only.
+app.post('/api/admin/undo-shadow-migration-crosstalk', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const dryRun = req.body?.dry_run !== false; // DEFAULT to dry run for safety
+    const accountId = req.body?.account_id ? parseInt(req.body.account_id, 10) : null;
+
+    // Find every booking whose bookable_unit is on a different property.
+    const contaminated = await pool.query(`
+      SELECT b.id AS booking_id, b.property_id AS booking_prop, b.bookable_unit_id, b.individual_unit_id,
+             bu.property_id AS unit_prop, bu.name AS current_unit_name,
+             iu_cur.unit_name AS current_iu_name,
+             b.arrival_date, b.departure_date, b.guest_first_name, b.guest_last_name, b.status
+        FROM bookings b
+        JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+        LEFT JOIN individual_units iu_cur ON iu_cur.id = b.individual_unit_id
+        JOIN properties p ON p.id = b.property_id
+       WHERE bu.property_id != b.property_id
+         ${accountId ? 'AND p.account_id = $1' : ''}
+       ORDER BY b.id`,
+      accountId ? [accountId] : []);
+
+    const plan = [];
+    for (const r of contaminated.rows) {
+      // Find the correct room in the BOOKING's actual property with
+      // matching individual_unit name.
+      const searchName = r.current_iu_name || r.current_unit_name;
+      const target = await pool.query(`
+        SELECT iu.id AS iu_id, iu.bookable_unit_id AS wrapper_id, iu.unit_name, wrapper.name AS wrapper_name
+          FROM individual_units iu
+          JOIN bookable_units wrapper ON wrapper.id = iu.bookable_unit_id
+         WHERE wrapper.property_id = $1
+           AND iu.unit_name = $2
+         LIMIT 1`,
+        [r.booking_prop, searchName]);
+      const t = target.rows[0];
+      plan.push({
+        booking_id: r.booking_id,
+        guest: `${r.guest_first_name || ''} ${r.guest_last_name || ''}`.trim(),
+        arrival: r.arrival_date,
+        status: r.status,
+        booking_property_id: r.booking_prop,
+        wrong: {
+          bookable_unit_id: r.bookable_unit_id,
+          individual_unit_id: r.individual_unit_id,
+          wrong_property_id: r.unit_prop,
+          matched_name: searchName
+        },
+        correct: t ? { bookable_unit_id: t.wrapper_id, individual_unit_id: t.iu_id, wrapper_name: t.wrapper_name } : null,
+        resolvable: !!t
+      });
+    }
+
+    if (dryRun) return res.json({ success: true, dry_run: true, total: plan.length, resolvable: plan.filter(p => p.resolvable).length, unresolvable: plan.filter(p => !p.resolvable).length, plan });
+
+    let updated = 0;
+    const failures = [];
+    for (const item of plan) {
+      if (!item.resolvable) { failures.push({ ...item, reason: 'no correct room found in booking property' }); continue; }
+      try {
+        await pool.query(
+          `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+          [item.correct.bookable_unit_id, item.correct.individual_unit_id, item.booking_id]);
+        updated++;
+      } catch (e) { failures.push({ ...item, reason: e.message }); }
+    }
+    res.json({ success: true, updated, failures });
+  } catch (e) {
+    console.error('[undo-shadow-migration-crosstalk]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont emergency 2026-09-08. Belmont has two representations per
 // physical room: a wrapper bookable_unit (Deluxe Rear Facing) with
 // individual_units (Room 8, Room 20 etc), AND a duplicate hidden
