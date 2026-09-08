@@ -99686,6 +99686,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                             const secondHasBg = secondBg.includes('rgba') || cols[1].classList.contains('has-background');
                             if (firstHasBg) { overlayCol = cols[0]; cvPos = 'left'; }
                             else if (secondHasBg) { overlayCol = cols[1]; cvPos = 'right'; }
+                            else {
+                                // WordPress can strip BOTH inline background style AND
+                                // has-background class after certain re-saves. The raw
+                                // block-comment attrs still carry "background":"rgba(...)"
+                                // — walk each wp:column comment in order to work out
+                                // which position has the overlay. Without this Hebden's
+                                // Exclusive Hire + Bike Storage covers came back with
+                                // no overlay every alternate save (Steve 2026-09-08).
+                                const colBlocks = section.raw_markup.match(/<!-- wp:column[\s\S]*?-->/g) || [];
+                                let bgColIdx = -1;
+                                for (let i = 0; i < colBlocks.length; i++) {
+                                    if (/"background":"rgba\(/.test(colBlocks[i])) { bgColIdx = i; break; }
+                                }
+                                if (bgColIdx === 0 && cols[0]) { overlayCol = cols[0]; cvPos = 'left'; }
+                                else if (bgColIdx === 1 && cols[1]) { overlayCol = cols[1]; cvPos = 'right'; }
+                            }
                             // Parse overlay column width from flex-basis
                             if (overlayCol) {
                                 const fbMatch = (overlayCol.getAttribute('style') || '').match(/flex-basis:\s*([\d.]+)%/);
