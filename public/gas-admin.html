@@ -73201,7 +73201,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (query.length < 2) { box.style.display = 'none'; return; }
             const myToken = ++_guestSearchToken;
             try {
-                const r = await fetch('/api/admin/bookings/search?q=' + encodeURIComponent(query), { headers: authHeaders() });
+                // Master admin's account_id defaults to their own (empty) account
+                // server-side unless we pass one explicitly. Use the same
+                // selectedAccountId global the availability-calendar search uses
+                // so master operators see the currently-scoped account's guests.
+                const params = new URLSearchParams({ q: query });
+                if (typeof selectedAccountId !== 'undefined' && selectedAccountId) {
+                    params.set('account_id', String(selectedAccountId));
+                }
+                const r = await fetch('/api/admin/bookings/search?' + params.toString(), { headers: authHeaders() });
                 const d = await r.json();
                 if (myToken !== _guestSearchToken) return; // stale response
                 const results = Array.isArray(d.results) ? d.results : [];
