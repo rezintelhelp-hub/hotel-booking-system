@@ -10697,6 +10697,40 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
       `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
       [newBu, newIu, bookingId]
     );
+    // Rebuild room_availability.is_booked for BOTH source + destination room
+    // for the booking's date range — otherwise the source room's cells keep
+    // stale is_booked=true and the calendar shows a ghost of the moved
+    // booking. Belmont 2026-09-08 (Steve).
+    try {
+      const oldBu = before.rows[0].bookable_unit_id;
+      const arr = before.rows[0].arrival_date;
+      const dep = before.rows[0].departure_date;
+      const affectedRooms = [oldBu, newBu].filter((v, i, a) => v != null && a.indexOf(v) === i);
+      for (const rid of affectedRooms) {
+        await pool.query(
+          `UPDATE room_availability ra
+              SET is_booked = EXISTS (
+                    SELECT 1 FROM bookings b
+                     WHERE b.bookable_unit_id = ra.room_id
+                       AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+                       AND b.arrival_date <= ra.date
+                       AND b.departure_date > ra.date
+                  ),
+                  is_available = NOT EXISTS (
+                    SELECT 1 FROM bookings b
+                     WHERE b.bookable_unit_id = ra.room_id
+                       AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+                       AND b.arrival_date <= ra.date
+                       AND b.departure_date > ra.date
+                  )
+            WHERE ra.room_id = $1
+              AND ra.date >= $2::date
+              AND ra.date < $3::date`,
+          [rid, arr, dep]);
+      }
+    } catch (avErr) {
+      console.error('[reassign-unit] availability refresh failed', avErr.message);
+    }
     console.log(`[reassign-unit] booking=${bookingId} bu ${before.rows[0].bookable_unit_id}→${newBu} iu ${before.rows[0].individual_unit_id}→${newIu}`);
     res.json({
       success: true,
@@ -83755,11 +83789,11 @@ app.put('/api/bookings/:id', async (req, res) => {
       // missed those rows. The next Beds24 sync re-blocks if Beds24 still
       // considers the date taken for another reason.
       await client.query(`
-        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
-        SELECT $1, gs::date, true, false, 'cancelled', NOW()
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, is_booked, source, updated_at)
+        SELECT $1, gs::date, true, false, false, 'cancelled', NOW()
           FROM generate_series($2::date, ($3::date - INTERVAL '1 day')::date, '1 day') gs
         ON CONFLICT (room_id, date) DO UPDATE
-          SET is_available = true, is_blocked = false, source = 'cancelled', updated_at = NOW()
+          SET is_available = true, is_blocked = false, is_booked = false, source = 'cancelled', updated_at = NOW()
       `, [existingBooking.bookable_unit_id, existingBooking.arrival_date, existingBooking.departure_date]);
 
       // Channex: release the OLD dates on the OLD room.
@@ -83783,9 +83817,9 @@ app.put('/api/bookings/:id', async (req, res) => {
         for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           await client.query(`
-            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-            VALUES ($1, $2, false, true, 'booking')
-            ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
+            INSERT INTO room_availability (room_id, date, is_available, is_blocked, is_booked, source)
+            VALUES ($1, $2, false, true, true, 'booking')
+            ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, is_booked = true, source = 'booking'
           `, [effectiveRoomId, dateStr]);
           // Channex: block the new date on the (possibly new) room.
           try {
