@@ -25373,8 +25373,7 @@ app.get('/api/admin/booking-inspect/:id', async (req, res) => {
               b.bookable_unit_id, bu.name AS room_name, bu.is_hidden, bu.quantity,
               b.individual_unit_id, iu.unit_name AS iu_name,
               b.arrival_date, b.departure_date, b.status,
-              b.guest_first_name, b.guest_last_name,
-              b.room_id AS legacy_room_id
+              b.guest_first_name, b.guest_last_name
          FROM bookings b
     LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
     LEFT JOIN properties p ON p.id = b.property_id
