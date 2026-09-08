@@ -10709,7 +10709,7 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
       for (const rid of affectedRooms) {
         await pool.query(
           `UPDATE room_availability ra
-              SET is_booked = EXISTS (
+              SET is_blocked = EXISTS (
                     SELECT 1 FROM bookings b
                      WHERE b.bookable_unit_id = ra.room_id
                        AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
@@ -10722,7 +10722,8 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
                        AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
                        AND b.arrival_date <= ra.date
                        AND b.departure_date > ra.date
-                  )
+                  ),
+                  source = 'reassign-unit'
             WHERE ra.room_id = $1
               AND ra.date >= $2::date
               AND ra.date < $3::date`,
@@ -25377,7 +25378,7 @@ app.post('/api/admin/resync-availability-from-bookings', async (req, res) => {
 
     const r = await pool.query(`
       UPDATE room_availability ra
-         SET is_booked = EXISTS (
+         SET is_blocked = EXISTS (
                SELECT 1 FROM bookings b
                 WHERE b.bookable_unit_id = ra.room_id
                   AND b.status NOT IN ('cancelled','declined','rejected','expired','inquiry')
@@ -25391,13 +25392,14 @@ app.post('/api/admin/resync-availability-from-bookings', async (req, res) => {
                   AND b.arrival_date <= ra.date
                   AND b.departure_date > ra.date
              ),
+             source = 'booking_heal',
              updated_at = NOW()
         FROM bookable_units bu
        WHERE bu.id = ra.room_id
          AND bu.property_id = $1
          AND ra.date >= $2::date
          AND ra.date <= $3::date
-     RETURNING ra.room_id, ra.date, ra.is_booked
+     RETURNING ra.room_id, ra.date, ra.is_blocked
     `, [propertyId, fromDate, toEff]);
 
     res.json({ success: true, property_id: propertyId, from: fromDate, to: toEff, rows_updated: r.rowCount });
@@ -83837,11 +83839,11 @@ app.put('/api/bookings/:id', async (req, res) => {
       // missed those rows. The next Beds24 sync re-blocks if Beds24 still
       // considers the date taken for another reason.
       await client.query(`
-        INSERT INTO room_availability (room_id, date, is_available, is_blocked, is_booked, source, updated_at)
-        SELECT $1, gs::date, true, false, false, 'cancelled', NOW()
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
+        SELECT $1, gs::date, true, false, 'cancelled', NOW()
           FROM generate_series($2::date, ($3::date - INTERVAL '1 day')::date, '1 day') gs
         ON CONFLICT (room_id, date) DO UPDATE
-          SET is_available = true, is_blocked = false, is_booked = false, source = 'cancelled', updated_at = NOW()
+          SET is_available = true, is_blocked = false, source = 'cancelled', updated_at = NOW()
       `, [existingBooking.bookable_unit_id, existingBooking.arrival_date, existingBooking.departure_date]);
 
       // Channex: release the OLD dates on the OLD room.
@@ -83865,9 +83867,9 @@ app.put('/api/bookings/:id', async (req, res) => {
         for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           await client.query(`
-            INSERT INTO room_availability (room_id, date, is_available, is_blocked, is_booked, source)
-            VALUES ($1, $2, false, true, true, 'booking')
-            ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, is_booked = true, source = 'booking'
+            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+            VALUES ($1, $2, false, true, 'booking')
+            ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
           `, [effectiveRoomId, dateStr]);
           // Channex: block the new date on the (possibly new) room.
           try {
