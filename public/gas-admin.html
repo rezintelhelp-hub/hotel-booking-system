@@ -31349,10 +31349,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                          (Room 15) instead of the entire wrapper (which blocks all
                          5 sub-rooms). Belmont 2026-09-08 (Steve). -->
                     <div id="cell-edit-iu-scope-wrap" style="display:none; margin-bottom:12px; padding:8px 10px; background:#fff; border:1px solid #e2e8f0; border-radius:6px;">
-                        <label style="display:block; font-size:0.78rem; color:#475569; margin-bottom:4px; font-weight:600;">Apply block to:</label>
-                        <select id="cell-edit-iu-scope" class="form-input" style="width:100%; font-size:0.85rem; padding:0.35rem 0.5rem;">
-                            <option value="">Whole room type (all sub-rooms)</option>
-                        </select>
+                        <label style="display:block; font-size:0.78rem; color:#475569; margin-bottom:6px; font-weight:600;">Apply block to (tick specific sub-rooms, or leave all unticked to affect the whole room type):</label>
+                        <div id="cell-edit-iu-scope-list" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
                     </div>
                     <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
                         <input type="checkbox" id="cell-edit-blocked" style="width: 18px; height: 18px; margin-top:2px;">
@@ -31516,10 +31514,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <input type="number" min="1" id="bulk-edit-minstay" class="form-input" placeholder="Leave blank to skip" style="width:100%;">
                 </div>
                 <div id="bulk-edit-iu-scope-wrap" style="display:none; margin-bottom:12px; padding:8px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px;">
-                    <label style="display:block; font-size:0.78rem; color:#1e40af; margin-bottom:4px; font-weight:600;">Apply block to:</label>
-                    <select id="bulk-edit-iu-scope" class="form-input" style="width:100%; font-size:0.85rem; padding:0.35rem 0.5rem;">
-                        <option value="">Whole room type (all sub-rooms)</option>
-                    </select>
+                    <label style="display:block; font-size:0.78rem; color:#1e40af; margin-bottom:6px; font-weight:600;">Apply block to (tick specific sub-rooms, or leave all unticked to affect the whole room type):</label>
+                    <div id="bulk-edit-iu-scope-list" style="display:flex; flex-direction:column; gap:0.25rem;"></div>
                 </div>
                 <div style="margin-bottom: 1.25rem;">
                     <label style="display:block; font-weight:500; margin-bottom:0.5rem; font-size:0.9rem;">Block status</label>
@@ -60648,13 +60644,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Sub-rows duplicate the price intentionally (pricing is per-room,
             // every sub-row's cell targets the same room+date editor).
             const renderPriceRow = (room, roomData, includeStickyCells) => {
-                let r = '<tr style="border-bottom: 2px solid #e5e7eb;">';
+                let r = '<tr style="border-bottom: 2px solid #e5e7eb; background: #f4f4f4;">';
                 if (includeStickyCells) {
                     // Multi-qty path: this row's sticky-left cells aren't covered
                     // by an upstream rowspan, so we emit our own "Rate" label
                     // here and an empty sync cell to keep column alignment.
-                    r += `<td style="position: sticky; left: 0; background: #ffffff; z-index: 5; padding: 6px 8px; font-size: 0.72rem; color: #94a3b8; font-weight: 400; border-bottom: 2px solid #e5e7eb;">Rate</td>`;
-                    r += `<td style="padding: 4px; background: #fafafa; border-bottom: 2px solid #e5e7eb;"></td>`;
+                    r += `<td style="position: sticky; left: 0; background: #f4f4f4; z-index: 5; padding: 6px 8px; font-size: 0.72rem; color: #94a3b8; font-weight: 400; border-bottom: 2px solid #e5e7eb;">Rate</td>`;
+                    r += `<td style="padding: 4px; background: #f4f4f4; border-bottom: 2px solid #e5e7eb;"></td>`;
                 }
                 dates.forEach(d => {
                     const dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
@@ -60940,15 +60936,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             // iu name → applies block only to that iu via close-iu-for-dates.
             try {
                 const iuWrap = document.getElementById('cell-edit-iu-scope-wrap');
-                const iuSel = document.getElementById('cell-edit-iu-scope');
+                const iuList = document.getElementById('cell-edit-iu-scope-list');
                 const ius = (typeof gridRoomUnits !== 'undefined' && gridRoomUnits[roomId]) || [];
-                iuSel.innerHTML = '<option value="">Whole room type (all sub-rooms)</option>';
+                iuList.innerHTML = '';
                 if (ius.length > 1) {
                     ius.forEach(iu => {
-                        const opt = document.createElement('option');
-                        opt.value = iu.unit_name || '';
-                        opt.textContent = '↳ only ' + (iu.unit_name || 'sub-unit');
-                        iuSel.appendChild(opt);
+                        const lbl = document.createElement('label');
+                        lbl.style.cssText = 'display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:#334155;';
+                        lbl.innerHTML = `<input type="checkbox" class="cell-edit-iu-cb" data-iu-name="${(iu.unit_name || '').replace(/"/g, '&quot;')}" style="width:14px; height:14px;"> <span>↳ ${iu.unit_name || 'sub-unit'}</span>`;
+                        iuList.appendChild(lbl);
                     });
                     iuWrap.style.display = 'block';
                 } else {
@@ -61083,35 +61079,28 @@ const promo = await fetch('/api/v1/offers/validate', {
             // through open-iu-for-dates. All other fields (price, min_stay,
             // CTA/CTD) still fall through to the wrapper endpoint below
             // because they're wrapper-level concepts.
-            const iuName = (document.getElementById('cell-edit-iu-scope') || {}).value || '';
-            if (iuName && property_id) {
-                try {
-                    if (blocked) {
-                        const r = await fetch('/api/admin/close-iu-for-dates', {
+            const iuNames = Array.from(document.querySelectorAll('.cell-edit-iu-cb:checked')).map(cb => cb.dataset.iuName).filter(Boolean);
+            if (iuNames.length > 0 && property_id) {
+                const url = blocked ? '/api/admin/close-iu-for-dates' : '/api/admin/open-iu-for-dates';
+                let okN = 0, failN = 0, lastErr = '';
+                for (const iuName of iuNames) {
+                    try {
+                        const payload = { property_id, iu_name: iuName, from: dateStr, to: dateStr };
+                        if (blocked) payload.reason = 'operator block from cell modal';
+                        const r = await fetch(url, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                            body: JSON.stringify({ property_id, iu_name: iuName, from: dateStr, to: dateStr, reason: 'operator block from cell modal' })
+                            body: JSON.stringify(payload)
                         });
                         const d = await r.json();
-                        if (!d.success) { showNotification('Sub-room block failed: ' + (d.error || 'unknown'), 'error'); return; }
-                        showNotification('Blocked ' + iuName + ' on ' + dateStr, 'success');
-                    } else {
-                        const r = await fetch('/api/admin/open-iu-for-dates', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                            body: JSON.stringify({ property_id, iu_name: iuName, from: dateStr, to: dateStr })
-                        });
-                        const d = await r.json();
-                        if (!d.success) { showNotification('Sub-room unblock failed: ' + (d.error || 'unknown'), 'error'); return; }
-                        showNotification('Unblocked ' + iuName + ' on ' + dateStr, 'success');
-                    }
-                    closeModal('cellRateEditModal');
-                    if (typeof loadGridData === 'function') loadGridData();
-                    return;
-                } catch (e) {
-                    showNotification('Error: ' + e.message, 'error');
-                    return;
+                        if (d.success) okN++; else { failN++; lastErr = d.error || 'unknown'; }
+                    } catch (e) { failN++; lastErr = e.message; }
                 }
+                if (failN === 0) showNotification((blocked ? 'Blocked ' : 'Unblocked ') + okN + ' sub-room(s) on ' + dateStr, 'success');
+                else showNotification((blocked ? 'Blocked ' : 'Unblocked ') + okN + ' · ' + failN + ' failed. First error: ' + lastErr, 'error');
+                closeModal('cellRateEditModal');
+                if (typeof loadGridData === 'function') loadGridData();
+                return;
             }
             const body = {
                 room_id: roomId,
@@ -61754,15 +61743,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Populate iu scope selector for multi-qty wrappers.
             try {
                 const iuWrap = document.getElementById('bulk-edit-iu-scope-wrap');
-                const iuSel = document.getElementById('bulk-edit-iu-scope');
+                const iuList = document.getElementById('bulk-edit-iu-scope-list');
                 const ius = (typeof gridRoomUnits !== 'undefined' && gridRoomUnits[roomId]) || [];
-                iuSel.innerHTML = '<option value="">Whole room type (all sub-rooms)</option>';
+                iuList.innerHTML = '';
                 if (ius.length > 1) {
                     ius.forEach(iu => {
-                        const opt = document.createElement('option');
-                        opt.value = iu.unit_name || '';
-                        opt.textContent = '↳ only ' + (iu.unit_name || 'sub-unit');
-                        iuSel.appendChild(opt);
+                        const lbl = document.createElement('label');
+                        lbl.style.cssText = 'display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; color:#1e40af;';
+                        lbl.innerHTML = `<input type="checkbox" class="bulk-edit-iu-cb" data-iu-name="${(iu.unit_name || '').replace(/"/g, '&quot;')}" style="width:14px; height:14px;"> <span>↳ ${iu.unit_name || 'sub-unit'}</span>`;
+                        iuList.appendChild(lbl);
                     });
                     iuWrap.style.display = 'block';
                 } else {
@@ -61890,27 +61879,28 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Sub-room scoped bulk block/unblock — route only the block action
             // through close/open-iu-for-dates (per-iu). Other fields still go
             // to the wrapper endpoint (wrapper-level concepts).
-            const iuName = (document.getElementById('bulk-edit-iu-scope') || {}).value || '';
-            if (iuName && property_id && (blockAction === 'block' || blockAction === 'unblock')) {
-                try {
-                    const url = blockAction === 'block' ? '/api/admin/close-iu-for-dates' : '/api/admin/open-iu-for-dates';
-                    const payload = { property_id, iu_name: iuName, from: fromDate, to: toDate };
-                    if (blockAction === 'block') payload.reason = 'operator bulk block from cell modal';
-                    const r = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify(payload)
-                    });
-                    const d = await r.json();
-                    if (!d.success) { showNotification('Sub-room ' + blockAction + ' failed: ' + (d.error || 'unknown'), 'error'); return; }
-                    showNotification((blockAction === 'block' ? 'Blocked ' : 'Unblocked ') + iuName + ' ' + fromDate + ' → ' + toDate, 'success');
-                    closeModal('bulkCellEditModal');
-                    if (typeof loadGridData === 'function') loadGridData();
-                    return;
-                } catch (e) {
-                    showNotification('Error: ' + e.message, 'error');
-                    return;
+            const iuNames = Array.from(document.querySelectorAll('.bulk-edit-iu-cb:checked')).map(cb => cb.dataset.iuName).filter(Boolean);
+            if (iuNames.length > 0 && property_id && (blockAction === 'block' || blockAction === 'unblock')) {
+                const url = blockAction === 'block' ? '/api/admin/close-iu-for-dates' : '/api/admin/open-iu-for-dates';
+                let okN = 0, failN = 0, lastErr = '';
+                for (const iuName of iuNames) {
+                    try {
+                        const payload = { property_id, iu_name: iuName, from: fromDate, to: toDate };
+                        if (blockAction === 'block') payload.reason = 'operator bulk block from cell modal';
+                        const r = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify(payload)
+                        });
+                        const d = await r.json();
+                        if (d.success) okN++; else { failN++; lastErr = d.error || 'unknown'; }
+                    } catch (e) { failN++; lastErr = e.message; }
                 }
+                if (failN === 0) showNotification((blockAction === 'block' ? 'Blocked ' : 'Unblocked ') + okN + ' sub-room(s) ' + fromDate + ' → ' + toDate, 'success');
+                else showNotification((blockAction === 'block' ? 'Blocked ' : 'Unblocked ') + okN + ' · ' + failN + ' failed. First error: ' + lastErr, 'error');
+                closeModal('bulkCellEditModal');
+                if (typeof loadGridData === 'function') loadGridData();
+                return;
             }
 
             const body = { room_id: roomId, from_date: fromDate, to_date: toDate };
