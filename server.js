@@ -88320,10 +88320,14 @@ app.get('/api/availability/:roomId', async (req, res) => {
         // are actually free (Hotel Caracas 2026-07-20). Multi-qty rooms
         // trust the units_available calc unconditionally. Real stop-sells
         // (maintenance, owner stay) belong on individual_units or an
-        // explicit operator block, not a webhook-derived flag.
-        dayData.is_available = unitsAvailable > 0;
+        // explicit operator block — Belmont 2026-09-08: HONOUR is_blocked
+        // when source indicates operator action, only strip for webhook-
+        // derived false positives.
+        const isOperatorBlock = dayData.is_blocked === true &&
+          !['beds24_webhook', 'beds24', 'channex_webhook'].includes(dayData.source || '');
+        dayData.is_available = isOperatorBlock ? false : (unitsAvailable > 0);
         dayData.is_booked = unitsAvailable === 0 && bookingsCount > 0;
-        dayData.is_blocked = false;
+        dayData.is_blocked = isOperatorBlock ? true : false;
       }
     }
 

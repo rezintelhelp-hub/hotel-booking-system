@@ -76069,7 +76069,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const roomsData = await roomsResp.json();
                     const rooms = roomsData.rooms || roomsData.data || roomsData || [];
                     roomSelect.innerHTML = '';
-                    rooms.forEach(r => {
+                    // Belmont 2026-09-08 — exclude hidden shadow wrappers.
+                    // Steve moved bookings onto shadow "Room 1" (id 457, hidden)
+                    // multiple times because the dropdown listed both the
+                    // visible wrapper AND the shadow with the same name.
+                    // Shadows shouldn't be reachable via the Edit modal.
+                    const visibleRooms = rooms.filter(r => !r.is_hidden);
+                    visibleRooms.forEach(r => {
                         const opt = document.createElement('option');
                         opt.value = r.id;
                         opt.textContent = r.name;
