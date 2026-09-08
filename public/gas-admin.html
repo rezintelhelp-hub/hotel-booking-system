@@ -60060,7 +60060,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const own = Array.isArray(parentDay._bookings)
                     ? parentDay._bookings.filter(b => String(b.individual_unit_id) === String(bedId))
                     : [];
-                return Object.assign({}, parentDay, { _bookings: own });
+                // Belmont 2026-09-08 — cascade operator-set is_blocked from
+                // the parent wrapper down onto every sub-row. Without this the
+                // parent shows grey but each iu row still renders as free.
+                const inherit = { _bookings: own };
+                if (parentDay.is_blocked === true) {
+                    inherit.is_blocked = true;
+                    inherit.is_available = false;
+                }
+                return Object.assign({}, parentDay, inherit);
             }
 
             for (const room of rooms) {
