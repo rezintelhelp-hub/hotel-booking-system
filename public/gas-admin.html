@@ -27731,15 +27731,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">Total Price</label>
-                            <input type="number" class="form-input" id="edit-booking-total" step="0.01" min="0">
+                            <input type="number" class="form-input" id="edit-booking-total" step="0.01" min="0" oninput="recomputeEditBookingBalance()">
                         </div>
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">Deposit Paid</label>
-                            <input type="number" class="form-input" id="edit-booking-deposit" step="0.01" min="0">
+                            <input type="number" class="form-input" id="edit-booking-deposit" step="0.01" min="0" oninput="recomputeEditBookingBalance()">
                         </div>
                         <div class="form-group" style="margin: 0;">
-                            <label class="form-label">Balance Due</label>
-                            <input type="number" class="form-input" id="edit-booking-balance" step="0.01" min="0">
+                            <label class="form-label">Balance Due <span style="font-weight: normal; color: #94a3b8; font-size: 0.75rem;">(auto)</span></label>
+                            <input type="number" class="form-input" id="edit-booking-balance" step="0.01" min="0" readonly style="background: #f1f5f9;">
                         </div>
                     </div>
                 </div>
@@ -29337,6 +29337,49 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-secondary" onclick="closeModal('contractPreviewModal')">Cancel</button>
                     <button class="btn" style="background:#0f766e; color:white;" id="contract-send-btn" onclick="sendContractFromPreview()" disabled>Send to guest →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice Preview & Send — Steve 2026-09-08 (Belmont ASAP).
+         Loads the on-the-fly invoice HTML from /api/bookings/:id/invoice
+         (with ?noprint=1 so the print dialog doesn't fire), drops it into
+         a contenteditable div so the owner can tweak line items / prices /
+         notes before it goes out, then posts the edited HTML to
+         /api/admin/bookings/:id/send-invoice which pipes it through the
+         shared sendEmail() (comms-log integrated). -->
+    <div id="invoicePreviewModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; width: 95vw; border-radius: 16px; height: 92vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.25rem 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">🧾 Preview & Send Invoice</h3>
+                    <p style="margin: 0.35rem 0 0 0; opacity: 0.9; font-size: 0.85rem;">Click any line in the preview to edit — prices, descriptions, notes. Then send.</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('invoicePreviewModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 1.5rem; overflow:hidden; display:flex; flex-direction:column; flex:1 1 0; min-height: 0;">
+                <input type="hidden" id="invoice-preview-booking-id">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #e5e7eb;">
+                    <div>
+                        <label class="form-label">Send to</label>
+                        <input type="email" class="form-input" id="invoice-preview-to-email" placeholder="guest@example.com">
+                    </div>
+                    <div>
+                        <label class="form-label">Subject</label>
+                        <input type="text" class="form-input" id="invoice-preview-subject">
+                    </div>
+                </div>
+                <div id="invoice-preview-loading" style="padding:2rem; text-align:center; color:#94a3b8;">Loading invoice…</div>
+                <div id="invoice-preview-body" contenteditable="true" style="display:none; flex:1 1 0; min-height:400px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; padding: 0; background: white;"></div>
+            </div>
+            <div style="padding: 0.75rem 1.5rem 1.25rem; border-top:1px solid #e5e7eb; display:flex; gap:0.75rem; justify-content:space-between; align-items:center;">
+                <div id="invoice-preview-status" style="font-size:0.85rem; color:#64748b;"></div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="resetInvoicePreview()" title="Reload the invoice from the booking, losing your edits">↺ Reset</button>
+                    <button class="btn btn-secondary" onclick="closeModal('invoicePreviewModal')">Cancel</button>
+                    <button class="btn" style="background:#8b5cf6; color:white;" onclick="printInvoiceFromPreview()">🖨️ Print</button>
+                    <button class="btn" style="background:#0ea5e9; color:white;" id="invoice-send-btn" onclick="sendInvoiceFromPreview()">Send to guest →</button>
                 </div>
             </div>
         </div>
@@ -31265,7 +31308,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 <!-- Other actions -->
                 <div style="padding: 1rem 1.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0; display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                    <button onclick="generateInvoice(currentViewingBookingId)" class="btn" style="background: #0ea5e9; font-size: 0.85rem;">Generate Invoice</button>
+                    <button onclick="openInvoicePreview(currentViewingBookingId)" class="btn" style="background: #0ea5e9; font-size: 0.85rem;">🧾 Preview & Send Invoice</button>
                     <button onclick="sendPaymentReceipt(currentViewingBookingId)" class="btn" style="background: #8b5cf6; font-size: 0.85rem;">Send Receipt</button>
                     <button onclick="resendFreshConfirmation(currentViewingBookingId)" class="btn" style="background: #10b981; font-size: 0.85rem;" title="Regenerates the confirmation email from the current dates/room/total and sends it to the guest. Use after changing a booking.">🔁 Send Fresh Confirmation</button>
                     <button onclick="openContractPreview(currentViewingBookingId)" class="btn" style="background: #0f766e; font-size: 0.85rem;">📄 Send Contract</button>
@@ -75927,8 +75970,101 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function generateInvoice(bookingId) {
             if (!bookingId) return;
 
-            // Open invoice in new window - server returns HTML directly
+            // Open invoice in new window - server returns HTML directly.
+            // Kept for legacy callers; the primary "Send Invoice" button in the
+            // booking-detail modal now routes through openInvoicePreview()
+            // below so the operator can edit before sending.
             window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
+        }
+
+        // Opens the Preview & Send Invoice modal — loads the on-the-fly
+        // invoice HTML, pre-fills guest email + subject, drops the HTML into
+        // a contenteditable div for last-minute tweaks (price, line items,
+        // notes), then sendInvoiceFromPreview() ships it via sendEmail().
+        async function openInvoicePreview(bookingId) {
+            if (!bookingId) return;
+            document.getElementById('invoice-preview-booking-id').value = bookingId;
+            document.getElementById('invoice-preview-loading').style.display = 'block';
+            document.getElementById('invoice-preview-body').style.display = 'none';
+            document.getElementById('invoice-preview-body').innerHTML = '';
+            document.getElementById('invoice-preview-status').textContent = '';
+            document.getElementById('invoice-preview-to-email').value = '';
+            document.getElementById('invoice-preview-subject').value = `Invoice - Booking #${bookingId}`;
+            openModal('invoicePreviewModal');
+            try {
+                // Fetch the raw invoice HTML (noprint=1 suppresses window.print()
+                // firing inside the modal's contenteditable).
+                const [htmlRes, bkRes] = await Promise.all([
+                    fetch(`/api/bookings/${bookingId}/invoice?noprint=1`, { headers: authHeaders() }),
+                    fetch(`/api/bookings/${bookingId}`, { headers: authHeaders() })
+                ]);
+                const html = await htmlRes.text();
+                document.getElementById('invoice-preview-body').innerHTML = html;
+                document.getElementById('invoice-preview-loading').style.display = 'none';
+                document.getElementById('invoice-preview-body').style.display = 'block';
+                // Pre-fill To with guest_direct_email (preferred) or guest_email.
+                try {
+                    const bk = await bkRes.json();
+                    const b = bk.booking || bk;
+                    const to = b?.guest_direct_email || b?.guest_email || '';
+                    document.getElementById('invoice-preview-to-email').value = to;
+                    if (b?.property_name) {
+                        document.getElementById('invoice-preview-subject').value = `Invoice - ${b.property_name} (Booking #${bookingId})`;
+                    }
+                } catch (_) { /* non-fatal — operator can type the email manually */ }
+            } catch (e) {
+                document.getElementById('invoice-preview-loading').textContent = '❌ Failed to load invoice: ' + e.message;
+            }
+        }
+
+        async function resetInvoicePreview() {
+            const id = document.getElementById('invoice-preview-booking-id').value;
+            if (!id) return;
+            if (!confirm('Reload the invoice from the booking? Any edits will be lost.')) return;
+            openInvoicePreview(id);
+        }
+
+        function printInvoiceFromPreview() {
+            const body = document.getElementById('invoice-preview-body').innerHTML;
+            if (!body) return;
+            const w = window.open('', '_blank');
+            w.document.write(body + '<script>window.print();<\/script>');
+            w.document.close();
+        }
+
+        async function sendInvoiceFromPreview() {
+            const bookingId = document.getElementById('invoice-preview-booking-id').value;
+            const html = document.getElementById('invoice-preview-body').innerHTML;
+            const to = document.getElementById('invoice-preview-to-email').value.trim();
+            const subject = document.getElementById('invoice-preview-subject').value.trim();
+            if (!bookingId || !html) return;
+            if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+                document.getElementById('invoice-preview-status').innerHTML = '<span style="color:#dc2626;">Enter a valid guest email.</span>';
+                return;
+            }
+            const btn = document.getElementById('invoice-send-btn');
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            document.getElementById('invoice-preview-status').textContent = '';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/send-invoice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ html, to_email: to, subject, save_snapshot: true })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    document.getElementById('invoice-preview-status').innerHTML = '<span style="color:#16a34a;">✓ ' + (d.message || 'Sent') + '</span>';
+                    setTimeout(() => closeModal('invoicePreviewModal'), 1200);
+                } else {
+                    document.getElementById('invoice-preview-status').innerHTML = '<span style="color:#dc2626;">❌ ' + (d.error || 'Send failed') + '</span>';
+                }
+            } catch (e) {
+                document.getElementById('invoice-preview-status').innerHTML = '<span style="color:#dc2626;">❌ ' + e.message + '</span>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Send to guest →';
+            }
         }
 
         // Regenerates the confirmation from CURRENT DB values (dates, room,
@@ -76324,10 +76460,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     roomSelect.innerHTML = `<option value="${booking.bookable_unit_id}">${booking.room_name || 'Current room'}</option>`;
                 }
                 
-                // Pricing
+                // Pricing — balance auto-computes from total − deposit, so overwrite the stored value.
                 document.getElementById('edit-booking-total').value = booking.grand_total || booking.accommodation_price || 0;
                 document.getElementById('edit-booking-deposit').value = booking.deposit_amount || 0;
-                document.getElementById('edit-booking-balance').value = booking.balance_amount || 0;
+                recomputeEditBookingBalance();
                 
                 // Status
                 document.getElementById('edit-booking-status').value = booking.status || 'pending';
@@ -77861,6 +77997,15 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         // Kept as no-op stub so old inline onchange doesn\'t error if HTML cached.
         function _copyBookingLoadIndividuals() {}
+
+        // Auto-recompute Balance Due from Total − Deposit whenever either changes.
+        // Wired via oninput on the Total/Deposit inputs in the Edit Booking modal.
+        function recomputeEditBookingBalance() {
+            const total = parseFloat(document.getElementById('edit-booking-total').value) || 0;
+            const deposit = parseFloat(document.getElementById('edit-booking-deposit').value) || 0;
+            const balance = Math.max(0, total - deposit);
+            document.getElementById('edit-booking-balance').value = balance.toFixed(2);
+        }
 
         async function saveBookingEdit() {
             const btn = document.getElementById('save-booking-btn');
