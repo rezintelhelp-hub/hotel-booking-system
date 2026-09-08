@@ -10643,7 +10643,7 @@ async function _checkUnitFreeForDates(newBu, newIu, arrivalDate, departureDate, 
   // scope but require ANY overlap to be flagged.
   const params = [newBu, arrivalDate, departureDate];
   let where = `bookable_unit_id = $1
-    AND status NOT IN ('cancelled','declined','rejected','expired','inquiry')
+    AND status NOT IN ('cancelled','declined','rejected','expired','inquiry','copied')
     AND arrival_date < $3::date
     AND departure_date > $2::date`;
   if (newIu != null) {
@@ -88040,7 +88040,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
           "${roomIdCol}" as source_room_id
         FROM bookings
         WHERE "${roomIdCol}" = ANY($1::int[])
-          AND status NOT IN ('cancelled', 'rejected')
+          AND status NOT IN ('cancelled', 'rejected', 'copied')
           AND "${checkInCol}" <= $3
           AND "${checkOutCol}" >= $2
       `, [linkedRoomIds, from, to]);
