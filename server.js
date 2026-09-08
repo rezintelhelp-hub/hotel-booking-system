@@ -25148,6 +25148,36 @@ app.post('/api/admin/heal-contract-instances-schema', async (req, res) => {
   res.json({ success: true, results });
 });
 
+// Reassign a booking to a different bookable_unit (same property). Used by
+// the /belmont-fix bulk tool + can also be called individually. Master-admin
+// only. Verifies the target room belongs to the same property to prevent
+// cross-property misassignment.
+app.post('/api/admin/bookings/:id/reassign-room', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const bookingId = parseInt(req.params.id, 10);
+    const newRoomId = parseInt(req.body?.bookable_unit_id, 10);
+    if (!bookingId || !newRoomId) return res.status(400).json({ success: false, error: 'bookingId + bookable_unit_id required' });
+    const check = await pool.query(
+      `SELECT b.id, b.property_id, b.bookable_unit_id AS current_room, bu.property_id AS new_room_property
+         FROM bookings b, bookable_units bu
+        WHERE b.id = $1 AND bu.id = $2`,
+      [bookingId, newRoomId]);
+    if (check.rows.length === 0) return res.status(404).json({ success: false, error: 'booking or room not found' });
+    const row = check.rows[0];
+    if (row.property_id !== row.new_room_property) {
+      return res.status(400).json({ success: false, error: `target room ${newRoomId} belongs to property ${row.new_room_property}, booking is on property ${row.property_id}` });
+    }
+    await pool.query(
+      `UPDATE bookings SET bookable_unit_id = $1, updated_at = NOW() WHERE id = $2`,
+      [newRoomId, bookingId]);
+    res.json({ success: true, booking_id: bookingId, previous_room: row.current_room, new_room: newRoomId });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Master-admin one-shot: fix Belmont/Adelphi deployed_sites swap after
 // the 2026-09-07 misconnect (thebelmonthotel.co.uk went to Adelphi's
 // blog 18 by mistake). WP side already fixed via wp_blogs +
@@ -149333,6 +149363,13 @@ app.get('/beds24-diag', (req, res) => {
 // Rooms + Offers diagnostics — button-driven page, no console pastes.
 app.get('/rooms-diag', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'rooms-diag.html'));
+});
+
+// Belmont bulk-reassignment tool — heals bookings that came in from Beds24
+// tagged to their internal Room 1 slot when the guest is physically in a
+// different room. Steve 2026-09-08 emergency after Belmont cutover.
+app.get('/belmont-fix', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'belmont-fix.html'));
 });
 
 // Serve the sync review page
