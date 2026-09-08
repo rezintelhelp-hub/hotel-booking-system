@@ -41964,6 +41964,8 @@ app.get('/api/admin/bookings/search', async (req, res) => {
     const rows = await pool.query(
       `SELECT b.id, b.arrival_date, b.departure_date,
               b.guest_first_name, b.guest_last_name, b.guest_email, b.guest_phone,
+              b.guest_direct_email,
+              b.guest_address, b.guest_city, b.guest_state, b.guest_postcode, b.guest_country,
               b.status, b.payment_status,
               COALESCE(b.channel, b.booking_source, 'direct') AS channel,
               b.grand_total, b.currency,

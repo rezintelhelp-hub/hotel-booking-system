@@ -30107,6 +30107,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
                              Guest Details
                         </label>
+                        <!-- Previous-guest search — type ≥2 chars of name/email/phone
+                             to find prior bookings on this account and auto-fill
+                             every field below (Steve 2026-09-08). Hits the same
+                             /api/admin/bookings/search that the calendar uses. -->
+                        <div style="position: relative; margin-bottom: 0.85rem;">
+                            <label style="font-size: 0.8rem; color: #78350f; margin-bottom: 0.35rem; display: block; font-weight: 500;">🔍 Find previous guest</label>
+                            <input type="text" id="booking-guest-search" class="form-input" placeholder="Search by name, email or phone…"
+                                   style="padding: 0.55rem; border-radius: 8px; background: white;"
+                                   oninput="searchPreviousGuest(this.value)"
+                                   onblur="setTimeout(hideGuestSearchResults, 200)"
+                                   autocomplete="off">
+                            <div id="booking-guest-search-results" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: white; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 240px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-top: 4px;"></div>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div>
                                 <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">First Name *</label>
@@ -73171,6 +73184,78 @@ const promo = await fetch('/api/v1/offers/validate', {
                     submitBtn.innerHTML = originalLabel;
                 }
             }
+        }
+
+        // Previous-guest search for the Add Booking modal. Debounced by the
+        // last-request-wins pattern; results are limited to 8 to keep the
+        // dropdown compact. Clicking a result populates every guest field
+        // (name/email/phone/address) so the operator doesn't retype.
+        let _guestSearchToken = 0;
+        async function searchPreviousGuest(q) {
+            const box = document.getElementById('booking-guest-search-results');
+            const query = String(q || '').trim();
+            if (query.length < 2) { box.style.display = 'none'; return; }
+            const myToken = ++_guestSearchToken;
+            try {
+                const r = await fetch('/api/admin/bookings/search?q=' + encodeURIComponent(query), { headers: authHeaders() });
+                const d = await r.json();
+                if (myToken !== _guestSearchToken) return; // stale response
+                const results = Array.isArray(d.results) ? d.results : [];
+                if (results.length === 0) {
+                    box.innerHTML = '<div style="padding: 0.6rem 0.8rem; color: #94a3b8; font-size: 0.85rem;">No previous guests match.</div>';
+                    box.style.display = 'block';
+                    return;
+                }
+                // Dedupe by email so multiple bookings by the same guest don't clutter.
+                const seen = new Set();
+                const unique = [];
+                for (const row of results) {
+                    const key = (row.guest_email || row.guest_phone || row.id).toLowerCase();
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    unique.push(row);
+                    if (unique.length >= 8) break;
+                }
+                const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+                box.innerHTML = unique.map(row => {
+                    const name = [row.guest_first_name, row.guest_last_name].filter(Boolean).join(' ') || '(no name)';
+                    const contact = [row.guest_email, row.guest_phone].filter(Boolean).join(' · ');
+                    const stay = row.arrival_date ? new Date(row.arrival_date).toLocaleDateString('en-GB') : '';
+                    const payload = encodeURIComponent(JSON.stringify(row));
+                    return `<div style="padding: 0.55rem 0.8rem; border-bottom: 1px solid #f1f5f9; cursor: pointer;"
+                                 onmousedown="event.preventDefault()"
+                                 onclick="pickPreviousGuest('${payload}')"
+                                 onmouseover="this.style.background='#f8fafc'"
+                                 onmouseout="this.style.background='white'">
+                              <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b;">${esc(name)}</div>
+                              <div style="font-size: 0.8rem; color: #64748b;">${esc(contact)}</div>
+                              ${stay ? `<div style="font-size: 0.75rem; color: #94a3b8;">Last stay ${esc(stay)} at ${esc(row.property_name || '')}</div>` : ''}
+                            </div>`;
+                }).join('');
+                box.style.display = 'block';
+            } catch (_) { /* silent — operator can just type manually */ }
+        }
+
+        function pickPreviousGuest(payload) {
+            let row;
+            try { row = JSON.parse(decodeURIComponent(payload)); } catch (_) { return; }
+            const setIf = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+            setIf('booking-first-name', row.guest_first_name);
+            setIf('booking-last-name', row.guest_last_name);
+            setIf('booking-email', row.guest_direct_email || row.guest_email);
+            setIf('booking-phone', row.guest_phone);
+            setIf('booking-address', row.guest_address);
+            setIf('booking-city', row.guest_city);
+            setIf('booking-state', row.guest_state);
+            setIf('booking-postcode', row.guest_postcode);
+            setIf('booking-country', row.guest_country);
+            hideGuestSearchResults();
+            document.getElementById('booking-guest-search').value = '';
+        }
+
+        function hideGuestSearchResults() {
+            const box = document.getElementById('booking-guest-search-results');
+            if (box) box.style.display = 'none';
         }
 
         function openAddBookingModal() {
