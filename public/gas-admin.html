@@ -77662,7 +77662,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success) {
                     closeEditBookingModal();
                     loadBookingsForProperty();
-                    
+                    // Belmont 2026-09-08 — Steve furious that moves didn't
+                    // reflect on the Availability calendar without a full
+                    // page reload. If the availability grid is loaded in
+                    // memory, refetch its data immediately after any save
+                    // so the operator sees the move land in place.
+                    try {
+                        if (typeof loadGridData === 'function' && Array.isArray(window.gridRooms) && window.gridRooms.length > 0) {
+                            loadGridData().then(() => { try { if (typeof renderGrid === 'function') renderGrid(); } catch (_) {} });
+                        }
+                    } catch (_) { /* non-fatal */ }
                     // Show sync status
                     if (data.beds24_synced) {
                         alert(' Booking updated and synced to Beds24');
