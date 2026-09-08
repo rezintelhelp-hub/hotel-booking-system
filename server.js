@@ -10547,6 +10547,10 @@ app.post('/api/admin/bookings/:id/resend-whatsapp', async (req, res) => {
 // balance push through (Robert Del Grande GAS-370497 pattern).
 app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const bookingId = parseInt(req.params.id, 10);
@@ -10568,6 +10572,10 @@ app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
 // Steve 2026-08-24 — Belmont manual booking migration.
 app.post('/api/admin/bookings/:id/copy-to-unit', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const srcId = parseInt(req.params.id, 10);
@@ -10676,6 +10684,10 @@ async function _checkUnitFreeForDates(newBu, newIu, arrivalDate, departureDate, 
 
 app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const bookingId = parseInt(req.params.id, 10);
@@ -10752,6 +10764,10 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
 // GAS bookings on Hostfully accounts that never got pushed.
 app.post('/api/admin/bookings/:id/push-hostfully', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const bookingId = parseInt(req.params.id, 10);
@@ -15031,6 +15047,10 @@ app.post('/api/admin/channex/:connectionId/sync-property-content', async (req, r
 // Channex (has a gas_sync_room_types row). Steve 2026-08-24.
 app.get('/api/admin/channex/:connectionId/publishable-rooms', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const connectionId = parseInt(req.params.connectionId, 10);
@@ -15062,6 +15082,10 @@ app.get('/api/admin/channex/:connectionId/publishable-rooms', async (req, res) =
 // Atomic tick-state save for the connection\'s account. Steve 2026-08-24.
 app.post('/api/admin/channex/:connectionId/publishable-rooms', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const connectionId = parseInt(req.params.connectionId, 10);
@@ -23726,6 +23750,10 @@ app.post('/api/accounts/change-password', async (req, res) => {
 // Steve 2026-09-06.
 app.post('/api/admin/deployed-sites/:id/repopulate-from-beds24', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const deployedSiteId = parseInt(req.params.id, 10);
@@ -29817,6 +29845,10 @@ app.get('/api/billing/gocardless/accounts', async (req, res) => {
 // Steve 2026-09-01 for Adrien Lamacq account 277.
 app.post('/api/admin/accounts/:id/gocardless-mandate-status', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.id);
@@ -42012,6 +42044,10 @@ app.get('/api/admin/bookings/search', async (req, res) => {
 // Master-admin only. Steve/Barbara 2026-09-06.
 app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.id, 10);
@@ -42059,6 +42095,10 @@ app.get('/api/admin/diag/channex-booking-live/:id', async (req, res) => {
 // bookings@ CC not receiving copies despite being set.
 app.get('/api/admin/diag/notif-config/:accountId', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.accountId, 10);
@@ -42081,6 +42121,10 @@ app.get('/api/admin/diag/notif-config/:accountId', async (req, res) => {
 // Steve 2026-09-06.
 app.get('/api/admin/diag/beds24-booking-raw/:id', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const gasId = parseInt(req.params.id, 10);
@@ -42121,6 +42165,10 @@ app.get('/api/admin/diag/beds24-booking-raw/:id', async (req, res) => {
 app.post('/api/admin/diag/hebden-vat-sweep', async (req, res) => {
   const client = await pool.connect();
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const APPLY = String(req.query.apply || req.body?.apply || '') === '1';
@@ -42245,6 +42293,10 @@ app.post('/api/admin/diag/hebden-vat-sweep', async (req, res) => {
 // writes. Steve/Joanne 2026-09-06.
 app.get('/api/admin/diag/hebden-ota-vat-audit', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const ACCOUNT_ID = 169; // Hebden
@@ -42304,6 +42356,10 @@ app.get('/api/admin/diag/hebden-ota-vat-audit', async (req, res) => {
 // hebdenbridgehostel.org). Read-only — no writes. Steve 2026-09-06.
 app.get('/api/admin/diag/hebden-vat-audit', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const ACCOUNT_ID = 169; // Hebden hard-coded — this is scoped to them
@@ -42359,6 +42415,10 @@ app.get('/api/admin/diag/hebden-vat-audit', async (req, res) => {
 // each. Master-admin only. Steve 2026-09-06 (Hebden 1102 ghost).
 app.get('/api/admin/diag/property-refs/:propertyId', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.propertyId, 10);
@@ -42391,6 +42451,10 @@ app.get('/api/admin/diag/property-refs/:propertyId', async (req, res) => {
 // so console line-wrap doesn't break the fetch. Steve 2026-09-06.
 app.get('/api/admin/diag/offers-scope/:accountId', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const q = (req.query.q || '').toLowerCase();
@@ -42412,6 +42476,10 @@ app.get('/api/admin/diag/offers-scope/:accountId', async (req, res) => {
 // Steve/Barbara 2026-09-06 — Expedia VCC visibility check.
 app.get('/api/admin/diag/booking-payment/:id', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.id, 10);
@@ -88932,6 +89000,10 @@ app.get('/api/availability/:roomId', async (req, res) => {
 // Usage: /api/admin/debug/rooms-for-property?property=Belmont
 app.get('/api/admin/debug/rooms-for-property', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const q = String(req.query.property || '').trim();
@@ -88957,6 +89029,10 @@ app.get('/api/admin/debug/rooms-for-property', async (req, res) => {
 // Usage: /api/admin/debug/room-day/:roomId?date=YYYY-MM-DD
 app.get('/api/admin/debug/room-day/:roomId', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const roomId = parseInt(req.params.roomId, 10);
@@ -107181,6 +107257,10 @@ async function attachChannexVccIfPresent(bookingId) {
 // Natanson-style regressions on the fly. Master-admin only.
 app.post('/api/admin/bookings/:id/refetch-channex-payment', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const bookingId = parseInt(req.params.id, 10);
@@ -139855,6 +139935,10 @@ async function runBeds24AvailabilityHeal() {
 // Steve 2026-09-06.
 app.get('/api/admin/diag/beds24-calendar-raw', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const gasRoomId = parseInt(req.query.room_id, 10);
@@ -139930,6 +140014,10 @@ app.get('/api/admin/diag/beds24-calendar-raw', async (req, res) => {
 // for the next scheduled tick. Master-admin only. Steve 2026-09-06.
 app.post('/api/admin/diag/beds24-force-sync-room', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const gasRoomId = parseInt(req.body?.room_id || req.query?.room_id, 10);
@@ -171263,6 +171351,10 @@ async function processChannexWriteBackDigest() {
 
 app.get('/api/admin/channex/writeback-health', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildChannexWriteBackHealth();
@@ -171279,6 +171371,10 @@ app.get('/api/admin/channex/writeback-health', async (req, res) => {
 // push, 2026-09-01 — GAS-933839). Master-admin only.
 app.post('/api/admin/channex/outbox/:id/dismiss', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const id = parseInt(req.params.id);
@@ -171305,6 +171401,10 @@ app.post('/api/admin/channex/outbox/:id/dismiss', async (req, res) => {
 // Master-admin only.
 app.get('/api/admin/channex/writeback-traffic', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
@@ -171339,6 +171439,10 @@ app.get('/api/admin/channex/writeback-traffic', async (req, res) => {
 // Master-admin only. Steve 2026-09-05 — Charles House 200k+ pushes/24h.
 app.get('/api/admin/channex/writeback-raw', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
@@ -171372,6 +171476,10 @@ app.get('/api/admin/channex/writeback-raw', async (req, res) => {
 // count.
 app.get('/api/admin/channex/writeback-failures', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
@@ -171501,6 +171609,10 @@ async function processBeds24SyncFailuresDigest() {
 
 app.get('/api/admin/beds24/sync-failures-health', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildBeds24SyncFailuresHealth();
@@ -171704,6 +171816,10 @@ async function processCommsDigest() {
 
 app.get('/api/admin/comms/health', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildCommsHealth();
@@ -173109,6 +173225,10 @@ async function processOverchargeAuditDigest() {
 
 app.get('/api/admin/overcharge/audit', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const audit = await buildOverchargeAudit();
@@ -173594,6 +173714,10 @@ async function processHostfullyWriteBackDigest() {
 
 app.get('/api/admin/hostfully/writeback-health', async (req, res) => {
   try {
+    // Accept token via ?token= so a plain browser URL works for one-shot diag.
+    if (req.query?.token && !req.headers.authorization) {
+      req.headers.authorization = 'Bearer ' + String(req.query.token);
+    }
     const decoded = await extractAccountFromToken(req);
     if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
     const health = await buildHostfullyWriteBackHealth();
