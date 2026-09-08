@@ -37,6 +37,17 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#f97316;background:#431407;">
+        <h2 style="color:#fed7aa;">🎯 Move a booking to a REAL room (by iu name)</h2>
+        <p class="hint" style="color:#fdba74;">Type booking ID and the iu name as it appears on the calendar (e.g. "Room 10"). Resolves both wrapper + individual_unit + updates both fields. Only shows non-hidden wrappers.</p>
+        <div class="filter-bar">
+            <input id="mv-booking-id" placeholder="Booking ID (e.g. 121674)" style="width:180px;">
+            <input id="mv-iu-name" placeholder='iu name (e.g. Room 10)' style="width:180px;">
+            <button class="save-all" onclick="moveByIuName()">Move</button>
+        </div>
+        <pre id="mv-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:200px;margin-top:0.75rem;"></pre>
+    </div>
+
     <div class="card" style="border-color:#ef4444;background:#450a0a;">
         <h2 style="color:#fecaca;">🚨 EMERGENCY: push correct availability to Channex (B.com etc.)</h2>
         <p class="hint" style="color:#fca5a5;">For every Belmont room × next 90 days, recompute from live confirmed/pending bookings + push to Channex. Immediately closes days that are actually booked. Ignores 'copied' phantoms. Run this NOW to stop OTA overselling.</p>
@@ -317,6 +328,25 @@ async function undoExecute() {
 }
 
 let _purgeDryOk = false;
+async function moveByIuName() {
+    const out = document.getElementById('mv-output');
+    const id = document.getElementById('mv-booking-id').value.trim();
+    const iu = document.getElementById('mv-iu-name').value.trim();
+    if (!id || !iu) { out.textContent = 'Fill both fields.'; return; }
+    out.textContent = 'Moving…';
+    try {
+        const r = await fetch('/api/admin/move-booking-to-iu-name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ booking_id: parseInt(id), iu_name: iu })
+        });
+        const d = await r.json();
+        out.textContent = JSON.stringify(d, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+    }
+}
+
 async function emergencyPushAvail() {
     const out = document.getElementById('emergency-output');
     out.textContent = 'Pushing — this can take 30-60s for 90 days × all rooms…';

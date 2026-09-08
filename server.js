@@ -25360,6 +25360,61 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — resolve iu name → (wrapper, iu) and move a booking.
+// Only considers non-hidden wrappers so Steve can't pick a shadow slot.
+app.post('/api/admin/move-booking-to-iu-name', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const bookingId = parseInt(req.body?.booking_id, 10);
+    const iuName = String(req.body?.iu_name || '').trim();
+    if (!bookingId || !iuName) return res.status(400).json({ success: false, error: 'booking_id + iu_name required' });
+    const bk = await pool.query(
+      `SELECT id, property_id, bookable_unit_id, individual_unit_id, arrival_date, departure_date FROM bookings WHERE id = $1`,
+      [bookingId]);
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'booking not found' });
+    const propertyId = bk.rows[0].property_id;
+    // Find iu with that name, under a non-hidden wrapper, in the same property.
+    const r = await pool.query(
+      `SELECT iu.id AS iu_id, iu.unit_name, iu.bookable_unit_id, bu.name AS wrapper_name
+         FROM individual_units iu
+         JOIN bookable_units bu ON bu.id = iu.bookable_unit_id
+        WHERE bu.property_id = $1
+          AND COALESCE(bu.is_hidden, false) = false
+          AND LOWER(iu.unit_name) = LOWER($2)`,
+      [propertyId, iuName]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: `no iu called "${iuName}" on this property (excluding hidden wrappers)` });
+    if (r.rows.length > 1) return res.status(400).json({ success: false, error: `multiple ius match "${iuName}": ${JSON.stringify(r.rows)}. Be more specific.` });
+    const target = r.rows[0];
+    // Reject if the destination is already booked (excluding self + copies).
+    const conflict = await pool.query(
+      `SELECT id, guest_first_name, guest_last_name FROM bookings
+        WHERE individual_unit_id = $1
+          AND status NOT IN ('cancelled','declined','rejected','expired','inquiry','copied')
+          AND arrival_date < $3::date
+          AND departure_date > $2::date
+          AND id != $4
+        LIMIT 1`,
+      [target.iu_id, bk.rows[0].arrival_date, bk.rows[0].departure_date, bookingId]);
+    if (conflict.rows[0]) {
+      const c = conflict.rows[0];
+      return res.status(409).json({ success: false, error: `Destination iu already booked by ${c.guest_first_name} ${c.guest_last_name} (#${c.id})` });
+    }
+    const before = { bookable_unit_id: bk.rows[0].bookable_unit_id, individual_unit_id: bk.rows[0].individual_unit_id };
+    await pool.query(
+      `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+      [target.bookable_unit_id, target.iu_id, bookingId]);
+    res.json({
+      success: true, booking_id: bookingId,
+      before,
+      after: { bookable_unit_id: target.bookable_unit_id, individual_unit_id: target.iu_id, wrapper_name: target.wrapper_name, iu_name: target.unit_name }
+    });
+  } catch (e) {
+    console.error('[move-booking-to-iu-name]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — EMERGENCY push of correct availability to Channex
 // for every Belmont bookable_unit × every date in the next N days. Reads
 // live bookings (excludes cancelled/copied via status filter inside
