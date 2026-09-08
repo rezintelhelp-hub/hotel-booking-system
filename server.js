@@ -25406,6 +25406,53 @@ app.post('/api/admin/close-iu-for-dates', async (req, res) => {
   }
 });
 
+// Belmont 2026-09-08 — atomic swap of two bookings' rooms. Skips the
+// destination-busy precheck because both destinations are currently the
+// other booking. Same-transaction UPDATE avoids a mid-swap window where
+// both bookings could be seen on the same iu.
+app.post('/api/admin/swap-two-bookings', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  const client = await pool.connect();
+  try {
+    const idA = parseInt(req.body?.booking_id_a, 10);
+    const idB = parseInt(req.body?.booking_id_b, 10);
+    if (!idA || !idB || idA === idB) return res.status(400).json({ success: false, error: 'two different booking_ids required' });
+    await client.query('BEGIN');
+    const rows = await client.query(
+      `SELECT id, bookable_unit_id, individual_unit_id, arrival_date, departure_date,
+              guest_first_name, guest_last_name
+         FROM bookings WHERE id = ANY($1::bigint[]) FOR UPDATE`,
+      [[idA, idB]]);
+    if (rows.rowCount !== 2) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'both bookings must exist' });
+    }
+    const a = rows.rows.find(r => r.id === idA);
+    const b = rows.rows.find(r => r.id === idB);
+    await client.query(
+      `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+      [b.bookable_unit_id, b.individual_unit_id, idA]);
+    await client.query(
+      `UPDATE bookings SET bookable_unit_id = $1, individual_unit_id = $2, updated_at = NOW() WHERE id = $3`,
+      [a.bookable_unit_id, a.individual_unit_id, idB]);
+    await client.query('COMMIT');
+    res.json({
+      success: true,
+      swap: {
+        a: { id: idA, guest: (a.guest_first_name||'')+' '+(a.guest_last_name||''), was_bu: a.bookable_unit_id, was_iu: a.individual_unit_id, now_bu: b.bookable_unit_id, now_iu: b.individual_unit_id },
+        b: { id: idB, guest: (b.guest_first_name||'')+' '+(b.guest_last_name||''), was_bu: b.bookable_unit_id, was_iu: b.individual_unit_id, now_bu: a.bookable_unit_id, now_iu: a.individual_unit_id }
+      }
+    });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[swap-two-bookings]', e);
+    res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Belmont 2026-09-08 — inverse of close-iu-for-dates: delete the status=
 // blocked booking(s) on this iu overlapping the range. Safe: only touches
 // status='blocked' rows, never real guest bookings.

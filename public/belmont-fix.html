@@ -49,6 +49,17 @@
         <pre id="cl-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:200px;margin-top:0.75rem;"></pre>
     </div>
 
+    <div class="card" style="border-color:#a3e635;background:#365314;">
+        <h2 style="color:#d9f99d;">🔄 Swap two bookings (atomic — for when both destinations are occupied)</h2>
+        <p class="hint" style="color:#bef264;">Flips both bookings' rooms in one transaction. Bypasses the destination-busy check because each destination is currently the other booking.</p>
+        <div class="filter-bar">
+            <input id="sw-id-a" placeholder="Booking A ID" style="width:160px;">
+            <input id="sw-id-b" placeholder="Booking B ID" style="width:160px;">
+            <button class="save-all" onclick="swapBookings()" style="background:#65a30d;">Swap</button>
+        </div>
+        <pre id="sw-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:200px;margin-top:0.75rem;"></pre>
+    </div>
+
     <div class="card" style="border-color:#f97316;background:#431407;">
         <h2 style="color:#fed7aa;">🎯 Move a booking to a REAL room (by iu name)</h2>
         <p class="hint" style="color:#fdba74;">Type booking ID and the iu name as it appears on the calendar (e.g. "Room 10"). Resolves both wrapper + individual_unit + updates both fields. Only shows non-hidden wrappers.</p>
@@ -339,6 +350,25 @@ async function undoExecute() {
 }
 
 let _purgeDryOk = false;
+async function swapBookings() {
+    const out = document.getElementById('sw-output');
+    const a = document.getElementById('sw-id-a').value.trim();
+    const b = document.getElementById('sw-id-b').value.trim();
+    if (!a || !b) { out.textContent = 'Fill both IDs.'; return; }
+    out.textContent = 'Swapping…';
+    try {
+        const r = await fetch('/api/admin/swap-two-bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ booking_id_a: parseInt(a), booking_id_b: parseInt(b) })
+        });
+        const d = await r.json();
+        out.textContent = JSON.stringify(d, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+    }
+}
+
 async function closeIu() {
     const out = document.getElementById('cl-output');
     const iu = document.getElementById('cl-iu-name').value.trim();
