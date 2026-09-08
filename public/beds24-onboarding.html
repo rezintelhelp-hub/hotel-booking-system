@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Onboarded via Beds24 Marketplace — GAS</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 1rem;
+    }
+    .hdr {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+        color: #94a3b8;
+        font-size: 0.85rem;
+    }
+    .hdr strong { color: #e2e8f0; font-weight: 600; }
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #1e40af;
+        color: white;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .card {
+        background: #ffffff;
+        color: #1e293b;
+        border-radius: 16px;
+        max-width: 560px;
+        width: 100%;
+        padding: 2.5rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    h1 { font-size: 1.6rem; margin-bottom: 0.5rem; color: #0f172a; }
+    .sub { color: #64748b; font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.5; }
+    .instruct {
+        background: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.85rem;
+        color: #78350f;
+        line-height: 1.6;
+    }
+    .instruct b { color: #78350f; }
+    .instruct ol { padding-left: 1.25rem; margin-top: 0.35rem; }
+    label { display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 0.35rem; }
+    input[type=text] {
+        width: 100%;
+        padding: 0.8rem 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: border-color 0.15s;
+    }
+    input[type=text]:focus { outline: none; border-color: #1e40af; }
+    .helper { font-size: 0.78rem; color: #94a3b8; margin-top: 0.35rem; }
+    .btn {
+        width: 100%;
+        margin-top: 1.25rem;
+        padding: 0.95rem;
+        background: linear-gradient(135deg, #1e40af, #1e3a8a);
+        color: white;
+        border: 0;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.1s, opacity 0.15s;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .status { margin-top: 1.25rem; font-size: 0.9rem; }
+    .status.ok { color: #059669; }
+    .status.err { color: #dc2626; }
+    .progress {
+        margin-top: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: #f1f5f9;
+        border-radius: 10px;
+        display: none;
+    }
+    .step {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.4rem 0;
+        font-size: 0.9rem;
+        color: #64748b;
+    }
+    .step.done { color: #059669; font-weight: 600; }
+    .step.active { color: #1e40af; font-weight: 600; }
+    .step .ico { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #cbd5e1; color: white; font-size: 0.75rem; }
+    .step.done .ico { background: #10b981; }
+    .step.active .ico { background: #1e40af; }
+    .step.active .ico::after { content: ''; width: 10px; height: 10px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .step.active .ico { color: transparent; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .done-panel { display: none; text-align: center; padding: 1.5rem 0.5rem 0.5rem; }
+    .done-panel h2 { color: #059669; margin-bottom: 0.75rem; font-size: 1.4rem; }
+    .prop-list { text-align: left; background: #f8fafc; border-radius: 10px; padding: 0.75rem 1rem; margin: 1rem 0; font-size: 0.85rem; color: #334155; }
+    .prop-list div { padding: 0.2rem 0; }
+    .site-link {
+        display: inline-block;
+        margin: 1rem 0 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #059669, #047857);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .footer-note { color: #64748b; font-size: 0.85rem; margin-top: 1rem; }
+    a { color: #1e40af; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+    <div class="hdr">
+        <span class="badge">🤝 Beds24 Marketplace</span>
+        <span>Powered by <strong>GAS</strong> — Global Accommodation System</span>
+    </div>
+    <div class="card">
+        <div id="entry-panel">
+            <h1>One click. Your website is live.</h1>
+            <p class="sub">Enter your Beds24 account ID or email. We'll pull every property you've enabled in the Rezintel Marketplace and build one website ready to accept bookings — nothing else to do.</p>
+
+            <div class="instruct">
+                <b>Before you continue:</b>
+                <ol>
+                    <li>In Beds24, go to <b>Settings → Marketplace → Rezintel</b></li>
+                    <li>Tick every property you want on your GAS site</li>
+                    <li>Click <b>Save</b></li>
+                </ol>
+            </div>
+
+            <label for="owner">Beds24 account ID or email</label>
+            <input type="text" id="owner" placeholder="e.g. 12345 or you@yourhotel.com" autocomplete="off">
+            <p class="helper">This is the same account you log into Beds24 with.</p>
+
+            <button class="btn" id="go-btn" onclick="startBuild()">Build my site</button>
+            <div id="status" class="status"></div>
+        </div>
+
+        <div id="progress" class="progress">
+            <div id="step-1" class="step"><span class="ico">1</span> Looking up your Beds24 account…</div>
+            <div id="step-2" class="step"><span class="ico">2</span> Reading your Marketplace properties…</div>
+            <div id="step-3" class="step"><span class="ico">3</span> Creating your GAS account + syncing rooms, images, prices…</div>
+            <div id="step-4" class="step"><span class="ico">4</span> Deploying your website…</div>
+        </div>
+
+        <div id="done-panel" class="done-panel">
+            <h2>🎉 Your site is live</h2>
+            <div id="done-summary"></div>
+            <div id="done-props" class="prop-list"></div>
+            <a id="site-link" class="site-link" href="#" target="_blank" rel="noopener">Open my site →</a><br>
+            <a id="admin-link" href="/gas-admin.html" style="font-size: 0.85rem; color: #64748b;">Go to my dashboard →</a>
+            <p class="footer-note">You can add more sites later from the GAS dashboard.</p>
+        </div>
+    </div>
+
+<script>
+function stepState(n, state) {
+    const el = document.getElementById('step-' + n);
+    if (!el) return;
+    el.classList.remove('done', 'active');
+    if (state) el.classList.add(state);
+    if (state === 'done') el.querySelector('.ico').textContent = '✓';
+}
+
+async function startBuild() {
+    const owner = document.getElementById('owner').value.trim();
+    const btn = document.getElementById('go-btn');
+    const statusEl = document.getElementById('status');
+    if (!owner) {
+        statusEl.className = 'status err';
+        statusEl.textContent = 'Enter your Beds24 account ID or email.';
+        return;
+    }
+    btn.disabled = true;
+    statusEl.textContent = '';
+    document.getElementById('progress').style.display = 'block';
+    stepState(1, 'active');
+
+    // Fake pacing so the operator sees progress. The endpoint is one call
+    // server-side but it does 4 real phases in sequence; we illustrate them
+    // client-side while the request is in flight.
+    setTimeout(() => { stepState(1, 'done'); stepState(2, 'active'); }, 800);
+    setTimeout(() => { stepState(2, 'done'); stepState(3, 'active'); }, 2400);
+    setTimeout(() => { stepState(3, 'done'); stepState(4, 'active'); }, 15000);
+
+    try {
+        const r = await fetch('/api/onboarding/beds24-marketplace-signup-multi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner })
+        });
+        const d = await r.json();
+        if (!d.success) {
+            btn.disabled = false;
+            statusEl.className = 'status err';
+            if (d.error === 'no_properties_ticked') {
+                statusEl.innerHTML = '⚠️ ' + d.message;
+            } else if (d.error === 'account_exists') {
+                statusEl.innerHTML = '⚠️ ' + d.message + '<br><a href="' + (d.login_url || '/login.html') + '">Log in →</a>';
+            } else {
+                statusEl.textContent = '❌ ' + (d.message || d.error || 'Something went wrong.');
+            }
+            document.getElementById('progress').style.display = 'none';
+            return;
+        }
+        stepState(4, 'done');
+        // Store the session token so opening the admin dashboard auto-authenticates
+        if (d.session_token) {
+            try { localStorage.setItem('gas_session_token', d.session_token); } catch (_) {}
+        }
+        setTimeout(() => {
+            document.getElementById('entry-panel').style.display = 'none';
+            document.getElementById('progress').style.display = 'none';
+            document.getElementById('done-panel').style.display = 'block';
+            document.getElementById('done-summary').innerHTML =
+                '<b>Account:</b> ' + escapeHtml(d.account_email) +
+                '<br><b>Properties:</b> ' + d.properties_count +
+                ' · <b>Rooms:</b> ' + d.rooms_count;
+            const propsList = document.getElementById('done-props');
+            propsList.innerHTML = d.properties.map(p =>
+                '<div>' + (p.property_id ? '✓' : '✗') + ' ' + escapeHtml(p.name) + '</div>'
+            ).join('');
+            const link = document.getElementById('site-link');
+            link.href = d.site_url;
+            link.textContent = 'Open ' + d.site_url.replace(/^https?:\/\//, '') + ' →';
+        }, 600);
+    } catch (e) {
+        btn.disabled = false;
+        statusEl.className = 'status err';
+        statusEl.textContent = '❌ ' + e.message;
+        document.getElementById('progress').style.display = 'none';
+    }
+}
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+</script>
+</body>
+</html>

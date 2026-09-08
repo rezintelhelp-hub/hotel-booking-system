@@ -24168,6 +24168,168 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
   }
 });
 
+// Steve 2026-09-08 (for Beds24 CEO demo Thursday 2026-09-10) — one-shot
+// enter-account-id → build-site flow. Input: ownerId OR email. Output: one
+// GAS account containing every property the owner has ticked in Beds24
+// Marketplace, plus ONE deployed WP site listing all of them.
+//
+// Guards:
+//   - No properties ticked → 422 with "go to Beds24 → Marketplace → Rezintel"
+//   - Existing GAS account for that email → 409 telling them to log in
+//   - Missing owner → 404
+app.post('/api/onboarding/beds24-marketplace-signup-multi', async (req, res) => {
+  try {
+    const ownerRaw = String(req.body?.owner || '').trim();
+    if (!ownerRaw) return res.status(400).json({ success: false, error: 'owner (account ID or email) required' });
+
+    // 1. Look up owner in marketplace. Owner input may be either the Beds24
+    //    numeric ID or the account email — try both.
+    const mp = await beds24MarketplaceRequest('getAccounts', {}).catch(() => null);
+    if (!mp?.getAccounts) return res.status(502).json({ success: false, error: 'Beds24 marketplace lookup failed' });
+    let ownerId = null;
+    let owner = null;
+    if (mp.getAccounts[ownerRaw]) {
+      ownerId = ownerRaw;
+      owner = mp.getAccounts[ownerRaw];
+    } else {
+      const lower = ownerRaw.toLowerCase();
+      for (const [id, o] of Object.entries(mp.getAccounts)) {
+        if (String(o?.email || '').toLowerCase() === lower) { ownerId = id; owner = o; break; }
+      }
+    }
+    if (!owner) return res.status(404).json({ success: false, error: 'Owner not found in Rezintel Marketplace. Confirm the account has enabled Rezintel in Beds24 → Settings → Marketplace.' });
+    const props = owner.properties || {};
+    const propIds = Object.keys(props);
+    if (propIds.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: 'no_properties_ticked',
+        message: 'This owner has no properties enabled for Rezintel yet. Go to Beds24 → Settings → Marketplace → Rezintel, tick each property to share, then click Save.'
+      });
+    }
+    const ownerEmail = String(owner.email || '').toLowerCase().trim();
+    if (!ownerEmail) return res.status(422).json({ success: false, error: 'Owner has no email in Beds24 — cannot create GAS account without one' });
+
+    // 2. Existing account guard. If email already has a GAS account, refuse
+    //    and tell them to log in (avoids silent-merge surprises).
+    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [ownerEmail]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'account_exists',
+        message: `A GAS account already exists for ${ownerEmail}. Please log in and add properties from your dashboard.`,
+        login_url: '/login.html'
+      });
+    }
+
+    // 3. Create GAS account.
+    const parent = await pool.query(`SELECT id FROM accounts WHERE role = 'master_admin' LIMIT 1`);
+    const parentId = parent.rows[0]?.id || null;
+    const genPw = crypto.randomBytes(24).toString('hex');
+    const passwordHash = crypto.createHash('sha256').update(genPw).digest('hex');
+    const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
+    const accountName = owner.name || ownerEmail.split('@')[0];
+    const accountCode = await generateAccountCode(pool, accountName);
+    const created = await pool.query(`
+      INSERT INTO accounts (name, email, password_hash, business_name, role, parent_id,
+        account_code, api_key, api_key_created_at, status, terms_accepted, terms_accepted_at, terms_version)
+      VALUES ($1, $2, $3, $4, 'admin', $5, $6, $7, NOW(), 'active', true, NOW(), 'v1.0')
+      RETURNING id, public_id, name, email, role
+    `, [accountName, ownerEmail, passwordHash, accountName, parentId, accountCode, apiKey]);
+    const account = created.rows[0];
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await pool.query(`
+      INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [account.id, sessionToken, expiresAt, req.ip, req.get('User-Agent')]);
+
+    // 4. Ensure marketplace adapter exists.
+    await pool.query(`
+      INSERT INTO gas_sync_adapters (code, name, description, auth_type, is_active, capabilities, supports_webhooks)
+      VALUES ('beds24-marketplace', 'Beds24 (Marketplace)', 'Beds24 via Rezintel marketplace master API key', 'api_key', true,
+        '["properties", "room_types", "availability", "rates", "reservations", "images"]', true)
+      ON CONFLICT (code) DO UPDATE SET is_active = true
+    `);
+
+    // 5. Iterate every ticked property: create connection + sync.
+    const baseUrl = process.env.GAS_API_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+    const propertyResults = [];
+    for (const pid of propIds) {
+      const p = props[pid];
+      const resolvedName = p?.name || `Beds24 Property ${pid}`;
+      const credentials = { ownerId, propId: String(pid), propKey: p?.propKey || String(pid), propName: resolvedName, rooms: p?.rooms || [] };
+      const conn = await pool.query(`
+        INSERT INTO gas_sync_connections (account_id, adapter_code, external_account_id, external_account_name, credentials, status, sync_enabled, created_at)
+        VALUES ($1, 'beds24-marketplace', $2, $3, $4, 'connected', true, NOW()) RETURNING id`,
+        [account.id, String(ownerId), resolvedName, JSON.stringify(credentials)]);
+      const connectionId = conn.rows[0].id;
+      const syncResp = await axios.post(`${baseUrl}/api/gas-sync/connections/${connectionId}/sync-marketplace`, {}, {
+        headers: { 'Authorization': `Bearer ${sessionToken}` }, timeout: 60000
+      }).catch(e => ({ data: { success: false, error: e.response?.data?.error || e.message } }));
+      const propRow = await pool.query(
+        `SELECT id FROM properties WHERE account_id = $1 AND cm_property_id = $2 LIMIT 1`,
+        [account.id, String(pid)]);
+      propertyResults.push({
+        beds24_prop_id: pid, name: resolvedName,
+        sync_success: !!syncResp.data?.success, sync_error: syncResp.data?.error || null,
+        connection_id: connectionId,
+        property_id: propRow.rows[0]?.id || null
+      });
+      // Fire-and-forget pricing sync — best-effort.
+      setImmediate(() => {
+        axios.post(`${baseUrl}/api/gas-sync/connections/${connectionId}/sync-marketplace-pricing`, {}, {
+          headers: { 'Authorization': `Bearer ${sessionToken}` }, timeout: 60000
+        }).catch(e => console.warn('[beds24-marketplace-signup-multi] pricing-sync failed:', e.message));
+      });
+    }
+    const successfulProps = propertyResults.filter(p => p.property_id);
+    if (successfulProps.length === 0) {
+      return res.json({ success: false, step: 'sync', error: 'No properties synced successfully', account_id: account.id, session_token: sessionToken, results: propertyResults });
+    }
+
+    // 6. Deploy ONE WP site with ALL synced properties.
+    const primaryPropName = successfulProps[0].name;
+    const slug = (accountName || primaryPropName).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `site-${account.id}`;
+    const roomsAll = await pool.query(
+      `SELECT id, name FROM bookable_units WHERE property_id = ANY($1::int[]) AND COALESCE(unit_role, 'room') = 'room' ORDER BY id`,
+      [successfulProps.map(p => p.property_id)]);
+    const roomIds = roomsAll.rows.map(r => r.id);
+    const deployResp = await axios.post(`${baseUrl}/api/deploy/create`, {
+      site_name: accountName || primaryPropName,
+      slug,
+      admin_email: ownerEmail,
+      account_id: account.id,
+      room_ids: roomIds,
+      rooms: roomsAll.rows,
+      property_ids: successfulProps.map(p => p.property_id),
+      use_theme: true,
+      use_plugin: true,
+      template: 'developer-light'
+    }, {
+      headers: { 'Authorization': `Bearer ${sessionToken}` }, timeout: 180000
+    }).catch(e => ({ data: { success: false, error: e.response?.data?.error || e.message } }));
+    if (!deployResp.data?.success) {
+      return res.json({ success: false, step: 'deploy', error: deployResp.data?.error || 'deploy failed', account_id: account.id, session_token: sessionToken, results: propertyResults });
+    }
+
+    res.json({
+      success: true,
+      account_id: account.id,
+      session_token: sessionToken,
+      account_email: ownerEmail,
+      site_url: deployResp.data.site?.url || deployResp.data.url,
+      admin_url: deployResp.data.site?.admin_url || deployResp.data.admin_url,
+      properties: propertyResults,
+      properties_count: successfulProps.length,
+      rooms_count: roomIds.length,
+    });
+  } catch (e) {
+    console.error('[beds24-marketplace-signup-multi] fatal:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/onboarding/create-account', async (req, res) => {
   try {
     const { name, email, password, channel_manager, business_name, terms_accepted } = req.body;
