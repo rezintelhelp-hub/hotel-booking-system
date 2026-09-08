@@ -104593,8 +104593,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
 
                     const csOlBg = `rgba(${csOlR},${csOlG},${csOlB},${csOlA})`;
-                    const csOlColAttrs = JSON.stringify({ width: `${csOlW}%`, style: { color: { background: csOlBg }, spacing: { padding: { top: `${csPadT}px`, right: `${csPadR}px`, bottom: `${csPadB}px`, left: `${csPadL}px` } } } });
-                    const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column has-background" style="flex-basis:${csOlW}%;background-color:${csOlBg};padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px">\n${csContentInner}</div>\n<!-- /wp:column -->`;
+                    // WordPress strips background-color from wp-block-column
+                    // inline styles on re-serialize (Steve 2026-09-08 — Hebden
+                    // IOU pages kept losing the overlay after resave). Wrap
+                    // the content in a plain <div> carrying the background so
+                    // WP has nothing to strip. Padding stays on the wrapper
+                    // div for the same reason. wp:column outer keeps only
+                    // flex-basis so WP is happy.
+                    const csOlColAttrs = JSON.stringify({ width: `${csOlW}%` });
+                    const csOverlayCol = `<!-- wp:column ${csOlColAttrs} -->\n<div class="wp-block-column" style="flex-basis:${csOlW}%"><div class="pb-overlay-inner" style="background-color:${csOlBg};padding-top:${csPadT}px;padding-right:${csPadR}px;padding-bottom:${csPadB}px;padding-left:${csPadL}px;height:100%">\n${csContentInner}</div></div>\n<!-- /wp:column -->`;
                     const csEmptyCol = `<!-- wp:column {"width":"${csEmptyW}%"} -->\n<div class="wp-block-column" style="flex-basis:${csEmptyW}%"></div>\n<!-- /wp:column -->`;
                     const csColsInner = csPos === 'left' ? `${csOverlayCol}\n\n${csEmptyCol}` : `${csEmptyCol}\n\n${csOverlayCol}`;
 
