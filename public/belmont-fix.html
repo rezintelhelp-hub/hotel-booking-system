@@ -37,6 +37,13 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#a855f7;">
+        <h2 style="color:#c084fc;">👯 Find Belmont duplicates (same guest + same dates)</h2>
+        <p class="hint">Lists every pair of active bookings on Belmont with the same guest surname + same arrival + same departure. Beds24+Channex parallel sync creates these. Delete the wrong one in the regular Bookings list.</p>
+        <button onclick="findDupes()">Scan for duplicates</button>
+        <pre id="dupes-output" style="background:#0f172a;padding:0.75rem;border-radius:6px;color:#cbd5e1;font-size:0.8rem;overflow:auto;max-height:400px;margin-top:0.75rem;"></pre>
+    </div>
+
     <div class="card" style="border-color:#38bdf8;">
         <h2 style="color:#7dd3fc;">🔎 Inspect a booking (which room is she actually on?)</h2>
         <p class="hint">Type a booking ID (e.g. 831878 for Sandra) to see the actual bookable_unit_id + which room-wrappers the calendar would paint her on.</p>
@@ -289,6 +296,23 @@ async function undoExecute() {
     } catch (e) {
         out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
         btn.disabled = false;
+    }
+}
+
+async function findDupes() {
+    const out = document.getElementById('dupes-output');
+    out.textContent = 'Scanning…';
+    try {
+        const r = await fetch('/api/admin/find-duplicate-bookings/106', { headers: auth() });
+        const d = await r.json();
+        if (!d.success) { out.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+        if (!d.duplicate_groups || d.duplicate_groups.length === 0) {
+            out.textContent = 'No duplicates found.';
+            return;
+        }
+        out.textContent = JSON.stringify(d.duplicate_groups, null, 2);
+    } catch (e) {
+        out.textContent = 'Error: ' + e.message;
     }
 }
 

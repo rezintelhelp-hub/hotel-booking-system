@@ -25360,6 +25360,49 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // room_availability, so the availability calendar showed them as free.
 // Idempotent — an already-blocked date stays blocked; source stamped
 // 'booking_reflector' so we can trace healed rows.
+// Belmont 2026-09-08 — find duplicate bookings on a property (same
+// guest last name + same arrival + same departure, different IDs). Common
+// on accounts wired to Beds24 AND Channex simultaneously — each connector
+// creates a separate row for the same OTA reservation. Read-only, just
+// lists them; deletion is done via the existing bookings UI.
+app.get('/api/admin/find-duplicate-bookings/:propertyId', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  try {
+    const propertyId = parseInt(req.params.propertyId, 10);
+    if (!propertyId) return res.status(400).json({ success: false, error: 'propertyId required' });
+    const r = await pool.query(`
+      SELECT
+        LOWER(COALESCE(b.guest_last_name, '')) AS last_name,
+        b.arrival_date, b.departure_date,
+        COUNT(*) AS n,
+        json_agg(json_build_object(
+          'id', b.id,
+          'guest', COALESCE(b.guest_first_name,'') || ' ' || COALESCE(b.guest_last_name,''),
+          'bookable_unit_id', b.bookable_unit_id,
+          'room', bu.name,
+          'individual_unit_id', b.individual_unit_id,
+          'iu_name', iu.unit_name,
+          'source', b.booking_source,
+          'status', b.status,
+          'created_at', b.created_at
+        ) ORDER BY b.created_at) AS bookings
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
+      LEFT JOIN individual_units iu ON iu.id = b.individual_unit_id
+      WHERE b.property_id = $1
+        AND b.status NOT IN ('cancelled','declined','rejected','expired')
+        AND b.departure_date >= CURRENT_DATE
+      GROUP BY LOWER(COALESCE(b.guest_last_name, '')), b.arrival_date, b.departure_date
+      HAVING COUNT(*) > 1
+      ORDER BY b.arrival_date
+    `, [propertyId]);
+    res.json({ success: true, property_id: propertyId, duplicate_groups: r.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Belmont 2026-09-08 — inspect a booking's actual room + which rooms'
 // calendars would render it (including Beds24 dependency links).
 app.get('/api/admin/booking-inspect/:id', async (req, res) => {
