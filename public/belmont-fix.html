@@ -37,6 +37,16 @@
 
     <div id="auth-status" class="card" style="padding:0.75rem 1rem;font-size:0.85rem;"></div>
 
+    <div class="card" style="border-color:#dc2626;">
+        <h2 style="color:#f87171;">🚨 Fix: shadow → wrapper room migration</h2>
+        <p class="hint">Belmont bookings are landing on hidden shadow bookable_units (Room 1, Room 8, Room 20 etc). They're NOT on the calendar. This migrates them to the correct wrapper + individual_unit so they appear on the availability grid. Run dry-run first, review, then execute.</p>
+        <div class="filter-bar">
+            <button onclick="migrateDryRun()">1. Dry run — show plan</button>
+            <button class="save-all" id="btn-migrate" onclick="migrateExecute()" disabled>2. Execute migration</button>
+        </div>
+        <div id="migration-output"><div class="empty">Click "Dry run" to see what would move.</div></div>
+    </div>
+
     <div class="card">
         <h2>Bookings for Belmont Hotel (property 106)</h2>
         <div class="filter-bar">
@@ -194,6 +204,68 @@ async function saveAll() {
 document.getElementById('only-room1').addEventListener('change', renderTable);
 document.getElementById('date-from').addEventListener('change', renderTable);
 document.getElementById('date-to').addEventListener('change', renderTable);
+
+async function migrateDryRun() {
+    const out = document.getElementById('migration-output');
+    out.innerHTML = '<div class="empty">Running dry run…</div>';
+    try {
+        const r = await fetch('/api/admin/migrate-shadow-room-bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ account_id: 68, property_id: 106, dry_run: true })
+        });
+        const d = await r.json();
+        if (!d.success) { out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(d.error || 'unknown') + '</div>'; return; }
+        let html = `<p style="color:#38bdf8;"><strong>Total: ${d.total}</strong> · Resolvable: ${d.resolvable} · Unresolvable: ${d.unresolvable}</p>`;
+        if (d.plan && d.plan.length) {
+            html += '<table><thead><tr><th>Booking ID</th><th>Guest</th><th>Arrival</th><th>From (shadow)</th><th>→ To (wrapper · individual_unit)</th></tr></thead><tbody>';
+            for (const p of d.plan) {
+                html += `<tr>
+                    <td>${esc(p.booking_id)}</td>
+                    <td>${esc(p.guest)}</td>
+                    <td>${esc(p.arrival)}</td>
+                    <td>${esc(p.from.name)} (id ${esc(p.from.bookable_unit_id)})</td>
+                    <td>${p.to ? esc(p.to.wrapper) + ' · ' + esc(p.to.individual_unit_name) : '<span style="color:#fca5a5;">no match</span>'}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            if (d.resolvable > 0) document.getElementById('btn-migrate').disabled = false;
+        } else {
+            html += '<div class="empty">No shadow bookings found. Nothing to migrate.</div>';
+        }
+        out.innerHTML = html;
+    } catch (e) {
+        out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
+    }
+}
+
+async function migrateExecute() {
+    if (!confirm('Execute migration? This will rewrite bookable_unit_id + individual_unit_id on every resolvable booking.')) return;
+    const btn = document.getElementById('btn-migrate');
+    const out = document.getElementById('migration-output');
+    btn.disabled = true;
+    out.innerHTML = '<div class="empty">Migrating…</div>';
+    try {
+        const r = await fetch('/api/admin/migrate-shadow-room-bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...auth() },
+            body: JSON.stringify({ account_id: 68, property_id: 106 })
+        });
+        const d = await r.json();
+        if (!d.success) { out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(d.error || 'unknown') + '</div>'; btn.disabled = false; return; }
+        let html = `<p style="color:#22c55e;"><strong>✓ Updated ${d.updated} booking(s).</strong></p>`;
+        if (d.failures && d.failures.length) {
+            html += `<p style="color:#fca5a5;">${d.failures.length} failed:</p>`;
+            html += '<pre style="font-size:0.75rem; max-height:300px; overflow:auto;">' + esc(JSON.stringify(d.failures, null, 2)) + '</pre>';
+        }
+        html += '<p class="hint">Refresh the availability calendar in GAS Admin — bookings should now render on the wrapper room types.</p>';
+        out.innerHTML = html;
+    } catch (e) {
+        out.innerHTML = '<div class="empty" style="color:#fca5a5;">Error: ' + esc(e.message) + '</div>';
+        btn.disabled = false;
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => { renderAuthStatus(); });
 </script>
 </body>
