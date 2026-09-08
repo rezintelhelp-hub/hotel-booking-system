@@ -24385,6 +24385,171 @@ app.post('/api/onboarding/beds24-marketplace-signup-multi', async (req, res) => 
       return res.json({ success: false, step: 'deploy', error: deployResp.data?.error || 'deploy failed', account_id: account.id, session_token: sessionToken, results: propertyResults });
     }
 
+    // 7. Auto-populate the WordPress Web Builder sections from imported Beds24
+    // data so the multi-property portal renders with real content instead of
+    // the generic starter template. Mirrors the single-property flow
+    // (server.js ~24009) but adapted for many properties: headline uses the
+    // account name, subtitle constructs "{PropType}s in {city|country}" from
+    // aggregated data, images/description/address come from the first
+    // successful property, amenities dedupe across all rooms.
+    try {
+      const primaryPropertyId = successfulProps[0].property_id;
+      const deployedSiteRow = await pool.query(
+        `SELECT id FROM deployed_sites
+          WHERE account_id = $1
+            AND (property_id = $2 OR property_ids @> to_jsonb($2::int))
+          ORDER BY id DESC LIMIT 1`,
+        [account.id, primaryPropertyId]
+      );
+      const deployedSiteId = deployedSiteRow.rows[0]?.id;
+      if (deployedSiteId) {
+        const propsFull = await pool.query(
+          `SELECT id, name, description, address, city, state, country, postal_code, phone
+             FROM properties WHERE id = ANY($1::int[])`,
+          [successfulProps.map(p => p.property_id)]);
+        const primary = propsFull.rows.find(r => r.id === primaryPropertyId) || propsFull.rows[0] || {};
+        const stripHtml = (h) => String(h || '')
+          .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n')
+          .replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+        let descEn = '';
+        try {
+          const d = typeof primary.description === 'string' ? JSON.parse(primary.description) : (primary.description || {});
+          descEn = stripHtml(d.en || d.EN || '');
+        } catch (_) { descEn = stripHtml(String(primary.description || '')); }
+        const shortDesc = descEn ? (descEn.split(/[.!?]/)[0] + '.').slice(0, 180) : '';
+
+        // Pull raw_data for all successful sync properties in one query — used
+        // for propTypeId aggregation + first-property image list.
+        const syncRows = await pool.query(
+          `SELECT external_id, raw_data FROM gas_sync_properties WHERE connection_id = ANY($1::int[])`,
+          [successfulProps.map(p => p.connection_id)]);
+        const rawByConn = {};
+        for (const row of syncRows.rows) rawByConn[String(row.external_id)] = row.raw_data || {};
+        const primaryBeds24Id = String(successfulProps[0].beds24_prop_id);
+        const primaryRaw = rawByConn[primaryBeds24Id] || {};
+
+        // Hero images from primary property (Beds24 images object keyed by imageId; order ~ upload order).
+        const imageList = [];
+        if (primaryRaw.images && typeof primaryRaw.images === 'object') {
+          const bucket = primaryRaw.images.hosted || primaryRaw.images.external || primaryRaw.images;
+          const iter = Array.isArray(bucket) ? bucket : Object.values(bucket || {});
+          for (const img of iter) {
+            const url = typeof img === 'string' ? img : (img?.url || img?.image);
+            if (url) imageList.push(url);
+            if (imageList.length >= 6) break;
+          }
+        }
+
+        // Most-common propTypeId across successful properties → human label.
+        const PROP_TYPE_LABELS = {
+          '1': 'Apartment', '2': 'Home', '3': 'Condo', '4': 'Loft', '5': 'Townhouse',
+          '6': 'Hotel', '7': 'Studio', '8': 'Aparthotel', '9': 'Resort',
+          '11': 'B&B', '15': 'Guest House', '16': 'Holiday Home', '17': 'Hostel',
+          '30': 'Villa', '32': 'Vacation Rental', '35': 'Chalet', '36': 'Cottage', '40': 'Bungalow'
+        };
+        const typeCounts = {};
+        for (const raw of Object.values(rawByConn)) {
+          const t = String(raw?.propTypeId || '');
+          if (t) typeCounts[t] = (typeCounts[t] || 0) + 1;
+        }
+        const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const typeLabel = PROP_TYPE_LABELS[topType] || 'Vacation Rental';
+        const isPlural = successfulProps.length > 1;
+        const typeLabelDisplay = isPlural
+          ? (typeLabel === 'B&B' ? "B&Bs" : typeLabel + 's')
+          : typeLabel;
+
+        // Location suffix: same city → "in {city}", same country/mixed cities → "across {country}", else drop.
+        const cities = new Set(propsFull.rows.map(r => r.city).filter(Boolean));
+        const countries = new Set(propsFull.rows.map(r => r.country).filter(Boolean));
+        let locationSuffix = '';
+        if (cities.size === 1) locationSuffix = ' in ' + [...cities][0];
+        else if (countries.size === 1) locationSuffix = ' across ' + [...countries][0];
+        const subheadline = `${typeLabelDisplay}${locationSuffix}`;
+
+        // Headline: account name unless it looks like the beds24-XXX placeholder.
+        const headline = /^beds24-\d+$/i.test(accountName || '') ? (primary.name || accountName) : accountName;
+
+        // Amenities across all rooms of all successful properties.
+        const roomsFull = await pool.query(
+          `SELECT amenities FROM bookable_units WHERE property_id = ANY($1::int[])`,
+          [successfulProps.map(p => p.property_id)]);
+        const amenitySet = new Set();
+        for (const r of roomsFull.rows) {
+          const arr = Array.isArray(r.amenities) ? r.amenities
+            : (typeof r.amenities === 'string' ? (() => { try { return JSON.parse(r.amenities); } catch { return []; } })() : []);
+          for (const a of (arr || [])) if (a) amenitySet.add(String(a));
+        }
+        const amenities = [...amenitySet].slice(0, 6);
+
+        const upsertSection = async (section, settings) => {
+          const existing = await pool.query(
+            `SELECT id FROM website_settings WHERE deployed_site_id = $1 AND section = $2 LIMIT 1`,
+            [deployedSiteId, section]);
+          if (existing.rows.length > 0) {
+            await pool.query(
+              `UPDATE website_settings SET settings = $1::jsonb, sync_source = 'wizard', updated_at = NOW() WHERE id = $2`,
+              [JSON.stringify(settings), existing.rows[0].id]);
+          } else {
+            await pool.query(
+              `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+               VALUES ($1, $2, $3, $4::jsonb, 'wizard', NOW())`,
+              [deployedSiteId, account.id, section, JSON.stringify(settings)]);
+          }
+        };
+
+        await upsertSection('hero', {
+          'headline-en': headline,
+          'subheadline-en': subheadline,
+          'button-text-en': 'Book Now',
+          'button-link': '/book-now/',
+          'image-url': imageList[0] || '',
+          'slide-1-url': imageList[0] || '',
+          'slide-2-url': imageList[1] || '',
+          'slide-3-url': imageList[2] || '',
+          'slide-4-url': imageList[3] || '',
+          'background-type': imageList.length > 1 ? 'slider' : 'image',
+          'overlay': '30',
+          'height': '80',
+          'show-search': true,
+          'menu-title-en': 'Home',
+        });
+        await upsertSection('intro', {
+          'enabled': true,
+          'title-en': `Welcome to ${headline}`,
+          'text-en': shortDesc,
+        });
+        const aboutFeatures = {};
+        amenities.forEach((a, i) => { aboutFeatures[`feature-${i + 1}-en`] = a; });
+        await upsertSection('about', {
+          'enabled': true,
+          'title-en': 'About Us',
+          'text-en': descEn || '',
+          'image-url': imageList[1] || imageList[0] || '',
+          'image-2-url': imageList[2] || '',
+          'layout': 'image-left',
+          ...aboutFeatures,
+        });
+        const addrParts = [primary.address, primary.city, primary.state, primary.postal_code, primary.country].filter(Boolean);
+        await upsertSection('footer', {
+          'address': addrParts.join(', '),
+          'phone': primary.phone || '',
+          'email': ownerEmail,
+          'copyright-en': `© ${new Date().getFullYear()} ${headline}. All rights reserved.`,
+        });
+        await upsertSection('header', {
+          'site-name': headline,
+          'cta-button-text-en': 'Book Now',
+          'cta-link': '/book-now/',
+        });
+        console.log(`[beds24-marketplace-signup-multi] populated 5 website_settings sections for deployed_site ${deployedSiteId} (headline="${headline}", subtitle="${subheadline}", images=${imageList.length})`);
+      }
+    } catch (contentErr) {
+      console.warn('[beds24-marketplace-signup-multi] content pull-through failed:', contentErr.message);
+    }
+
     res.json({
       success: true,
       account_id: account.id,
