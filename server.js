@@ -24168,6 +24168,59 @@ app.post('/api/onboarding/beds24-marketplace-signup', async (req, res) => {
   }
 });
 
+// Steve 2026-09-08 — nuke a testbed GAS account and everything downstream.
+// Master admin only. Refuses if the account has bookings younger than 60d
+// (safety net so a live client can't be wiped by mistake). Deletes in FK
+// order: bookings → payment rows → room_availability → individual_units →
+// bookable_units → properties → deployed_sites → gas_sync_connections →
+// account_sessions → account.
+app.post('/api/admin/purge-account', async (req, res) => {
+  const admin = await requireMasterAdmin(req, res);
+  if (!admin) return;
+  const client = await pool.connect();
+  try {
+    const accountId = parseInt(req.body?.account_id, 10);
+    const confirm = String(req.body?.confirm || '');
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id required' });
+    if (confirm !== 'PURGE') return res.status(400).json({ success: false, error: 'confirm: "PURGE" required in body' });
+    // Live-account safety: refuse if any booking newer than 60 days.
+    const recent = await client.query(
+      `SELECT COUNT(*)::int AS n FROM bookings b
+        JOIN properties p ON p.id = b.property_id
+       WHERE p.account_id = $1 AND b.created_at > NOW() - INTERVAL '60 days'`, [accountId]);
+    if ((recent.rows[0]?.n || 0) > 0) {
+      return res.status(403).json({ success: false, error: `refused — account has ${recent.rows[0].n} bookings created in last 60 days. Looks live. Delete individually via GAS Admin instead.` });
+    }
+    await client.query('BEGIN');
+    const counts = {};
+    const propIdsR = await client.query('SELECT id FROM properties WHERE account_id = $1', [accountId]);
+    const propIds = propIdsR.rows.map(r => r.id);
+    if (propIds.length > 0) {
+      counts.payments = (await client.query(`DELETE FROM payment_transactions WHERE booking_id IN (SELECT id FROM bookings WHERE property_id = ANY($1::int[]))`, [propIds])).rowCount;
+      counts.bookings = (await client.query('DELETE FROM bookings WHERE property_id = ANY($1::int[])', [propIds])).rowCount;
+      counts.room_availability = (await client.query('DELETE FROM room_availability WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id = ANY($1::int[]))', [propIds])).rowCount;
+      counts.individual_units = (await client.query('DELETE FROM individual_units WHERE bookable_unit_id IN (SELECT id FROM bookable_units WHERE property_id = ANY($1::int[]))', [propIds])).rowCount;
+      counts.bookable_units = (await client.query('DELETE FROM bookable_units WHERE property_id = ANY($1::int[])', [propIds])).rowCount;
+      counts.website_settings = (await client.query('DELETE FROM website_settings WHERE deployed_site_id IN (SELECT id FROM deployed_sites WHERE account_id = $1)', [accountId])).rowCount;
+      counts.deployed_sites = (await client.query('DELETE FROM deployed_sites WHERE account_id = $1', [accountId])).rowCount;
+      counts.properties = (await client.query('DELETE FROM properties WHERE account_id = $1', [accountId])).rowCount;
+    }
+    counts.sync_room_types = (await client.query('DELETE FROM gas_sync_room_types WHERE connection_id IN (SELECT id FROM gas_sync_connections WHERE account_id = $1)', [accountId])).rowCount;
+    counts.sync_properties = (await client.query('DELETE FROM gas_sync_properties WHERE connection_id IN (SELECT id FROM gas_sync_connections WHERE account_id = $1)', [accountId])).rowCount;
+    counts.sync_connections = (await client.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [accountId])).rowCount;
+    counts.sessions = (await client.query('DELETE FROM account_sessions WHERE account_id = $1', [accountId])).rowCount;
+    counts.account = (await client.query('DELETE FROM accounts WHERE id = $1', [accountId])).rowCount;
+    await client.query('COMMIT');
+    res.json({ success: true, account_id: accountId, deleted: counts });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[purge-account]', e);
+    res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Steve 2026-09-08 (for Beds24 CEO demo Thursday 2026-09-10) — one-shot
 // enter-account-id → build-site flow. Input: ownerId OR email. Output: one
 // GAS account containing every property the owner has ticked in Beds24
