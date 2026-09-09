@@ -17146,32 +17146,95 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       [account_id]
     );
     const propertyUserId = userIdRow.rows[0]?.user_id || 1;
+    // Airbnb `room_type_category` maps to GAS `unit_type` — best-effort mapping.
+    const roomTypeMap = {
+      'entire_home': 'house', 'entire_place': 'house', 'private_room': 'double',
+      'shared_room': 'dormitory', 'hotel_room': 'double'
+    };
+    const unitType = roomTypeMap[String(L.room_type_category || '').toLowerCase()] || 'apartment';
+    const listingIdStr = String(listing_id);
     const propIns = await pool.query(`
-      INSERT INTO properties (account_id, user_id, name, address, city, country, zip_code, currency, latitude, longitude, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      INSERT INTO properties (account_id, user_id, name, address, city, country, zip_code, currency, latitude, longitude,
+        phone, cm_source, cm_property_id, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'airbnb', $12, NOW())
       RETURNING id
     `, [
       account_id, propertyUserId,
       desc.name || L.listing_nickname || 'Imported from Airbnb',
       L.street || '', L.city || '', L.country_code || '', L.zipcode || '',
       pricing.listing_currency || L.listing_currency || 'EUR',
-      L.lat || null, L.lng || null
+      L.lat || null, L.lng || null,
+      L.phone || L.host_phone || '',
+      listingIdStr
     ]);
     const propertyId = propIns.rows[0].id;
+
+    // Airbnb amenities (Steve 2026-09-09) — L.amenities is a list of amenity
+    // codes OR objects; L.amenities_details is objects with names. Normalise
+    // to a list of display names, then match against master_amenities so
+    // guest pages get proper icons + labels.
+    const amenityDisplay = [];
+    const rawAmenities = L.amenities_details || L.amenities || [];
+    if (Array.isArray(rawAmenities)) {
+      for (const a of rawAmenities) {
+        if (!a) continue;
+        if (typeof a === 'string') amenityDisplay.push(a);
+        else if (a.name) amenityDisplay.push(String(a.name));
+        else if (a.title) amenityDisplay.push(String(a.title));
+        else if (a.description) amenityDisplay.push(String(a.description));
+      }
+    }
+    // Dedupe + tidy
+    const uniqueAmenities = [...new Set(amenityDisplay.map(s => s.trim()).filter(Boolean))];
+
     const unitIns = await pool.query(`
-      INSERT INTO bookable_units (property_id, name, max_guests, max_adults, max_children, base_price,
-        short_description, full_description, num_bedrooms, num_bathrooms, created_at, updated_at)
-      VALUES ($1, $2, $3, $3, 0, $4, $5, $6, $7, $8, NOW(), NOW())
+      INSERT INTO bookable_units (property_id, name, display_name, max_guests, max_adults, max_children, base_price,
+        short_description, full_description, num_bedrooms, num_bathrooms, unit_type, amenities,
+        cm_source, cm_room_id, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $4, 0, $5, $6, $7, $8, $9, $10, $11::jsonb, 'airbnb', $12, NOW(), NOW())
       RETURNING id
     `, [
-      propertyId, desc.name || 'Imported', L.person_capacity || 2, pricing.default_daily_price || null,
+      propertyId,
+      desc.name || 'Imported',
+      JSON.stringify({ en: desc.name || 'Imported' }),
+      L.person_capacity || 2, pricing.default_daily_price || null,
       JSON.stringify({ en: desc.summary || '' }),
       JSON.stringify({ en: [desc.space, desc.access, desc.neighborhood_overview, desc.transit, desc.notes].filter(Boolean).join('\n\n') }),
-      L.bedrooms || 1, Math.ceil(L.bathrooms || 1)
+      L.bedrooms || 1, Math.ceil(L.bathrooms || 1),
+      unitType,
+      JSON.stringify(uniqueAmenities),
+      listingIdStr
     ]);
     const bookableUnitId = unitIns.rows[0].id;
+
+    // Match Airbnb amenity names to master_amenities → room_amenity_selections
+    // so guest booking pages render them with proper icons. Same fuzzy-match
+    // pattern the Beds24 marketplace sync uses. Unmatched amenities still
+    // live in bookable_units.amenities JSONB above.
+    let matchedAmenities = 0;
+    for (const label of uniqueAmenities) {
+      try {
+        const m = await pool.query(
+          `SELECT id FROM master_amenities
+            WHERE LOWER(name) = LOWER($1)
+               OR LOWER(amenity_code) = LOWER(REPLACE($1, ' ', '_'))
+               OR LOWER(name) LIKE LOWER($2)
+            ORDER BY (LOWER(name) = LOWER($1)) DESC
+            LIMIT 1`,
+          [label, `%${label}%`]);
+        if (m.rows[0]) {
+          await pool.query(
+            `INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+             VALUES ($1, $2, 0) ON CONFLICT (room_id, amenity_id) DO NOTHING`,
+            [bookableUnitId, m.rows[0].id]);
+          matchedAmenities++;
+        }
+      } catch (_) { /* tolerate — bad label doesn't fail the import */ }
+    }
+
     const images = L.images || [];
     let imgCount = 0;
+    let coverImageUrl = null;
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
       const rawUrl = img.large_url || img.extra_large_url || img.extra_medium_url || img.small_url || img.thumbnail_url;
@@ -17179,6 +17242,7 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       const url = cleanImageUrl(rawUrl);
       const thumbUrl = img.thumbnail_url ? cleanImageUrl(img.thumbnail_url) : url;
       const imageKey = img.id ? `airbnb-${img.id}` : `airbnb-${listing_id}-${i}`;
+      if (!coverImageUrl) coverImageUrl = url;
       try {
         await pool.query(`
           INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, is_primary, is_active, upload_source, created_at)
@@ -17187,6 +17251,17 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
         imgCount++;
       } catch (imgErr) { console.warn('[airbnb import] image insert failed:', imgErr.message); }
     }
+    // Cover image on the PROPERTY too — first Airbnb image doubles as the
+    // property card thumbnail on the Properties Page + admin lists.
+    if (coverImageUrl) {
+      try {
+        await pool.query(`
+          INSERT INTO property_images (property_id, image_key, image_url, caption, sort_order, created_at)
+          VALUES ($1, $2, $3, $4, 1, NOW())
+        `, [propertyId, `airbnb-cover-${listing_id}`, coverImageUrl, desc.name || '']);
+      } catch (coverErr) { console.warn('[airbnb import] cover image insert failed:', coverErr.message); }
+    }
+
     await pool.query(`
       INSERT INTO gas_sync_channel_mappings (channel_id, ota_listing_id, gas_bookable_unit_id, settings)
       VALUES ($1, $2, $3, $4)
@@ -17197,6 +17272,8 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       property_id: propertyId,
       bookable_unit_id: bookableUnitId,
       images_imported: imgCount,
+      amenities_total: uniqueAmenities.length,
+      amenities_matched: matchedAmenities,
       summary: {
         name: desc.name,
         address: `${L.street || ''}, ${L.city || ''} ${L.country_code || ''}`.trim(),
