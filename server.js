@@ -14372,6 +14372,118 @@ app.post('/api/admin/channex/:connectionId/mapping-details', async (req, res) =>
   }
 });
 
+// =====================================================
+// VRBO CHANNEL CONNECTION — non-public Channex API
+// See reference_channex_vrbo_connection memory + /Desktop/VRBO Connection.pdf
+// Flow: authenticate → request_mfa_code → verify_mfa_code → save token
+// then reuse existing /test + /mapping-details with channel_code='VRBO'
+// and settings including the verified token.
+// Steve 2026-09-09.
+// =====================================================
+
+// Small helper — resolve the connection's Channex adapter + auth check.
+async function _vrboLoadAdapter(req, res) {
+  const decoded = await extractAccountFromToken(req);
+  if (!decoded) { res.status(401).json({ success: false, error: 'Auth required' }); return null; }
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await pool.query(
+    `SELECT id, account_id, credentials FROM gas_sync_connections
+      WHERE id = $1 AND adapter_code = 'channex'`, [connectionId]);
+  if (!conn.rows[0]) { res.status(404).json({ success: false, error: 'Channex connection not found' }); return null; }
+  if (decoded.role !== 'master_admin' && conn.rows[0].account_id !== (decoded.id || decoded.accountId)) {
+    res.status(403).json({ success: false, error: 'Not your connection' }); return null;
+  }
+  const { ChannexAdapter } = require('./gas-sync/adapters/channex-adapter');
+  const apiKey = conn.rows[0].credentials?.apiKey || process.env.CHANNEX_API_KEY;
+  return new ChannexAdapter({ apiKey });
+}
+
+app.post('/api/admin/channex/:connectionId/vrbo/authenticate', async (req, res) => {
+  try {
+    const adapter = await _vrboLoadAdapter(req, res); if (!adapter) return;
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ success: false, error: 'username + password required' });
+    const r = await adapter.vrboAuthenticate(username, password);
+    res.json(r);
+  } catch (e) { console.error('[vrbo/authenticate]', e); res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/channex/:connectionId/vrbo/request-mfa-code', async (req, res) => {
+  try {
+    const adapter = await _vrboLoadAdapter(req, res); if (!adapter) return;
+    const { token, phone } = req.body || {};
+    if (!token || !phone?.countryCode || !phone?.phone) {
+      return res.status(400).json({ success: false, error: 'token + phone {countryCode, phone} required' });
+    }
+    const r = await adapter.vrboRequestMfaCode(token, phone);
+    res.json(r);
+  } catch (e) { console.error('[vrbo/request-mfa]', e); res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/admin/channex/:connectionId/vrbo/verify-mfa-code', async (req, res) => {
+  try {
+    const adapter = await _vrboLoadAdapter(req, res); if (!adapter) return;
+    const { token, code } = req.body || {};
+    if (!token || !code) return res.status(400).json({ success: false, error: 'token + code required' });
+    const r = await adapter.vrboVerifyMfaCode(token, code);
+    res.json(r);
+  } catch (e) { console.error('[vrbo/verify-mfa]', e); res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Thin proxy over Channex's rate_plans/options — used by the VRBO wizard's
+// step 3 mapping picker. Filters by channex_property_id (the Channex UUID).
+app.get('/api/admin/channex/:connectionId/channex-rate-plans', async (req, res) => {
+  try {
+    const adapter = await _vrboLoadAdapter(req, res); if (!adapter) return;
+    const channexPropId = String(req.query.channex_property_id || '').trim();
+    if (!channexPropId) return res.status(400).json({ success: false, error: 'channex_property_id required' });
+    const r = await adapter.request(`/rate_plans/options?filter[property_id]=${encodeURIComponent(channexPropId)}&multi_occupancy=true`, 'GET');
+    if (!r.success) return res.status(400).json(r);
+    // Channex returns an array of { id, title } — pass through.
+    const rate_plans = Array.isArray(r.data) ? r.data : (r.data?.data || []);
+    res.json({ success: true, rate_plans });
+  } catch (e) { console.error('[channex-rate-plans]', e); res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Save the final VRBO channel to Channex. Body: { channel_payload }
+// (the full VRBO channel object per the Channex doc). group_id is derived
+// server-side from the connection so the client doesn't need to know it.
+// On success we persist a gas_sync_channels row so the "Connected channels"
+// list picks it up.
+app.post('/api/admin/channex/:connectionId/vrbo/create-channel', async (req, res) => {
+  try {
+    const adapter = await _vrboLoadAdapter(req, res); if (!adapter) return;
+    const connectionId = parseInt(req.params.connectionId, 10);
+    const payload = req.body?.channel_payload;
+    if (!payload || payload.channel !== 'VRBO') {
+      return res.status(400).json({ success: false, error: 'channel_payload with channel=VRBO required' });
+    }
+    // Derive group_id from the Channex connection (external_account_id).
+    if (!payload.group_id) {
+      const conn = await pool.query(`SELECT external_account_id FROM gas_sync_connections WHERE id = $1`, [connectionId]);
+      const groupId = conn.rows[0]?.external_account_id;
+      if (!groupId) return res.status(400).json({ success: false, error: 'Channex connection has no group_id (external_account_id) — reconnect first' });
+      payload.group_id = groupId;
+    }
+    const r = await adapter.channelsCreate(payload);
+    if (!r.success) return res.status(400).json(r);
+    const channexChannelId = r.data?.id || r.data?.data?.id;
+    // Persist to gas_sync_channels so the Connected Channels list picks it up.
+    // Column set mirrors existing rows for other OTAs on this connection.
+    try {
+      await pool.query(`
+        INSERT INTO gas_sync_channels (connection_id, channel_code, channex_channel_id, is_active, settings, created_at, updated_at)
+        VALUES ($1, 'VRBO', $2, $3, $4::jsonb, NOW(), NOW())
+        ON CONFLICT (connection_id, channex_channel_id) DO UPDATE
+          SET is_active = EXCLUDED.is_active, settings = EXCLUDED.settings, updated_at = NOW()
+      `, [connectionId, channexChannelId, payload.is_active === true, JSON.stringify(payload.settings || {})]);
+    } catch (persistErr) {
+      console.warn('[vrbo/create-channel] persistence warning:', persistErr.message);
+    }
+    res.json({ success: true, channex_channel_id: channexChannelId, raw: r.data });
+  } catch (e) { console.error('[vrbo/create-channel]', e); res.status(500).json({ success: false, error: e.message }); }
+});
+
 // GET /api/admin/properties/:id/channel-rates?days=60[&channel_id=N]
 // Returns what GAS is pushing to each connected OTA channel for this
 // property: rate plans grouped by channel, with per-night price + qty

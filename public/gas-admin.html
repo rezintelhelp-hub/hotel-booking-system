@@ -117467,6 +117467,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button class="btn" onclick="_channexStartGoogleWizard()" style="background:#4285F4;color:#fff;font-size:14px;padding:10px 20px;">🏨 Connect Google Rooms</button>
                         <p style="font-size:11px;color:#64748b;margin:6px 0 0 0;max-width:200px;">Push property to Google Hotel Search (free listings).</p>
                     </div>
+                    <div style="text-align:center;">
+                        <button class="btn" onclick="_channexStartVrboWizard()" style="background:#1854A9;color:#fff;font-size:14px;padding:10px 20px;">🏖 Connect VRBO</button>
+                        <p style="font-size:11px;color:#64748b;margin:6px 0 0 0;max-width:200px;">Sign in to VRBO + text a code — then map listings to Channex rate plans.</p>
+                    </div>
                 </div>
                 <div style="margin-top:14px;text-align:center;font-size:11px;">
                     <a href="#" onclick="_channexSyncFromRemote();return false;" style="color:#3b82f6;text-decoration:underline;font-weight:600;">🔄 Sync channels from Channex</a>
@@ -118516,6 +118520,270 @@ const promo = await fetch('/api/v1/offers/validate', {
             _channexWizardState.channelSettings = _channexWizardState.channelSettings || {};
             _channexWizardState.channelSettings.payment_collection = mode;
             _channexRenderStep5(channelDbId);
+        }
+
+        // =====================================================
+        // VRBO wizard — 3 screens (creds → MFA → mapping)
+        // Reuses _channexWizardState.connectionId + _channexBackBtn.
+        // See reference_channex_vrbo_connection memory + PDF for API shape.
+        // Steve 2026-09-09.
+        // =====================================================
+        function _vrboStepHeader(step) {
+            const steps = ['1. Sign in to VRBO', '2. Enter SMS code', '3. Map listings'];
+            return `<div style="display:flex;gap:8px;margin-bottom:14px;font-size:12px;">${steps.map((s, i) => `<span style="padding:4px 10px;border-radius:12px;background:${i+1===step?'#1854A9':'#e2e8f0'};color:${i+1===step?'#fff':'#64748b'};font-weight:${i+1===step?'600':'400'};">${escapeHtml(s)}</span>`).join('')}</div>`;
+        }
+
+        async function _channexStartVrboWizard() {
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _vrboStepHeader(1) + `
+                <p style="font-size:12px;color:#64748b;margin:0 0 12px 0;">VRBO requires SMS 2FA before we can connect. Have your phone handy — Vrbo will text a code after step 1.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div><label style="font-size:12px;font-weight:600;">Vrbo username / email</label>
+                        <input type="text" id="vrbo-username" class="form-input" placeholder="you@example.com" style="width:100%;"></div>
+                    <div><label style="font-size:12px;font-weight:600;">Vrbo password</label>
+                        <input type="password" id="vrbo-password" class="form-input" style="width:100%;"></div>
+                    <div><label style="font-size:12px;font-weight:600;">Phone country code</label>
+                        <input type="text" id="vrbo-phone-country" class="form-input" placeholder="GB" maxlength="2" style="width:100%; text-transform:uppercase;" value="GB"></div>
+                    <div><label style="font-size:12px;font-weight:600;">Phone number (without country code)</label>
+                        <input type="tel" id="vrbo-phone-number" class="form-input" placeholder="7911123456" style="width:100%;"></div>
+                    <div><label style="font-size:12px;font-weight:600;">Property notification email <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
+                        <input type="email" id="vrbo-email" class="form-input" style="width:100%;"></div>
+                    <div><label style="font-size:12px;font-weight:600;">Min stay type</label>
+                        <select id="vrbo-min-stay-type" class="form-input" style="width:100%;">
+                            <option value="Arrival">Arrival (min stay counted from check-in date)</option>
+                            <option value="Through">Through (min stay must span every night of the range)</option>
+                        </select></div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;">
+                    <input type="checkbox" id="vrbo-send-notif" style="width:16px;height:16px;">
+                    Send Vrbo property notifications
+                </label>
+                <div id="vrbo-step1-error" style="color:#ef4444;font-size:12px;margin-top:8px;"></div>
+                <div style="margin-top:14px;display:flex;gap:8px;">
+                    <button class="btn" onclick="_vrboStep1Submit()" style="background:#1854A9;color:#fff;">Continue → text me the code</button>
+                </div>
+            ` + _channexBackBtn('_channexRenderStep1');
+        }
+
+        async function _vrboStep1Submit() {
+            const errEl = document.getElementById('vrbo-step1-error');
+            errEl.textContent = '';
+            const username = document.getElementById('vrbo-username').value.trim();
+            const password = document.getElementById('vrbo-password').value;
+            const country = document.getElementById('vrbo-phone-country').value.trim().toUpperCase();
+            const phone = document.getElementById('vrbo-phone-number').value.trim().replace(/[^0-9]/g, '');
+            if (!username || !password || !country || !phone) { errEl.textContent = 'Fill every required field.'; return; }
+            _channexWizardState.vrbo = {
+                username, password,
+                phone: { countryCode: country, phone },
+                email: document.getElementById('vrbo-email').value.trim() || null,
+                min_stay_type: document.getElementById('vrbo-min-stay-type').value,
+                send_email_notifications: document.getElementById('vrbo-send-notif').checked
+            };
+            const { connectionId } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _vrboStepHeader(1) + '<div style="text-align:center;padding:40px;">Signing in to VRBO…</div>';
+            try {
+                const authR = await fetch(`/api/admin/channex/${connectionId}/vrbo/authenticate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ username, password })
+                }).then(r => r.json());
+                if (!authR.success && authR.data == null) throw new Error(authR.error || 'authenticate failed');
+                const token = authR.data?.token || authR.token || authR.data;
+                if (!token) throw new Error('No token returned from authenticate');
+                _channexWizardState.vrbo.token = token;
+                // Ask VRBO to text the code
+                const mfaR = await fetch(`/api/admin/channex/${connectionId}/vrbo/request-mfa-code`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ token, phone: _channexWizardState.vrbo.phone })
+                }).then(r => r.json());
+                if (mfaR.success === false) throw new Error(mfaR.error || 'request_mfa_code failed');
+                if (mfaR.data?.token) _channexWizardState.vrbo.token = mfaR.data.token;
+                _vrboStep2Render();
+            } catch (e) {
+                await _channexStartVrboWizard();
+                document.getElementById('vrbo-step1-error').textContent = 'VRBO rejected the sign-in: ' + e.message;
+            }
+        }
+
+        function _vrboStep2Render() {
+            const body = document.getElementById('channex-wizard-body');
+            const p = _channexWizardState.vrbo.phone;
+            body.innerHTML = _vrboStepHeader(2) + `
+                <p style="font-size:13px;color:#334155;margin:0 0 12px 0;">Vrbo just texted a code to <strong>+${escapeHtml(p.countryCode)} ${escapeHtml(p.phone)}</strong>. Enter it below.</p>
+                <input type="text" id="vrbo-mfa-code" class="form-input" placeholder="4-digit code" maxlength="10" style="width:200px;font-size:16px;letter-spacing:4px;text-align:center;">
+                <div id="vrbo-step2-error" style="color:#ef4444;font-size:12px;margin-top:8px;"></div>
+                <div style="margin-top:14px;display:flex;gap:8px;">
+                    <button class="btn" onclick="_vrboStep2Verify()" style="background:#1854A9;color:#fff;">Verify code</button>
+                    <button class="btn btn-secondary" onclick="_vrboResendCode()">Resend code</button>
+                </div>
+            ` + _channexBackBtn('_channexStartVrboWizard');
+            document.getElementById('vrbo-mfa-code').focus();
+        }
+
+        async function _vrboResendCode() {
+            const { connectionId, vrbo } = _channexWizardState;
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/vrbo/request-mfa-code`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ token: vrbo.token, phone: vrbo.phone })
+                }).then(r => r.json());
+                if (r.data?.token) _channexWizardState.vrbo.token = r.data.token;
+                showNotification('Vrbo will re-send the code shortly.', 'info');
+            } catch (e) { showNotification('Resend failed: ' + e.message, 'error'); }
+        }
+
+        async function _vrboStep2Verify() {
+            const errEl = document.getElementById('vrbo-step2-error');
+            errEl.textContent = '';
+            const code = document.getElementById('vrbo-mfa-code').value.trim();
+            if (!code) { errEl.textContent = 'Enter the code Vrbo texted you.'; return; }
+            const { connectionId, vrbo } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _vrboStepHeader(2) + '<div style="text-align:center;padding:40px;">Verifying with Vrbo…</div>';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/vrbo/verify-mfa-code`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ token: vrbo.token, code })
+                }).then(r => r.json());
+                if (r.success === false) throw new Error(r.error || 'verify failed');
+                const token = r.data?.token || r.token;
+                if (!token || (token.status && token.status !== 'verified')) throw new Error('Vrbo did not return status=verified');
+                _channexWizardState.vrbo.token = token;
+                _vrboStep3PickMapping();
+            } catch (e) {
+                _vrboStep2Render();
+                document.getElementById('vrbo-step2-error').textContent = e.message;
+            }
+        }
+
+        async function _vrboStep3PickMapping() {
+            const { connectionId, vrbo } = _channexWizardState;
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _vrboStepHeader(3) + '<div style="text-align:center;padding:40px;">Loading Vrbo listings + Channex rate plans…</div>';
+            const settings = { username: vrbo.username, password: vrbo.password, token: vrbo.token };
+            try {
+                // In parallel: VRBO mapping details, Channex properties on this connection, and rate plans per property.
+                const [mappingR, propsR] = await Promise.all([
+                    fetch(`/api/admin/channex/${connectionId}/mapping-details`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ channel_code: 'VRBO', settings })
+                    }).then(r => r.json()),
+                    fetch(`/api/gas-sync/connections/${connectionId}/properties`, { headers: authHeaders() }).then(r => r.json())
+                ]);
+                if (!mappingR.success) throw new Error(mappingR.error || 'mapping_details failed');
+                _channexWizardState.vrbo.listings = mappingR.mapping_details?.property_id_dictionary?.values || [];
+                _channexWizardState.vrbo.channexProps = (propsR.properties || propsR.data || []).filter(p => p.channex_property_id || p.external_id);
+                _vrboStep3Render();
+            } catch (e) {
+                body.innerHTML = _vrboStepHeader(3) + `<p style="color:#ef4444;">${escapeHtml(e.message)}</p>` + _channexBackBtn('_channexStartVrboWizard');
+            }
+        }
+
+        function _vrboStep3Render() {
+            const body = document.getElementById('channex-wizard-body');
+            const { listings, channexProps } = _channexWizardState.vrbo;
+            if (!listings.length) {
+                body.innerHTML = _vrboStepHeader(3) + `<p>No Vrbo listings returned. Nothing to map.</p>` + _channexBackBtn('_channexStartVrboWizard');
+                return;
+            }
+            const listingOpts = ['<option value="">— pick Vrbo listing —</option>']
+                .concat(listings.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.title)} (${escapeHtml(l.id)})</option>`)).join('');
+            body.innerHTML = _vrboStepHeader(3) + `
+                <p style="font-size:12px;color:#64748b;margin:0 0 12px 0;">Pick which GAS property this channel covers, then match each Channex rate plan to a Vrbo listing.</p>
+                <label style="font-size:12px;font-weight:600;">Channex property to link</label>
+                <select id="vrbo-property" class="form-input" onchange="_vrboLoadRatePlansForProperty()" style="width:100%; margin-bottom:12px;">
+                    <option value="">— pick property —</option>
+                    ${channexProps.map(p => `<option value="${escapeHtml(p.channex_property_id || p.external_id)}" data-name="${escapeHtml(p.name || '')}">${escapeHtml(p.name || 'Unnamed')}</option>`).join('')}
+                </select>
+                <div id="vrbo-rate-mapping" style="font-size:13px;color:#64748b;padding:20px;text-align:center;">Pick a property to load its rate plans.</div>
+                <div id="vrbo-step3-error" style="color:#ef4444;font-size:12px;margin-top:8px;"></div>
+                <div style="margin-top:14px;display:flex;gap:8px;">
+                    <button class="btn" id="vrbo-create-btn" onclick="_vrboStep3Save()" style="background:#1854A9;color:#fff;" disabled>Create Vrbo channel</button>
+                </div>
+                <script>window._vrboListingOpts = ${JSON.stringify(listingOpts)};</script>
+            ` + _channexBackBtn('_channexStartVrboWizard');
+        }
+
+        async function _vrboLoadRatePlansForProperty() {
+            const propId = document.getElementById('vrbo-property').value;
+            const wrap = document.getElementById('vrbo-rate-mapping');
+            if (!propId) { wrap.textContent = 'Pick a property to load its rate plans.'; return; }
+            const { connectionId } = _channexWizardState;
+            wrap.innerHTML = 'Loading rate plans…';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/channex-rate-plans?channex_property_id=${encodeURIComponent(propId)}`, { headers: authHeaders() }).then(r => r.json());
+                const plans = r.rate_plans || r.data || [];
+                if (!plans.length) { wrap.innerHTML = '<em>No rate plans on this property.</em>'; return; }
+                _channexWizardState.vrbo.channexPropId = propId;
+                wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead><tr style="background:#f8fafc;">
+                        <th style="text-align:left;padding:6px;">Channex rate plan</th>
+                        <th style="text-align:left;padding:6px;">Vrbo listing / rate</th>
+                    </tr></thead><tbody>
+                    ${plans.map(rp => `<tr>
+                        <td style="padding:6px;border-bottom:1px solid #e2e8f0;">
+                            <strong>${escapeHtml(rp.title || rp.attributes?.title || rp.id)}</strong>
+                            <div style="font-size:11px;color:#94a3b8;">${escapeHtml(rp.id)}</div>
+                        </td>
+                        <td style="padding:6px;border-bottom:1px solid #e2e8f0;">
+                            <select data-rate-plan="${escapeHtml(rp.id)}" class="vrbo-rate-map form-input" style="width:100%;" onchange="_vrboCheckReady()">
+                                ${window._vrboListingOpts}
+                            </select>
+                        </td>
+                    </tr>`).join('')}
+                </tbody></table>`;
+                _vrboCheckReady();
+            } catch (e) { wrap.innerHTML = `<span style="color:#ef4444;">${escapeHtml(e.message)}</span>`; }
+        }
+
+        function _vrboCheckReady() {
+            const anyMapped = Array.from(document.querySelectorAll('.vrbo-rate-map')).some(s => s.value);
+            const btn = document.getElementById('vrbo-create-btn');
+            if (btn) btn.disabled = !anyMapped || !_channexWizardState.vrbo?.channexPropId;
+        }
+
+        async function _vrboStep3Save() {
+            const { connectionId, vrbo } = _channexWizardState;
+            const errEl = document.getElementById('vrbo-step3-error');
+            errEl.textContent = '';
+            const rate_plans = Array.from(document.querySelectorAll('.vrbo-rate-map'))
+                .filter(s => s.value)
+                .map(s => {
+                    const listing = vrbo.listings.find(l => String(l.id) === String(s.value));
+                    return { rate_plan_id: s.dataset.ratePlan, settings: { property_id: listing.id, property_url: listing.url || null } };
+                });
+            if (rate_plans.length === 0) { errEl.textContent = 'Map at least one rate plan to a Vrbo listing.'; return; }
+            // group_id is derived server-side from the connection (external_account_id).
+            const payload = {
+                channel: 'VRBO',
+                is_active: false,
+                title: 'VRBO',
+                properties: [vrbo.channexPropId],
+                rate_plans,
+                settings: {
+                    username: vrbo.username,
+                    password: vrbo.password,
+                    min_stay_type: vrbo.min_stay_type,
+                    send_email_notification: vrbo.send_email_notifications,
+                    email: vrbo.email || undefined,
+                    token: vrbo.token
+                }
+            };
+            const body = document.getElementById('channex-wizard-body');
+            body.innerHTML = _vrboStepHeader(3) + '<div style="text-align:center;padding:40px;">Creating Vrbo channel on Channex…</div>';
+            try {
+                const r = await fetch(`/api/admin/channex/${connectionId}/vrbo/create-channel`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ channel_payload: payload })
+                }).then(r => r.json());
+                if (!r.success) throw new Error(r.error || 'create-channel failed');
+                showNotification('Vrbo channel created. Activate it from the Connected Channels list when ready.', 'success');
+                if (typeof _channexRenderHome === 'function') _channexRenderHome();
+            } catch (e) {
+                _vrboStep3Render();
+                document.getElementById('vrbo-step3-error').textContent = e.message;
+            }
         }
 
         // Pull the live channel list from Channex and upsert into GAS.

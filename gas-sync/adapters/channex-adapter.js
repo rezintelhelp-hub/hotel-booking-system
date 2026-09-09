@@ -1815,6 +1815,75 @@ class ChannexAdapter {
     const path = type === 'token' ? 'stripe_token' : 'stripe_payment_method';
     return this.request(`/bookings/${channexBookingId}/${path}`, 'POST');
   }
+
+  // =====================================================
+  // VRBO CONNECTION — NON-PUBLIC CHANNEX API
+  // Doc: ~/Desktop/VRBO Connection.pdf (Steve 2026-09-09).
+  // Channex flags these endpoints as "may change without notice" — every
+  // caller should defensively check response.success before proceeding.
+  // Full flow: authenticate → (request_mfa_code → verify_mfa_code) →
+  // test_connection → mapping_details → channelsCreate.
+  // =====================================================
+
+  /**
+   * Step 1 — send username + password to VRBO. Returns { token, status }.
+   * status will typically be 'await_mfa_request' — VRBO wants MFA before
+   * anything else.
+   * POST /api/v1/meta/vrbo/authenticate
+   */
+  async vrboAuthenticate(username, password) {
+    return this.request('/meta/vrbo/authenticate', 'POST', { username, password });
+  }
+
+  /**
+   * Step 2 — tell VRBO to text the MFA code to the operator's phone.
+   * Payload must include the token object returned by authenticate AND
+   * the phone { countryCode, phone } to receive the SMS on.
+   * POST /api/v1/meta/vrbo/request_mfa_code
+   */
+  async vrboRequestMfaCode(token, phone) {
+    return this.request('/meta/vrbo/request_mfa_code', 'POST', { token, phone });
+  }
+
+  /**
+   * Step 3 — submit the 4-digit code the operator got by SMS. Returns
+   * status='verified' + updated token. **Persist this token** — every
+   * downstream call (test_connection, mapping_details, channels create)
+   * must include it in `settings.token`.
+   * POST /api/v1/meta/vrbo/verify_mfa_code
+   */
+  async vrboVerifyMfaCode(token, code) {
+    return this.request('/meta/vrbo/verify_mfa_code', 'POST', { token, code });
+  }
+
+  /**
+   * Verify the collected VRBO settings work. Same payload as mapping_details.
+   * Returns { data: { success: true|false, errors } }.
+   * POST /api/v1/channels/test_connection
+   */
+  async vrboTestConnection(settings) {
+    return this.request('/channels/test_connection', 'POST', { channel: 'VRBO', settings });
+  }
+
+  /**
+   * Fetch VRBO's available listings + rates for mapping. Response:
+   * data.property_id_dictionary.values[] — each with { id, title, rates:[], max_children, url }.
+   * POST /api/v1/channels/mapping_details
+   */
+  async vrboMappingDetails(settings) {
+    return this.request('/channels/mapping_details', 'POST', { channel: 'VRBO', settings });
+  }
+
+  /**
+   * Generic channel create — usable for VRBO/BdC/Airbnb once we have the
+   * payload built (channel, group_id, is_active, title, properties[],
+   * rate_plans[], settings). Existing per-OTA code paths can migrate to
+   * this over time; new OTAs (VRBO) start here.
+   * POST /api/v1/channels
+   */
+  async channelsCreate(payload) {
+    return this.request('/channels', 'POST', { channel: payload });
+  }
 }
 
 // =====================================================
