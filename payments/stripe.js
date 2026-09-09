@@ -39,6 +39,25 @@ module.exports = {
     }
     if (r.rows.length === 0) return null;
     const creds = r.rows[0].credentials || {};
+    // Connect-Standard mode (Steve 2026-09-09 — St Ives driver): properties
+    // onboarded via /api/admin/stripe-connect/onboard land here with a
+    // stripe_account_id but NO per-property publishable/secret keys. Fall
+    // back to the platform's keys (env) and route API calls with the
+    // {stripeAccount} option so charges land on the client's Connect
+    // account. Direct-key properties (creds.secret_key present) stay on
+    // the legacy path.
+    const isConnectMode = !creds.secret_key && (creds.stripe_account_id || creds.account_id);
+    if (isConnectMode) {
+      const platformSecret = process.env.STRIPE_SECRET_KEY;
+      const platformPk = process.env.STRIPE_PUBLISHABLE_KEY;
+      if (!platformSecret || !platformPk) return null;
+      return {
+        secret_key: platformSecret,
+        publishable_key: platformPk,
+        stripe_account_id: creds.stripe_account_id || creds.account_id,
+        currency: (r.rows[0].currency || 'GBP').toUpperCase(),
+      };
+    }
     if (!creds.secret_key) return null;
     return {
       secret_key: creds.secret_key,
@@ -52,9 +71,17 @@ module.exports = {
     return {
       publishable_key: cfg.publishable_key,
       currency: cfg.currency,
-      // stripe_account_id intentionally absent — direct-key properties don't
-      // route via Connect, so the client must NOT pass a stripeAccount option.
+      // For Connect-mode configs, surface stripe_account_id so the browser
+      // Stripe.js SDK knows to initialise with { stripeAccount } — required
+      // for the payment element to render against the client's Connect acct.
+      stripe_account_id: cfg.stripe_account_id || null,
     };
+  },
+
+  // Build the request options bag for every Stripe SDK call so Connect-mode
+  // calls carry { stripeAccount }. Direct-key calls get an empty object.
+  _reqOpts(cfg) {
+    return cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : {};
   },
 
   // opts: {
@@ -68,6 +95,7 @@ module.exports = {
   // }
   async chargeAndConfirm(cfg, opts) {
     const stripe = Stripe(cfg.secret_key);
+    const reqOpts = this._reqOpts(cfg);
     const pi = await stripe.paymentIntents.create({
       amount: Math.round(opts.amount * 100),
       currency: (opts.currency || cfg.currency).toLowerCase(),
@@ -78,7 +106,7 @@ module.exports = {
       setup_future_usage: opts.save_card_on_file ? 'off_session' : undefined,
       description: opts.description,
       metadata: opts.metadata || {},
-    });
+    }, reqOpts);
 
     if (pi.status !== 'succeeded') {
       // Caller decides whether to surface client_secret for SCA. Throw with
@@ -92,7 +120,7 @@ module.exports = {
     }
 
     const charge = pi.latest_charge ? (typeof pi.latest_charge === 'string'
-      ? await stripe.charges.retrieve(pi.latest_charge)
+      ? await stripe.charges.retrieve(pi.latest_charge, reqOpts)
       : pi.latest_charge) : null;
 
     return {
@@ -115,6 +143,7 @@ module.exports = {
   // opts: { token: payment_method_id, buyer_email, description, metadata }
   async storeCardOnly(cfg, opts /*, helpers */) {
     const stripe = Stripe(cfg.secret_key);
+    const reqOpts = this._reqOpts(cfg);
     // Reuse existing customer if the caller passed one; otherwise create.
     let customerId = opts.customer_id || null;
     // Verify the caller-supplied customer actually still exists on this
@@ -126,7 +155,7 @@ module.exports = {
     // House booking 707849 (cus_V5GUGx0tf5hupl).
     if (customerId) {
       try {
-        await stripe.customers.retrieve(customerId);
+        await stripe.customers.retrieve(customerId, reqOpts);
       } catch (e) {
         if (e.code === 'resource_missing') {
           console.warn(`[storeCardOnly] customer ${customerId} not on this Stripe account — creating fresh`);
@@ -141,13 +170,11 @@ module.exports = {
         email: opts.buyer_email || undefined,
         description: opts.description || undefined,
         metadata: opts.metadata || {},
-      });
+      }, reqOpts);
       customerId = customer.id;
     }
-    // Attach the payment method to the customer so it survives the SetupIntent.
-    // If it's already attached (e.g. re-run), Stripe throws — swallow that.
     try {
-      await stripe.paymentMethods.attach(opts.token, { customer: customerId });
+      await stripe.paymentMethods.attach(opts.token, { customer: customerId }, reqOpts);
     } catch (e) {
       if (!/already been attached/i.test(e.message || '')) throw e;
     }
@@ -159,7 +186,7 @@ module.exports = {
       description: opts.description,
       metadata: opts.metadata || {},
       payment_method_types: ['card'],
-    });
+    }, reqOpts);
     if (si.status !== 'succeeded' && si.status !== 'requires_action') {
       const err = new Error(`Stripe SetupIntent not succeeded: status=${si.status}`);
       err.code = 'NOT_SUCCEEDED';
@@ -168,8 +195,7 @@ module.exports = {
       err.status = si.status;
       throw err;
     }
-    // Look up card details from the payment method for UI display.
-    const pm = await stripe.paymentMethods.retrieve(opts.token).catch(() => null);
+    const pm = await stripe.paymentMethods.retrieve(opts.token, reqOpts).catch(() => null);
     return {
       provider: 'stripe',
       provider_payment_id: null,            // no charge

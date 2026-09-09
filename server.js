@@ -57137,6 +57137,29 @@ app.post('/api/admin/stripe-connect/onboard', async (req, res) => {
         'UPDATE properties SET stripe_account_id = $1 WHERE id = ANY($2::int[])',
         [connectAccountId, propertyIdsList]
       );
+      // Also seed payment_configurations so the payments adapter finds a
+      // config for downstream charges. Standard Connect accounts don't get
+      // per-account pk_/sk_ (they charge via platform key + stripeAccount
+      // option); the adapter falls back to platform keys when only
+      // stripe_account_id is present. Missing this row is why St Ives had
+      // "Stripe connected" on Stripe's side but a "need publishable key"
+      // block in GAS. Steve 2026-09-09.
+      for (const propId of propertyIdsList) {
+        const existing = await pool.query(
+          `SELECT id FROM payment_configurations WHERE account_id = $1 AND property_id = $2 AND provider = 'stripe' LIMIT 1`,
+          [account_id, propId]);
+        const creds = { stripe_account_id: connectAccountId, account_id: connectAccountId, connect_type: connectType, connected_at: new Date().toISOString() };
+        if (existing.rows[0]) {
+          await pool.query(
+            `UPDATE payment_configurations SET credentials = credentials || $2::jsonb, is_enabled = true, updated_at = NOW() WHERE id = $1`,
+            [existing.rows[0].id, JSON.stringify(creds)]);
+        } else {
+          await pool.query(
+            `INSERT INTO payment_configurations (account_id, property_id, provider, name, is_enabled, credentials, test_mode, is_default)
+             VALUES ($1, $2, 'stripe', 'Stripe Connect', true, $3::jsonb, false, true)`,
+            [account_id, propId, JSON.stringify(creds)]);
+        }
+      }
       console.log(`[CONNECT] Created ${connectType} account ${connectAccountId} for GAS account ${account_id}, tied to properties [${propertyIdsList.join(',')}]`);
     } else {
       // Legacy single-per-account path — unchanged
