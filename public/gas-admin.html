@@ -58793,13 +58793,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 : '';
             // Yellow dot: any booking on this cell has the operator "need
             // card capture" flag set AND still has no card on file. Renders
-            // top-left so it doesn't collide with the top-right count badge.
-            // Auto-hides once a card lands (has_card_on_file=true from server).
+            // top-right; if the count badge also occupies top-right, offset
+            // the dot left of the badge. Top-left is reserved for the CTA
+            // (no-check-in) red triangle. Auto-hides once a card lands.
             const _flagBookings = Array.isArray(day && day._bookings)
                 ? day._bookings.filter(b => b && b.needs_card_capture && !b.has_card_on_file)
                 : [];
+            const _dotRight = badge ? '22px' : '3px';
             const cardDot = _flagBookings.length > 0
-                ? `<span title="Card capture flagged — fetch from OTA extranet and attach" style="position:absolute; top:2px; left:2px; width:8px; height:8px; border-radius:50%; background:#f59e0b; border:1px solid #b45309; pointer-events:none;"></span>`
+                ? `<span title="Card capture flagged — fetch from OTA extranet and attach" style="position:absolute; top:2px; right:${_dotRight}; width:9px; height:9px; border-radius:50%; background:#f59e0b; border:1px solid #b45309; pointer-events:none;"></span>`
                 : '';
             const posStyle = (badge || cardDot) ? 'position:relative;' : '';
             // Drag-select: available + future cells are selectable so the
@@ -60776,9 +60778,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // right action set per cell.
                     const dragSelectable = !isPast && !isCascadeBlocked && !(isBooked && bookingId);
                     const cellBlocked = dayData && dayData.is_blocked ? '1' : '0';
-                    r += `<td data-room-id="${room.id}" data-date="${dateStr}" data-kind="avail" data-selectable="${dragSelectable ? '1' : '0'}" data-booking-id="${bookingId || ''}" data-blocked="${cellBlocked}" style="padding: 2px; text-align: center; background-color: ${bgColor}; ${cornerCss} color: ${textColor}; font-size: 0.7rem; cursor: ${cursorStyle}; ${leftBar} ${pastStyle}"
+                    // Card-capture flag dot — top-right (top-left is CTA
+                    // triangle; some cells also have CTD top-right so the
+                    // dot sits over it, still visible). Filters to the
+                    // booking rendered in THIS cell when a unit is scoped;
+                    // otherwise looks at every booking on the day.
+                    let _flagged = false;
+                    if (dayData && Array.isArray(dayData._bookings)) {
+                        _flagged = dayData._bookings.some(b => b && b.needs_card_capture && !b.has_card_on_file
+                            && (!unitFilter || b.individual_unit_id === unitFilter));
+                    }
+                    const _dotHtml = _flagged
+                        ? `<span title="Card capture flagged — fetch from OTA extranet and attach" style="position:absolute; top:2px; right:3px; width:9px; height:9px; border-radius:50%; background:#f59e0b; border:1px solid #b45309; pointer-events:none;"></span>`
+                        : '';
+                    const _posDetailed = _flagged ? 'position:relative;' : '';
+                    r += `<td data-room-id="${room.id}" data-date="${dateStr}" data-kind="avail" data-selectable="${dragSelectable ? '1' : '0'}" data-booking-id="${bookingId || ''}" data-blocked="${cellBlocked}" style="${_posDetailed} padding: 2px; text-align: center; background-color: ${bgColor}; ${cornerCss} color: ${textColor}; font-size: 0.7rem; cursor: ${cursorStyle}; ${leftBar} ${pastStyle}"
                         ${titleAttr}
-                        onclick="${clickHandler}">${text || '&nbsp;'}</td>`;
+                        onclick="${clickHandler}">${text || '&nbsp;'}${_dotHtml}</td>`;
                 });
                 r += '</tr>';
                 return r;
