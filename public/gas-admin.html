@@ -89606,7 +89606,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Live link only when we resolved a host and the spark
                     // is published — drafts aren't live yet, so a click
                     // would 404. Draft sparks show the slug as plain text.
-                    const liveUrl = (siteHost && s.is_published) ? `https://${siteHost}/${safeSlug}/` : null;
+                    // Prefer per-spark live_host (Steve 2026-09-09 — Belmont
+                    // vs Adelphi on same account) so a Belmont-scoped spark
+                    // opens on Belmont's domain, not Adelphi's.
+                    const perSparkHost = s.live_host || siteHost;
+                    const liveUrl = (perSparkHost && s.is_published) ? `https://${perSparkHost}/${safeSlug}/` : null;
                     const slugMarkup = liveUrl
                         ? `<a href="${liveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open live page" style="font-size: 0.78rem; color: #6d28d9; text-decoration: none; display: inline-block; margin-bottom: 0.5rem;">/${safeSlug}/ ↗</a>`
                         : `<div style="font-size: 0.78rem; color: #64748b; margin-bottom: 0.5rem;">/${safeSlug}/${s.is_published ? '' : ' <span style=\"color:#94a3b8;\">(draft)</span>'}</div>`;

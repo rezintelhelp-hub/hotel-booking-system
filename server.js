@@ -144895,21 +144895,32 @@ app.get('/api/admin/sparks', async (req, res) => {
     const r = await pool.query(sql, params);
     // Build the public host so the admin grid can render a clickable URL
     // per Spark. Prefer custom_domain when set (cleaner for clients);
-    // fall back to site_url. Same host for every spark in the account.
+    // fall back to site_url. Sparks scoped to a specific property (Belmont
+    // vs Adelphi under acct 68) resolve to that property's deployed_site;
+    // NULL-property sparks fall back to the account's first site.
+    // Steve 2026-09-09.
     let site_host = null;
+    const hostsByProperty = {};
     try {
       const ds = await pool.query(
-        `SELECT custom_domain, site_url FROM deployed_sites
-          WHERE account_id = $1 ORDER BY id LIMIT 1`,
+        `SELECT custom_domain, site_url, property_id FROM deployed_sites
+          WHERE account_id = $1 ORDER BY id`,
         [account_id]
       );
-      const row = ds.rows[0];
-      if (row) {
+      for (const row of ds.rows) {
         const raw = row.custom_domain || row.site_url || '';
-        site_host = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        const host = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (!host) continue;
+        if (!site_host) site_host = host; // first-site fallback (NULL-property sparks)
+        if (row.property_id) hostsByProperty[row.property_id] = host;
       }
     } catch (_) { /* tolerate; admin just falls back to slug-only */ }
-    res.json({ success: true, sparks: r.rows, site_host });
+    // Stamp each spark row with its resolved live host.
+    const sparks = r.rows.map(s => ({
+      ...s,
+      live_host: (s.property_id && hostsByProperty[s.property_id]) || site_host || null,
+    }));
+    res.json({ success: true, sparks, site_host });
   } catch (e) {
     res.json({ success: false, error: e.message });
   }
