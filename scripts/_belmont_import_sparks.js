@@ -18,6 +18,11 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 const ACCOUNT_ID = 68;
+// Belmont Properties (account 68) also owns Adelphi Holiday Flats on the
+// same account. Scoping sparks to property_id=106 keeps them off the
+// Adelphi site. The public endpoint filters
+// (sparks.property_id IS NULL OR = deployed_sites.property_id).
+const BELMONT_PROPERTY_ID = 106;
 const SETSEED_URL = 'http://www.thebelmonthotel.co.uk.app2.rezintel.net';
 const APPLY = process.argv.includes('--apply');
 const ONLY_ARG = (() => {
@@ -170,28 +175,29 @@ function htmlToPlain(html, len) {
       if (existing.rows[0]) {
         await pool.query(`
           UPDATE sparks SET title=$2, subtitle=$3, body=$4, hero_image_url=$5,
-                            meta_description=$6, updated_at=NOW()
+                            meta_description=$6, property_id=$7, updated_at=NOW()
           WHERE id=$1
-        `, [existing.rows[0].id, page.title, subtitle, body, heroImage, metaDesc]);
+        `, [existing.rows[0].id, page.title, subtitle, body, heroImage, metaDesc, BELMONT_PROPERTY_ID]);
         console.log(`      updated spark ${existing.rows[0].id}`);
         stats.updated++;
       } else {
         const r = await pool.query(`
           INSERT INTO sparks (
-            account_id, slug, title, subtitle, body, hero_image_url,
+            account_id, property_id, slug, title, subtitle, body, hero_image_url,
             meta_title, meta_description, is_published, published_at,
             source, source_external_id,
             redirect_from_urls,
             created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), $9, $10, $11, NOW(), NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW(), $10, $11, $12, NOW(), NOW())
           ON CONFLICT (account_id, slug) DO UPDATE SET
             title=EXCLUDED.title, subtitle=EXCLUDED.subtitle, body=EXCLUDED.body,
             hero_image_url=EXCLUDED.hero_image_url,
+            property_id=EXCLUDED.property_id,
             source_external_id=EXCLUDED.source_external_id,
             updated_at=NOW()
           RETURNING id
         `, [
-          ACCOUNT_ID, page.slug, page.title, subtitle, body, heroImage,
+          ACCOUNT_ID, BELMONT_PROPERTY_ID, page.slug, page.title, subtitle, body, heroImage,
           page.title.slice(0, 60), metaDesc,
           'setseed-belmont', externalId,
           [ `/${page.slug}/`, page.path ? `/${page.path}/` : null ].filter(Boolean)

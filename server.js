@@ -149707,14 +149707,16 @@ app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
     const { slug } = req.params;
     const { site_url, host, preview } = req.query;
     let accountId = null;
+    let sitePropertyId = null;
     if (site_url || host) {
       const siteRow = await pool.query(
-        `SELECT account_id FROM deployed_sites
+        `SELECT account_id, property_id FROM deployed_sites
          WHERE site_url ILIKE $1 OR custom_domain ILIKE $2
          LIMIT 1`,
         [`%${site_url || host}%`, `%${(host || site_url || '').replace(/^https?:\/\//, '').replace(/\/$/, '')}%`]
       );
       accountId = siteRow.rows[0]?.account_id;
+      sitePropertyId = siteRow.rows[0]?.property_id || null;
     }
     if (!accountId) return res.json({ success: false, error: 'site not found' });
 
@@ -149723,6 +149725,11 @@ app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
     // the is_published gate is bypassed. Operator gets a shareable URL for
     // client / accountant / designer approval without publishing to the
     // world. Steve 2026-08-28.
+    // Site scoping (Steve 2026-09-09 — Belmont vs Adelphi both under acct
+    // 68 share sparks unless we filter): a spark with property_id set only
+    // shows on the site whose deployed_sites.property_id matches; sparks
+    // with NULL property_id are shared across every site on the account
+    // (backwards-compatible — the vast majority of existing sparks).
     const previewToken = (preview && String(preview).trim()) || null;
     const r = await pool.query(`
       SELECT * FROM sparks
@@ -149732,8 +149739,9 @@ app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
           OR ($3::text IS NOT NULL AND preview_token = $3)
         )
         AND (slug = $2 OR $2 = ANY(redirect_from_urls))
+        AND (property_id IS NULL OR property_id = $4)
       LIMIT 1
-    `, [accountId, slug, previewToken]);
+    `, [accountId, slug, previewToken, sitePropertyId]);
     if (!r.rows[0]) return res.json({ success: false, error: 'spark not found' });
     const spark = r.rows[0];
 
