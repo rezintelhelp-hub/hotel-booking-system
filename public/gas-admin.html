@@ -118687,7 +118687,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 body.innerHTML = _vrboStepHeader(3) + `<p>No Vrbo listings returned. Nothing to map.</p>` + _channexBackBtn('_channexStartVrboWizard');
                 return;
             }
-            const listingOpts = ['<option value="">— pick Vrbo listing —</option>']
+            // Cache the listing-options HTML directly on window so the
+            // rate-plans loader (which builds selects dynamically after a
+            // property is picked) can reuse it. Avoids inline script-tag
+            // injection via innerHTML — a literal close-script inside a
+            // template literal terminates the whole page's JS block.
+            window._vrboListingOpts = ['<option value="">— pick Vrbo listing —</option>']
                 .concat(listings.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.title)} (${escapeHtml(l.id)})</option>`)).join('');
             body.innerHTML = _vrboStepHeader(3) + `
                 <p style="font-size:12px;color:#64748b;margin:0 0 12px 0;">Pick which GAS property this channel covers, then match each Channex rate plan to a Vrbo listing.</p>
@@ -118701,7 +118706,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="margin-top:14px;display:flex;gap:8px;">
                     <button class="btn" id="vrbo-create-btn" onclick="_vrboStep3Save()" style="background:#1854A9;color:#fff;" disabled>Create Vrbo channel</button>
                 </div>
-                <script>window._vrboListingOpts = ${JSON.stringify(listingOpts)};</script>
             ` + _channexBackBtn('_channexStartVrboWizard');
         }
 
