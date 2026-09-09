@@ -17155,8 +17155,8 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
     const listingIdStr = String(listing_id);
     const propIns = await pool.query(`
       INSERT INTO properties (account_id, user_id, name, address, city, country, zip_code, currency, latitude, longitude,
-        phone, cm_source, cm_property_id, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'airbnb', $12, NOW())
+        phone, cm_source, cm_property_id, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'airbnb', $12, 'active', NOW())
       RETURNING id
     `, [
       account_id, propertyUserId,
@@ -17169,12 +17169,12 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
     ]);
     const propertyId = propIns.rows[0].id;
 
-    // Airbnb amenities (Steve 2026-09-09) — L.amenities is a list of amenity
-    // codes OR objects; L.amenities_details is objects with names. Normalise
-    // to a list of display names, then match against master_amenities so
-    // guest pages get proper icons + labels.
+    // Airbnb amenities (Steve 2026-09-09) — Channex returns as an OBJECT
+    // keyed by uppercase amenity code (HOT_WATER_KETTLE, WIRELESS_INTERNET,
+    // etc), NOT the array shape earlier docs suggested. Also tolerates
+    // array shape in case older listings still land that way.
     const amenityDisplay = [];
-    const rawAmenities = L.amenities_details || L.amenities || [];
+    const rawAmenities = L.amenities_details || L.amenities || {};
     if (Array.isArray(rawAmenities)) {
       for (const a of rawAmenities) {
         if (!a) continue;
@@ -17183,15 +17183,43 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
         else if (a.title) amenityDisplay.push(String(a.title));
         else if (a.description) amenityDisplay.push(String(a.description));
       }
+    } else if (rawAmenities && typeof rawAmenities === 'object') {
+      for (const code of Object.keys(rawAmenities)) {
+        const v = rawAmenities[code];
+        if (v === false) continue;
+        if (v && typeof v === 'object' && v.present === false) continue;
+        amenityDisplay.push(String(code));
+      }
     }
-    // Dedupe + tidy
     const uniqueAmenities = [...new Set(amenityDisplay.map(s => s.trim()).filter(Boolean))];
+
+    // Rich full_description — concat every non-empty description sub-field.
+    // Channex/Airbnb returns any of: description, summary, space, interaction,
+    // neighborhood_overview, transit, access, notes. Defensive: include what
+    // exists, skip what doesn't.
+    const fullDescParts = [desc.description, desc.space, desc.neighborhood_overview,
+      desc.transit, desc.interaction, desc.access, desc.notes].filter(Boolean);
+    const fullDesc = fullDescParts.join('\n\n');
+    const bs = L.booking_settings || {};
+    const fmtHour = h => {
+      if (h === null || h === undefined || h === '') return null;
+      const s = String(h);
+      if (/^\d{1,2}:\d{2}/.test(s)) return s.length === 4 ? '0' + s : s.substring(0, 5);
+      if (/^\d{1,2}$/.test(s)) return s.padStart(2, '0') + ':00';
+      return null;
+    };
+    const guestInfo = {};
+    if (L.wifi_network) guestInfo.wifi_network = L.wifi_network;
+    if (L.wifi_password) guestInfo.wifi_password = L.wifi_password;
 
     const unitIns = await pool.query(`
       INSERT INTO bookable_units (property_id, name, display_name, max_guests, max_adults, max_children, base_price,
         short_description, full_description, num_bedrooms, num_bathrooms, unit_type, amenities,
+        cleaning_fee, security_deposit, check_in_time, check_out_time, guest_info,
         cm_source, cm_room_id, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $4, 0, $5, $6, $7, $8, $9, $10, $11::jsonb, 'airbnb', $12, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $4, 0, $5, $6, $7, $8, $9, $10, $11::jsonb,
+        $13, $14, $15, $16, $17::jsonb,
+        'airbnb', $12, NOW(), NOW())
       RETURNING id
     `, [
       propertyId,
@@ -17199,29 +17227,63 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       JSON.stringify({ en: desc.name || 'Imported' }),
       L.person_capacity || 2, pricing.default_daily_price || null,
       JSON.stringify({ en: desc.summary || '' }),
-      JSON.stringify({ en: [desc.space, desc.access, desc.neighborhood_overview, desc.transit, desc.notes].filter(Boolean).join('\n\n') }),
+      JSON.stringify({ en: fullDesc }),
       L.bedrooms || 1, Math.ceil(L.bathrooms || 1),
       unitType,
       JSON.stringify(uniqueAmenities),
-      listingIdStr
+      listingIdStr,
+      pricing.cleaning_fee || null,
+      pricing.security_deposit || null,
+      fmtHour(bs.check_in_time_start),
+      fmtHour(bs.check_out_time),
+      Object.keys(guestInfo).length ? JSON.stringify(guestInfo) : null
     ]);
     const bookableUnitId = unitIns.rows[0].id;
 
-    // Match Airbnb amenity names to master_amenities → room_amenity_selections
-    // so guest booking pages render them with proper icons. Same fuzzy-match
-    // pattern the Beds24 marketplace sync uses. Unmatched amenities still
-    // live in bookable_units.amenities JSONB above.
+    // Per-room bed configuration from L.rooms[]. Each entry has beds[] with
+    // { type, quantity }. Store one property_bedrooms row per Airbnb room.
+    if (Array.isArray(L.rooms) && L.rooms.length > 0) {
+      for (let ri = 0; ri < L.rooms.length; ri++) {
+        const r = L.rooms[ri];
+        if (!r || !Array.isArray(r.beds) || r.beds.length === 0) continue;
+        const bedConfig = r.beds.map(b => ({
+          type: b.type || b.bed_type || 'double',
+          qty: b.quantity || b.count || 1
+        }));
+        try {
+          await pool.query(`
+            INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order, created_at, updated_at)
+            VALUES ($1, $2, $3, $4::jsonb, $5, NOW(), NOW())
+          `, [propertyId, bookableUnitId, r.name || r.title || `Bedroom ${ri + 1}`, JSON.stringify(bedConfig), ri]);
+        } catch (bedErr) { console.warn('[airbnb import] bedroom insert failed:', bedErr.message); }
+      }
+    }
+
+    // Match Airbnb amenity codes against master_amenities.
+    //   1. exact amenity_code
+    //   2. exact amenity_name->>'en'
+    //   3. aliases array contains humanised term (WIRELESS_INTERNET → WIFI)
+    //   4. partial amenity_name
     let matchedAmenities = 0;
-    for (const label of uniqueAmenities) {
+    for (const rawCode of uniqueAmenities) {
+      const code = String(rawCode).toUpperCase();
+      const humanised = code.replace(/_/g, ' ').toLowerCase();
       try {
         const m = await pool.query(
           `SELECT id FROM master_amenities
-            WHERE LOWER(name) = LOWER($1)
-               OR LOWER(amenity_code) = LOWER(REPLACE($1, ' ', '_'))
-               OR LOWER(name) LIKE LOWER($2)
-            ORDER BY (LOWER(name) = LOWER($1)) DESC
+            WHERE UPPER(amenity_code) = $1
+               OR LOWER(amenity_name->>'en') = $2
+               OR EXISTS (
+                 SELECT 1 FROM jsonb_array_elements_text(COALESCE(aliases, '[]'::jsonb)) alias
+                  WHERE LOWER(alias) = $2 OR LOWER($2) LIKE '%' || LOWER(alias) || '%'
+               )
+               OR LOWER(amenity_name->>'en') LIKE $3
+            ORDER BY
+              (UPPER(amenity_code) = $1) DESC,
+              (LOWER(amenity_name->>'en') = $2) DESC,
+              LENGTH(amenity_name->>'en') ASC
             LIMIT 1`,
-          [label, `%${label}%`]);
+          [code, humanised, `%${humanised}%`]);
         if (m.rows[0]) {
           await pool.query(
             `INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
@@ -17229,7 +17291,7 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
             [bookableUnitId, m.rows[0].id]);
           matchedAmenities++;
         }
-      } catch (_) { /* tolerate — bad label doesn't fail the import */ }
+      } catch (_) { /* tolerate — bad code doesn't fail the import */ }
     }
 
     const images = L.images || [];
@@ -17262,24 +17324,31 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       } catch (coverErr) { console.warn('[airbnb import] cover image insert failed:', coverErr.message); }
     }
 
-    // Terms & policies from Airbnb (Steve 2026-09-09). Best-effort: field
-    // names vary between Airbnb API versions + Channex may not surface all
-    // of them. Uses defensive multi-key fallbacks. Writes to property_terms
-    // respecting the sync-lock trigger — if Steve's already customised
-    // terms for this property + locked them, this write silently no-ops.
-    const structured = L.structured_house_rules || L.house_rules_details || {};
+    // Terms & policies from Airbnb (Steve 2026-09-09, paths verified against
+    // live Channex probe). Real paths:
+    //   booking_settings.check_in_time_start / _end / check_out_time
+    //   booking_settings.guest_controls.allows_* (pets/smoking/events/children)
+    //   booking_settings.cancellation_policy_settings.cancellation_policy_category
+    //   quiet_hours[0].start_time / end_time
+    //   descriptions.house_rules / notes
+    // Writes to property_terms respecting the sync-lock trigger — if Steve's
+    // already customised terms for this property + locked them, silently no-ops.
+    const gc = bs.guest_controls || {};
+    const cps = bs.cancellation_policy_settings || {};
+    const qh = Array.isArray(L.quiet_hours) && L.quiet_hours[0] || {};
     const termsFields = {
-      house_rules_text: L.house_rules || L.house_manual || null,
-      cancel_policy: L.cancellation_policy || L.cancel_policy || null,
-      checkin_from: L.check_in_time_start || L.checkin_time_start || L.check_in_time || null,
-      checkin_until: L.check_in_time_end || L.checkin_time_end || null,
-      checkout_by: L.checkout_time || L.check_out_time || null,
-      checkin_instructions: L.check_in_instructions || L.checkin_instructions || L.guest_manual || null,
-      pets: structured.allow_pets === true ? 'yes' : structured.allow_pets === false ? 'no' : null,
-      smoking: structured.allow_smoking === true ? 'yes' : structured.allow_smoking === false ? 'no' : null,
-      events: structured.allow_events === true ? 'yes' : structured.allow_events === false ? 'no' : null,
-      children: (structured.suitable_for_children === false || structured.allow_children_under_2 === false) ? 'limit'
-              : (structured.suitable_for_children === true) ? 'all' : null,
+      house_rules_text: desc.house_rules || desc.notes || null,
+      cancel_policy: cps.cancellation_policy_category || null,
+      checkin_from: fmtHour(bs.check_in_time_start),
+      checkin_until: fmtHour(bs.check_in_time_end),
+      checkout_by: fmtHour(bs.check_out_time),
+      checkin_instructions: bs.check_in_instructions || null,
+      pets: gc.allows_pets_as_host === true ? 'yes' : gc.allows_pets_as_host === false ? 'no' : null,
+      smoking: gc.allows_smoking_as_host === true ? 'yes' : gc.allows_smoking_as_host === false ? 'no' : null,
+      events: gc.allows_events_as_host === true ? 'yes' : gc.allows_events_as_host === false ? 'no' : null,
+      children: gc.allows_children_as_host === true ? 'all' : gc.allows_children_as_host === false ? 'no' : null,
+      quiet_from: fmtHour(qh.start_time),
+      quiet_until: fmtHour(qh.end_time),
     };
     const anyTerms = Object.values(termsFields).some(v => v !== null && v !== '' && v !== undefined);
     if (anyTerms) {
@@ -17288,8 +17357,9 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
           INSERT INTO property_terms (property_id, additional_rules, additional_rules_ml,
             cancellation_policy, checkin_from, checkin_until, checkout_by,
             check_in_instructions, check_in_instructions_ml,
-            pet_policy, smoking_policy, events_policy, children_policy)
-          VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13)
+            pet_policy, smoking_policy, events_policy, children_policy,
+            quiet_hours_from, quiet_hours_until)
+          VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)
           ON CONFLICT (property_id) DO UPDATE SET
             additional_rules = COALESCE(EXCLUDED.additional_rules, property_terms.additional_rules),
             additional_rules_ml = COALESCE(EXCLUDED.additional_rules_ml, property_terms.additional_rules_ml),
@@ -17303,13 +17373,16 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
             smoking_policy = COALESCE(EXCLUDED.smoking_policy, property_terms.smoking_policy),
             events_policy = COALESCE(EXCLUDED.events_policy, property_terms.events_policy),
             children_policy = COALESCE(EXCLUDED.children_policy, property_terms.children_policy),
+            quiet_hours_from = COALESCE(EXCLUDED.quiet_hours_from, property_terms.quiet_hours_from),
+            quiet_hours_until = COALESCE(EXCLUDED.quiet_hours_until, property_terms.quiet_hours_until),
             updated_at = NOW()
         `, [
           propertyId,
           termsFields.house_rules_text, termsFields.house_rules_text ? JSON.stringify({ en: termsFields.house_rules_text }) : null,
           termsFields.cancel_policy, termsFields.checkin_from, termsFields.checkin_until, termsFields.checkout_by,
           termsFields.checkin_instructions, termsFields.checkin_instructions ? JSON.stringify({ en: termsFields.checkin_instructions }) : null,
-          termsFields.pets, termsFields.smoking, termsFields.events, termsFields.children
+          termsFields.pets, termsFields.smoking, termsFields.events, termsFields.children,
+          termsFields.quiet_from, termsFields.quiet_until
         ]);
       } catch (termsErr) { console.warn('[airbnb import] terms write skipped (likely content_locked):', termsErr.message); }
     }

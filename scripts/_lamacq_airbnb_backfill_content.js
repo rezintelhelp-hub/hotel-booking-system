@@ -82,15 +82,27 @@ function cleanImageUrl(u) { return String(u || '').replace(/\?.*$/, ''); }
       }
       const desc = L.descriptions || {};
       const unitType = roomTypeMap[String(L.room_type_category || '').toLowerCase()] || 'apartment';
-      // Amenities
-      const rawAmen = L.amenities_details || L.amenities || [];
+      // Amenities — Airbnb via Channex returns as an OBJECT keyed by
+      // uppercase amenity code (HOT_WATER_KETTLE, WIRELESS_INTERNET, etc).
+      // NOT an array. Codes look like the same shape master_amenities uses
+      // for beds24_code / amenity_code, so match on both.
       const amenityDisplay = [];
+      const rawAmen = L.amenities_details || L.amenities || {};
       if (Array.isArray(rawAmen)) {
         for (const a of rawAmen) {
           if (!a) continue;
           if (typeof a === 'string') amenityDisplay.push(a);
           else if (a.name) amenityDisplay.push(String(a.name));
           else if (a.title) amenityDisplay.push(String(a.title));
+        }
+      } else if (rawAmen && typeof rawAmen === 'object') {
+        for (const code of Object.keys(rawAmen)) {
+          const v = rawAmen[code];
+          // Skip explicit-false or explicit-missing entries; Airbnb sometimes
+          // includes { present: false } for negative amenities.
+          if (v === false) continue;
+          if (v && typeof v === 'object' && v.present === false) continue;
+          amenityDisplay.push(String(code));
         }
       }
       const uniqueAmenities = [...new Set(amenityDisplay.map(s => s.trim()).filter(Boolean))];
@@ -123,29 +135,107 @@ function cleanImageUrl(u) { return String(u || '').replace(/\?.*$/, ''); }
         }
       }
 
-      // Backfill bookable_unit fields (amenities JSONB + unit_type + cm_source/id)
+      // Rich full_description — concat every non-empty description sub-field.
+      const fullDescParts = [desc.description, desc.space, desc.neighborhood_overview,
+        desc.transit, desc.interaction, desc.access, desc.notes].filter(Boolean);
+      const fullDescML = fullDescParts.length ? JSON.stringify({ en: fullDescParts.join('\n\n') }) : null;
+      const pricing = L.pricing_settings || {};
+      const bsRoom = L.booking_settings || {};
+      const fmtHourRoom = h => {
+        if (h === null || h === undefined || h === '') return null;
+        const s = String(h).trim();
+        if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+        const n = parseInt(s, 10);
+        return Number.isFinite(n) ? String(n).padStart(2, '0') + ':00' : null;
+      };
+      const guestInfo = {};
+      if (L.wifi_network) guestInfo.wifi_network = L.wifi_network;
+      if (L.wifi_password) guestInfo.wifi_password = L.wifi_password;
+
+      // Backfill bookable_unit fields — amenities/unit_type/cm ids already there;
+      // now also fill cleaning_fee, security_deposit, check-in/out times, wifi
+      // (guest_info JSONB), and richer full_description if empty. All writes
+      // preserve operator-set values via COALESCE.
       await pool.query(`
         UPDATE bookable_units SET
           amenities = CASE WHEN COALESCE(jsonb_array_length(amenities), 0) = 0 THEN $2::jsonb ELSE amenities END,
           unit_type = COALESCE(unit_type, $3),
           cm_source = COALESCE(cm_source, 'airbnb'),
           cm_room_id = COALESCE(cm_room_id, $4),
+          cleaning_fee = COALESCE(cleaning_fee, $5),
+          security_deposit = COALESCE(security_deposit, $6),
+          check_in_time = COALESCE(check_in_time, $7),
+          check_out_time = COALESCE(check_out_time, $8),
+          guest_info = CASE
+            WHEN guest_info IS NULL OR guest_info = '{}'::jsonb THEN $9::jsonb
+            ELSE guest_info
+          END,
+          full_description = CASE
+            WHEN COALESCE(full_description, '') IN ('', 'null', '{}', '{"en":""}')
+            THEN $10
+            ELSE full_description
+          END,
           updated_at = NOW()
          WHERE id = $1`,
-        [buId, JSON.stringify(uniqueAmenities), unitType, String(listingId)]);
+        [buId, JSON.stringify(uniqueAmenities), unitType, String(listingId),
+         pricing.cleaning_fee || null, pricing.security_deposit || null,
+         fmtHourRoom(bsRoom.check_in_time_start), fmtHourRoom(bsRoom.check_out_time),
+         Object.keys(guestInfo).length ? JSON.stringify(guestInfo) : null,
+         fullDescML]);
 
-      // Match amenities to master_amenities → room_amenity_selections
+      // Per-room bed configuration from L.rooms[]. One property_bedrooms row
+      // per Airbnb "room". Skip if we've already populated any bedrooms for
+      // this bookable_unit (so a re-run doesn't duplicate).
+      if (Array.isArray(L.rooms) && L.rooms.length > 0) {
+        const exists = await pool.query(
+          'SELECT 1 FROM property_bedrooms WHERE room_id = $1 LIMIT 1', [buId]);
+        if (exists.rows.length === 0) {
+          let bedCount = 0;
+          for (let ri = 0; ri < L.rooms.length; ri++) {
+            const r = L.rooms[ri];
+            if (!r || !Array.isArray(r.beds) || r.beds.length === 0) continue;
+            const bedConfig = r.beds.map(b => ({
+              type: b.type || b.bed_type || 'double',
+              qty: b.quantity || b.count || 1
+            }));
+            try {
+              await pool.query(`
+                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order, created_at, updated_at)
+                VALUES ($1, $2, $3, $4::jsonb, $5, NOW(), NOW())
+              `, [propId, buId, r.name || r.title || `Bedroom ${ri + 1}`, JSON.stringify(bedConfig), ri]);
+              bedCount++;
+            } catch (bedErr) { console.warn(`  ⚠ bedroom insert failed: ${bedErr.message}`); }
+          }
+          if (bedCount) console.log(`  ✓ ${bedCount} bedroom(s) populated from Airbnb rooms[]`);
+        }
+      }
+
+      // Match Airbnb amenity codes against master_amenities. Precedence:
+      //   1. exact amenity_code match (WIFI = WIFI)
+      //   2. exact amenity_name->>'en' match
+      //   3. aliases array contains the humanised term (Airbnb WIRELESS_INTERNET
+      //      → master WIFI via aliases ['wireless', 'internet', ...])
+      //   4. partial amenity_name match
       let matched = 0;
-      for (const label of uniqueAmenities) {
+      for (const rawCode of uniqueAmenities) {
+        const code = String(rawCode).toUpperCase();
+        const humanised = code.replace(/_/g, ' ').toLowerCase();
         try {
           const m = await pool.query(
             `SELECT id FROM master_amenities
-              WHERE LOWER(name) = LOWER($1)
-                 OR LOWER(amenity_code) = LOWER(REPLACE($1, ' ', '_'))
-                 OR LOWER(name) LIKE LOWER($2)
-              ORDER BY (LOWER(name) = LOWER($1)) DESC
+              WHERE UPPER(amenity_code) = $1
+                 OR LOWER(amenity_name->>'en') = $2
+                 OR EXISTS (
+                   SELECT 1 FROM jsonb_array_elements_text(COALESCE(aliases, '[]'::jsonb)) alias
+                    WHERE LOWER(alias) = $2 OR LOWER($2) LIKE '%' || LOWER(alias) || '%'
+                 )
+                 OR LOWER(amenity_name->>'en') LIKE $3
+              ORDER BY
+                (UPPER(amenity_code) = $1) DESC,
+                (LOWER(amenity_name->>'en') = $2) DESC,
+                LENGTH(amenity_name->>'en') ASC
               LIMIT 1`,
-            [label, `%${label}%`]);
+            [code, humanised, `%${humanised}%`]);
           if (m.rows[0]) {
             await pool.query(
               `INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
