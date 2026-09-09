@@ -149702,6 +149702,39 @@ app.delete('/api/admin/sparks/:id', async (req, res) => {
 // Public — used by the WP plugin to fetch a Spark by slug + site host.
 // Resolves the account from the deployed site, then returns the live
 // Spark plus the resolved CTA target (offer details / shop product / room).
+// Whitelist-scoped HTTPS proxy for legacy HTTP-only SetSeed image hosts.
+// Belmont/Adelphi et al. migrated their bookings + content to GAS but the
+// original SetSeed sites remain up on http://<domain>.app2.rezintel.net/
+// (no HTTPS). Modern browsers block mixed content on our HTTPS domains,
+// so we route those images through this endpoint until the R2 migration
+// runs. Restricted to a hardcoded host whitelist so this can't be abused
+// as an open proxy. 1-year cache on the response.
+// Steve 2026-09-09.
+const _PROXY_IMG_ALLOWED_HOSTS = new Set([
+  'www.thebelmonthotel.co.uk.app2.rezintel.net',
+  'thebelmonthotel.co.uk.app2.rezintel.net',
+]);
+app.get('/api/public/proxy-image', async (req, res) => {
+  try {
+    const raw = String(req.query.url || '');
+    let target;
+    try { target = new URL(raw); } catch (_) { return res.status(400).send('bad url'); }
+    if (!/^https?:$/.test(target.protocol)) return res.status(400).send('bad protocol');
+    if (!_PROXY_IMG_ALLOWED_HOSTS.has(target.host)) return res.status(403).send('host not allowed');
+    const upstream = await fetch(target.href, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+    if (!upstream.ok) return res.status(upstream.status).send('upstream ' + upstream.status);
+    const ct = upstream.headers.get('content-type') || 'image/jpeg';
+    if (!/^image\//i.test(ct)) return res.status(415).send('non-image content-type: ' + ct);
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.send(buf);
+  } catch (e) {
+    console.error('[proxy-image]', e.message);
+    res.status(500).send('proxy error');
+  }
+});
+
 app.get('/api/public/sparks/by-slug/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
