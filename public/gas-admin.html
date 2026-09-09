@@ -58791,7 +58791,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             const badge = badgeN > 1
                 ? `<span style="position:absolute; top:1px; right:2px; background:#0f172a; color:#fff; font-size:0.6rem; font-weight:700; padding:1px 4px; border-radius:6px; line-height:1; pointer-events:none;">${badgeN}</span>`
                 : '';
-            const posStyle = badge ? 'position:relative;' : '';
+            // Yellow dot: any booking on this cell has the operator "need
+            // card capture" flag set AND still has no card on file. Renders
+            // top-left so it doesn't collide with the top-right count badge.
+            // Auto-hides once a card lands (has_card_on_file=true from server).
+            const _flagBookings = Array.isArray(day && day._bookings)
+                ? day._bookings.filter(b => b && b.needs_card_capture && !b.has_card_on_file)
+                : [];
+            const cardDot = _flagBookings.length > 0
+                ? `<span title="Card capture flagged — fetch from OTA extranet and attach" style="position:absolute; top:2px; left:2px; width:8px; height:8px; border-radius:50%; background:#f59e0b; border:1px solid #b45309; pointer-events:none;"></span>`
+                : '';
+            const posStyle = (badge || cardDot) ? 'position:relative;' : '';
             // Drag-select: available + future cells are selectable so the
             // existing _calDragBindOnce handler engages on simple-view rows
             // (Steve 2026-06-25). data-kind must match across the drag,
@@ -58800,7 +58810,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // parent rows opt out (suppressBooking) because they aggregate
             // across sub-units; drag has to happen on a sub-row.
             const selectable = (isAvailable && !isPast && !bookingId && !suppressBooking) ? '1' : '0';
-            return `<td ${clickHandler} data-date="${dateStr}" data-room-id="${unitId}" data-kind="avail" data-selectable="${selectable}" title="${safeTitle}" style="${posStyle} background:${bg}; ${cutoffOverlay} color:${textColor}; padding:6px 4px; text-align:center; font-size:0.75rem; font-weight:500; border-left:1px solid #e2e8f0; cursor:${cellCursor}; ${leftBar} ${todayBorder} min-width:40px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${String(text).replace(/</g, '&lt;')}${badge}</td>`;
+            return `<td ${clickHandler} data-date="${dateStr}" data-room-id="${unitId}" data-kind="avail" data-selectable="${selectable}" title="${safeTitle}" style="${posStyle} background:${bg}; ${cutoffOverlay} color:${textColor}; padding:6px 4px; text-align:center; font-size:0.75rem; font-weight:500; border-left:1px solid #e2e8f0; cursor:${cellCursor}; ${leftBar} ${todayBorder} min-width:40px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${String(text).replace(/</g, '&lt;')}${cardDot}${badge}</td>`;
         }
         // Day-window size — 14 (default), 30 (one month), 60 (two months).
         // Persisted in localStorage so operators don't have to reselect on
@@ -72341,7 +72351,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (booking.has_active_copy) {
                     rowStyle = 'background: #f1f5f9; color: #94a3b8;';
                 }
-                
+
                 // Group badge — parse "(Room N/M)" from notes (stamped by
                 // /api/public/create-group-booking on every group row).
                 // Leader (1/M) gets a crown + green highlight so you can
@@ -75340,6 +75350,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             el.style.borderColor = c.colour.bd;
             el.style.borderLeft = `4px solid ${c.colour.bd}`;
             el.style.display = 'block';
+            // Card-capture flag button — only rendered for OTA "you charge"
+            // banners where a chase is meaningful (BdC + Expedia hotel-collect).
+            // Auto-hidden when a card is already on file (nothing to chase).
+            const _src = String(b.booking_source || '').toLowerCase();
+            const _showFlagBtn = ['booking', 'bookingcom', 'expedia'].includes(_src)
+                && !b.stripe_customer_id
+                && !b.stripe_payment_method_id
+                && b.status !== 'cancelled';
+            const _flagged = b.needs_card_capture === true;
+            const flagBtnHtml = _showFlagBtn
+                ? `<button onclick="toggleCardCaptureFlag(${b.id})" title="${_flagged ? 'Clear the yellow-dot reminder' : 'Mark this booking so a yellow dot appears on the calendar cell — reminder to fetch card from OTA extranet and attach.'}"
+                     style="background:${_flagged ? '#16a34a' : '#f59e0b'}; color:white; border:none; padding:0.4rem 0.75rem; border-radius:6px; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap;">
+                    ${_flagged ? '✓ Card Flag Set — click to clear' : '🟡 Mark: Need Card'}
+                  </button>`
+                : '';
             el.innerHTML = `
                 <div style="display:flex; gap:0.75rem; align-items:flex-start;">
                     <div style="font-size:1.3rem; line-height:1;">${c.icon}</div>
@@ -75347,7 +75372,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div style="font-weight:700; color:${c.colour.fg}; letter-spacing:0.02em; text-transform:uppercase; font-size:0.8rem;">${c.title}</div>
                         <div style="color:${c.colour.fg}; font-size:0.9rem; margin-top:2px;">${c.body}</div>
                     </div>
+                    ${flagBtnHtml ? `<div style="flex-shrink:0; align-self:center;">${flagBtnHtml}</div>` : ''}
                 </div>`;
+        }
+
+        // Toggle the "need to capture card" flag on a booking. Refreshes the
+        // detail view so the button state + status flip, and next calendar
+        // load will show/hide the yellow dot.
+        async function toggleCardCaptureFlag(bookingId) {
+            if (!bookingId) return;
+            const cur = window._currentViewingBooking;
+            const nowFlagged = !(cur && cur.needs_card_capture === true);
+            try {
+                const r = await fetch('/api/admin/bookings/' + bookingId + '/card-capture-flag', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ flagged: nowFlagged })
+                });
+                const d = await r.json();
+                if (!d.success) { alert('Error: ' + (d.error || 'save failed')); return; }
+                if (typeof viewBooking === 'function') viewBooking(bookingId);
+                if (typeof loadGridData === 'function') loadGridData();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
         }
 
         async function viewBooking(id) {

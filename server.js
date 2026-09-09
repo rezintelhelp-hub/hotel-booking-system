@@ -3237,6 +3237,12 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pre_arrival_submitted_at TIMESTAMP`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pre_arrival_eta VARCHAR(20)`);
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pre_arrival_captured_email VARCHAR(255)`);
+      // 2026-09-09 — needs_card_capture: operator-set flag surfacing "we
+      // need to grab this OTA guest's card from the OTA extranet and
+      // attach it in GAS". Toggled from the booking-detail modal's
+      // source-banner button; auto-cleared at render time when
+      // stripe_customer_id is populated.
+      await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS needs_card_capture BOOLEAN DEFAULT FALSE`);
       // 2026-07-09 — guest_direct_email is the canonical "real guest email"
       // separate from bookings.guest_email (which stays as the original,
       // often OTA-masked, address that came in on the booking). Populated
@@ -26255,6 +26261,34 @@ app.post('/api/admin/reflect-bookings-to-availability', async (req, res) => {
 // the /belmont-fix bulk tool + can also be called individually. Master-admin
 // only. Verifies the target room belongs to the same property to prevent
 // cross-property misassignment.
+// Toggle the operator "need card capture" flag on a booking. Surfaces as a
+// yellow dot on the availability calendar cell so reception knows to grab
+// the OTA-guest's card from the extranet + attach it before arrival.
+// Auto-cleared at render time when stripe_customer_id is populated (i.e.
+// once a real card lands, the dot disappears without touching the flag).
+app.patch('/api/admin/bookings/:id/card-capture-flag', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const flagged = req.body?.flagged === true;
+    // Scope check — non-master must own the property.
+    const own = await pool.query(
+      `SELECT p.account_id FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+      [bookingId]);
+    if (own.rows.length === 0) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== (decoded.id || decoded.accountId)) {
+      return res.status(403).json({ success: false, error: 'Not your booking' });
+    }
+    await pool.query(`UPDATE bookings SET needs_card_capture = $1, updated_at = NOW() WHERE id = $2`, [flagged, bookingId]);
+    res.json({ success: true, booking_id: bookingId, needs_card_capture: flagged });
+  } catch (e) {
+    console.error('[card-capture-flag]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/admin/bookings/:id/reassign-room', async (req, res) => {
   const admin = await requireMasterAdmin(req, res);
   if (!admin) return;
@@ -88843,6 +88877,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           individual_unit_id,
           booking_source,
           status,
+          needs_card_capture,
+          stripe_customer_id,
           "${roomIdCol}" as source_room_id
         FROM bookings
         WHERE "${roomIdCol}" = ANY($1::int[])
@@ -88872,7 +88908,11 @@ app.get('/api/availability/:roomId', async (req, res) => {
             booking_id: b.booking_id,
             guest_name: b.guest_name,
             individual_unit_id: b.individual_unit_id,
-            booking_source: b.booking_source
+            booking_source: b.booking_source,
+            // Card-capture flag auto-clears at render time when a card is on
+            // file, so ship both fields for the client to compute effective.
+            needs_card_capture: b.needs_card_capture === true,
+            has_card_on_file: !!b.stripe_customer_id
           });
         }
       });
