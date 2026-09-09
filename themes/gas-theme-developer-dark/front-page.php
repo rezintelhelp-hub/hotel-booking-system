@@ -32,6 +32,7 @@ $lg_radius = $api['lg_radius'] ?? 16;
 
 // Hero settings (with API override)
 $hero_bg = $api['hero_image'] ?? get_theme_mod('developer_hero_bg', '');
+$hero_mobile_image = $api['hero_mobile_image'] ?? '';
 $hero_video_url = $api['hero_video_url'] ?? get_theme_mod('developer_hero_video_url', '');
 $hero_background_type = $api['hero_background_type'] ?? get_theme_mod('developer_hero_background_type', 'image');
 $hero_slide_1 = $api['hero_slide_1'] ?? get_theme_mod('developer_hero_slide_1', '');
@@ -194,6 +195,17 @@ $sg = hexdec(substr($search_hex, 2, 2));
 $sb = hexdec(substr($search_hex, 4, 2));
 $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 ?>
+
+<?php if ($hero_mobile_image) : ?>
+<style>
+/* Mobile hero swap — Steve 2026-09-09. Desktop hero image → phone-specific
+   image at ≤600px. Applied to every hero-bg surface on the homepage. */
+@media (max-width: 600px) {
+    .developer-hero-bg,
+    .developer-hero-bg-fallback { background-image: url('<?php echo esc_url($hero_mobile_image); ?>') !important; }
+}
+</style>
+<?php endif; ?>
 
 <!-- Hero Section -->
 <section class="developer-hero" <?php if ($hero_background_type === 'slider') : ?>data-slider-duration="<?php echo esc_attr($hero_slider_duration); ?>" data-slider-transition="<?php echo esc_attr($hero_slider_transition); ?>"<?php endif; ?>>
