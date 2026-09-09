@@ -112666,19 +112666,20 @@ app.post('/api/public/calculate-price', async (req, res) => {
       // ignore the legacy is_blocked/is_available columns when poolDayMap
       // is set — they may be a stale wholesale-block left by pre-fix
       // /api/public/book runs.
-      // Multi-unit override: for legacy quantity>1 rooms, is_available on the
-      // single row goes false as soon as ONE unit is sold. Recompute from
-      // actual bookings count so quantity=5 with 1 booking = 4 units free.
-      // Operator blocks (is_blocked=true) are ALWAYS honoured — only strip
-      // the is_available=false when it's a CM-derived "one booking exists"
-      // false-positive, not an explicit stop-sell.
+      // Multi-unit override: for legacy quantity>1 rooms, is_available AND
+      // is_blocked on the single row both go stale as soon as ONE unit is
+      // sold (Beds24 flips the whole row false). Mirror what
+      // /api/public/availability does at server.js:112222-112229 —
+      // for multi-unit rooms, IGNORE is_available/is_blocked entirely, use
+      // bookings-count vs quantity as the only truth.
       const multiUnitFree = (!poolDayMap && buQuantity > 1 && dayData)
         ? (buQuantity - (bookingsByDate[dateStr] || 0)) > 0
         : null;
       const dayUnavailable = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (!dayData || (dayData.is_blocked === true)
-            || (multiUnitFree === null ? dayData.is_available === false : !multiUnitFree));
+        : (multiUnitFree !== null
+            ? !multiUnitFree
+            : (!dayData || dayData.is_available === false || dayData.is_blocked === true));
       if (dayUnavailable || !nightPrice) {
         allAvailable = false;
       }
@@ -112725,13 +112726,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
       accommodationTotal += adjustedNightPrice;
       occupancyAdjustmentTotal += nightOccupancyAdjustment;
       
-      // Same pool-aware override as above — legacy room_availability rows
-      // are not the source of truth for pool-model accounts. Multi-unit
-      // legacy rooms use bookings-count math identically to dayUnavailable.
+      // Same pool-aware / multi-unit overrides as above — legacy
+      // room_availability rows are not the source of truth for pool-model
+      // accounts or multi-unit legacy rooms.
       const dayBlocked = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (dayData && (dayData.is_blocked
-            || (multiUnitFree === null ? !dayData.is_available : !multiUnitFree)));
+        : (multiUnitFree !== null
+            ? !multiUnitFree
+            : (dayData && (!dayData.is_available || dayData.is_blocked)));
       if (dayBlocked) {
         allAvailable = false;
       }
