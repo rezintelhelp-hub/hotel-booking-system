@@ -2698,10 +2698,26 @@ jQuery(document).ready(function($) {
                         generalHtml += '<li><strong>' + (tTerms.late_checkout_fee || 'Late check-out fee') + ':</strong> ' + terms.check_out.late_fee + '</li>';
                     }
                     
-                    // Children policy
-                    var childrenText = terms.children.policy === 'all' ? (tTerms.children_all_ages || 'Children of all ages welcome') : 
-                                      terms.children.policy === 'no' ? (tTerms.no_children || 'No children allowed') : 
-                                      (tTerms.children_policy || 'Children policy') + ': ' + terms.children.policy;
+                    // Children policy. Age range (children_min_age /
+                    // children_max_age set by operator) overrides the
+                    // generic policy label when present — Beds24 only
+                    // exposes on/off/limit flags, so this GAS-side
+                    // override lets operators say "Children between X
+                    // and Y welcome". Steve 2026-09-09.
+                    var minAge = terms.children.min_age;
+                    var maxAge = terms.children.max_age;
+                    var childrenText;
+                    if (minAge != null && maxAge != null && minAge !== '' && maxAge !== '') {
+                        childrenText = 'Children between ' + minAge + ' and ' + maxAge + ' welcome';
+                    } else if (minAge != null && minAge !== '') {
+                        childrenText = 'Children aged ' + minAge + ' and over welcome';
+                    } else if (maxAge != null && maxAge !== '') {
+                        childrenText = 'Children up to age ' + maxAge + ' welcome';
+                    } else {
+                        childrenText = terms.children.policy === 'all' ? (tTerms.children_all_ages || 'Children of all ages welcome') :
+                                       terms.children.policy === 'no' ? (tTerms.no_children || 'No children allowed') :
+                                       (tTerms.children_policy || 'Children policy') + ': ' + terms.children.policy;
+                    }
                     generalHtml += '<li><strong>' + (tTerms.children || 'Children') + ':</strong> ' + childrenText;
                     if (terms.children.cots_available) generalHtml += ' • ' + (tTerms.cots_available || 'Cots available');
                     if (terms.children.highchairs_available) generalHtml += ' • ' + (tTerms.highchairs_available || 'Highchairs available');

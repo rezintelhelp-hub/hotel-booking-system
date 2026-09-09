@@ -5139,6 +5139,19 @@
 
                     <!-- Terms & Policies Tab -->
                     <div id="amenities-tab-terms" class="amenity-tab-panel" style="display: none;">
+                        <!-- Steve 2026-09-09 — Content lock (mirror of rooms).
+                             When locked, subsequent Beds24/Channex/Hostaway
+                             syncs won't overwrite operator edits. -->
+                        <div id="property-terms-lock-bar" data-locked="0" style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span id="property-terms-lock-icon" style="font-size: 1.1rem;">🔓</span>
+                                <div>
+                                    <strong id="property-terms-lock-title">Terms unlocked</strong>
+                                    <div id="property-terms-lock-subtitle" style="font-size: 0.82rem; color: #64748b;">Channel Manager syncs will refresh these fields.</div>
+                                </div>
+                            </div>
+                            <button type="button" id="property-terms-lock-btn" class="btn" onclick="togglePropertyTermsLock()" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer;">🔒 Lock terms</button>
+                        </div>
                         <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0; white-space: nowrap;">
                                 <input type="checkbox" id="terms-apply-to-all">
@@ -5377,6 +5390,20 @@
                                         <input type="checkbox" id="terms-highchairs" style="width: 18px; height: 18px;">
                                         <span>High Chairs Available</span>
                                     </label>
+                                </div>
+                                <!-- Steve 2026-09-09 — explicit age range so operators can say
+                                     "Children between 12 and 16 welcome" instead of the generic
+                                     policy label. Both blank = use the policy above; range set
+                                     wins in the front-end terms rendering. -->
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Welcomed age range <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— overrides the policy text above when set</span></label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input type="number" class="form-input" id="terms-children-min-age" min="0" max="17" placeholder="Min" style="width: 90px;">
+                                        <span>to</span>
+                                        <input type="number" class="form-input" id="terms-children-max-age" min="0" max="17" placeholder="Max" style="width: 90px;">
+                                        <span style="color:#64748b; font-size:0.85rem;">years</span>
+                                    </div>
+                                    <small style="color:#64748b;">e.g. Min 12, Max 16 → "Children between 12 and 16 welcome"</small>
                                 </div>
                                 <div class="form-group" style="margin-top: 1rem;">
                                     <label class="form-label">Cot Fee Per Night (if offered)</label>
@@ -32170,6 +32197,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <label class="form-label">House rules</label>
                     <textarea class="form-input" id="edit-property-house-rules" rows="4" placeholder="No smoking. No parties. Quiet hours 22:00–08:00. Pets by prior arrangement only." style="width: 100%; font-size:0.9rem;"></textarea>
+                    <!-- Steve 2026-09-09 — deep link to the full property-
+                         terms editor (pets, smoking, children age range,
+                         cancellation, accessibility, quiet hours, etc.)
+                         + the content lock. -->
+                    <div style="margin-top:0.75rem; padding:0.75rem; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px;">
+                        <button type="button" class="btn" onclick="_openFullPropertyTerms()" style="background:#6366f1; color:white; border:none; padding:0.45rem 0.9rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">📜 Edit full Terms &amp; lock from CM sync →</button>
+                        <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">Opens the full Terms editor (children age range, pets, cancellation, accessibility, etc.). Lock the terms there to protect operator overrides from Channel Manager sync.</div>
+                    </div>
                 </div>
 
                 <!-- Guest Portal section toggles. Save-on-change: each checkbox
@@ -53161,6 +53196,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 cots_available: document.getElementById('terms-cots-available')?.checked,
                 highchairs_available: document.getElementById('terms-highchairs')?.checked,
                 cot_fee: document.getElementById('terms-cot-fee')?.value || null,
+                children_min_age: document.getElementById('terms-children-min-age')?.value || null,
+                children_max_age: document.getElementById('terms-children-max-age')?.value || null,
                 
                 events_policy: document.querySelector('input[name="events-policy"]:checked')?.value,
                 
@@ -53286,13 +53323,89 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Load property terms when property is selected
+        // Jump from Edit Property → Amenities view with this property
+        // preselected + Terms tab open. Steve 2026-09-09.
+        async function _openFullPropertyTerms() {
+            const propertyId = document.getElementById('edit-property-id')?.value || document.querySelector('#editPropertyModal [name="id"]')?.value;
+            closeModal('editPropertyModal');
+            showView('amenities');
+            // Wait for the amenities view to populate its property picker,
+            // then preselect + open the Terms tab.
+            const trySelect = (tries) => {
+                const sel = document.getElementById('amenities-property-select');
+                if (sel && sel.options && sel.options.length > 1) {
+                    if (propertyId) {
+                        sel.value = String(propertyId);
+                        if (typeof loadAmenitiesRooms === 'function') loadAmenitiesRooms();
+                    }
+                    if (typeof switchAmenityTab === 'function') switchAmenityTab('terms');
+                    return;
+                }
+                if (tries > 0) setTimeout(() => trySelect(tries - 1), 200);
+            };
+            setTimeout(() => trySelect(20), 100);
+        }
+
+        // Update the terms-lock bar in the Amenities → Terms tab so the
+        // operator sees at a glance whether Channel Manager syncs will
+        // still refresh these fields. Steve 2026-09-09.
+        function _updatePropertyTermsLockUI(locked) {
+            const bar = document.getElementById('property-terms-lock-bar');
+            const icon = document.getElementById('property-terms-lock-icon');
+            const title = document.getElementById('property-terms-lock-title');
+            const sub = document.getElementById('property-terms-lock-subtitle');
+            const btn = document.getElementById('property-terms-lock-btn');
+            if (!bar) return;
+            bar.dataset.locked = locked ? '1' : '0';
+            if (locked) {
+                bar.style.background = '#f0fdf4';
+                bar.style.border = '1px solid #86efac';
+                if (icon) icon.textContent = '🔒';
+                if (title) title.textContent = 'Terms locked — protected from CM sync';
+                if (sub) sub.textContent = 'Beds24 / Channex / Hostaway can\'t overwrite these fields until you unlock. Your saves still work.';
+                if (btn) { btn.textContent = '🔓 Unlock terms'; btn.style.background = '#16a34a'; }
+            } else {
+                bar.style.background = '#fffbeb';
+                bar.style.border = '1px solid #fde68a';
+                if (icon) icon.textContent = '🔓';
+                if (title) title.textContent = 'Terms unlocked';
+                if (sub) sub.textContent = 'Channel Manager syncs will refresh these fields on next pull.';
+                if (btn) { btn.textContent = '🔒 Lock terms'; btn.style.background = '#f59e0b'; }
+            }
+        }
+
+        async function togglePropertyTermsLock() {
+            const propertyId = document.getElementById('amenities-property-select')?.value;
+            if (!propertyId) { alert('Pick a property first.'); return; }
+            const bar = document.getElementById('property-terms-lock-bar');
+            const currentlyLocked = bar?.dataset.locked === '1';
+            const btn = document.getElementById('property-terms-lock-btn');
+            if (btn) btn.disabled = true;
+            try {
+                const r = await fetch(`/api/admin/properties/${propertyId}/terms-lock`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ locked: !currentlyLocked })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    _updatePropertyTermsLockUI(d.content_locked);
+                    if (typeof showNotification === 'function') showNotification(d.content_locked ? 'Terms locked — sync blocked' : 'Terms unlocked — sync will refresh', 'success');
+                } else {
+                    alert('Error: ' + (d.error || 'lock toggle failed'));
+                }
+            } catch (e) { alert('Error: ' + e.message); }
+            finally { if (btn) btn.disabled = false; }
+        }
+
         async function loadPropertyTerms(propertyId) {
             await loadLanguageSettings(true);
             // Reset ALL form fields ALWAYS to prevent data contamination (even when no property selected)
             // Text inputs and textareas
             ['terms-checkin-from','terms-checkin-until','terms-checkout','terms-late-checkout-fee',
              'terms-smoking-fine','terms-pet-deposit','terms-pet-fee','terms-max-pets','terms-cot-fee',
-             'terms-quiet-from','terms-quiet-until'
+             'terms-quiet-from','terms-quiet-until',
+             'terms-children-min-age','terms-children-max-age'
             ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             // Reset all translation fields
             const allLangs = ['en','fr','es','nl','de','it','pt','ja'];
@@ -53327,6 +53440,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const beds = result.data.beds || [];
                     const bathrooms = result.data.bathrooms || [];
                     
+                    // Populate age-range inputs + surface lock state.
+                    const minAgeEl = document.getElementById('terms-children-min-age');
+                    const maxAgeEl = document.getElementById('terms-children-max-age');
+                    if (minAgeEl) minAgeEl.value = terms.children_min_age ?? '';
+                    if (maxAgeEl) maxAgeEl.value = terms.children_max_age ?? '';
+                    if (typeof _updatePropertyTermsLockUI === 'function') _updatePropertyTermsLockUI(!!terms.content_locked);
+
                     // Populate check-in/out (using database column names).
                     // HTML <input type="time"> only accepts 00:00-23:59 so "24:00"
                     // (legacy Beds24 "midnight inclusive") gets normalised to 23:59

@@ -3243,6 +3243,38 @@ async function runMigrations() {
       // source-banner button; auto-cleared at render time when
       // stripe_customer_id is populated.
       await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS needs_card_capture BOOLEAN DEFAULT FALSE`);
+
+      // 2026-09-09 — property_terms lock + children age range.
+      // Mirror of bookable_units.content_locked pattern. Operator can
+      // edit + lock a property's terms so subsequent Beds24/Channex
+      // syncs don't clobber the manual overrides. Trigger below enforces
+      // the guard without needing to touch every sync UPSERT site.
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS content_locked BOOLEAN NOT NULL DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS children_min_age INTEGER`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS children_max_age INTEGER`);
+      await pool.query(`
+        CREATE OR REPLACE FUNCTION _preserve_locked_property_terms() RETURNS TRIGGER AS $$
+        BEGIN
+          -- Operator-driven writes bypass the guard by SET LOCAL app.terms_bypass_lock='yes'
+          -- inside their transaction. Everything else (sync UPSERTs) hits the row-level check.
+          IF current_setting('app.terms_bypass_lock', true) = 'yes' THEN
+            RETURN NEW;
+          END IF;
+          IF OLD.content_locked = true THEN
+            -- Silently skip the update — the sync caller thinks it succeeded, but the row is unchanged.
+            RETURN NULL;
+          END IF;
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+      await pool.query(`DROP TRIGGER IF EXISTS trg_preserve_locked_property_terms ON property_terms`);
+      await pool.query(`
+        CREATE TRIGGER trg_preserve_locked_property_terms
+          BEFORE UPDATE ON property_terms
+          FOR EACH ROW
+          EXECUTE FUNCTION _preserve_locked_property_terms()
+      `);
       // 2026-07-09 — guest_direct_email is the canonical "real guest email"
       // separate from bookings.guest_email (which stays as the original,
       // often OTA-masked, address that came in on the booking). Populated
@@ -93941,13 +93973,58 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
 });
 
 // PUT /api/admin/properties/:id/terms - Save property terms and beds
+// Toggle content lock on a property's terms (mirror of /units/:id/lock).
+// When locked, the property_terms row is protected from Beds24/Channex/
+// Hostaway sync overwrites via the BEFORE UPDATE trigger. Operator saves
+// still succeed (PUT endpoint sets SET LOCAL bypass). Master or account
+// owner can toggle. Steve 2026-09-09.
+app.patch('/api/admin/properties/:id/terms-lock', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const propertyId = parseInt(req.params.id, 10);
+    const { locked } = req.body || {};
+    if (typeof locked !== 'boolean') return res.status(400).json({ success: false, error: 'locked (boolean) required' });
+    // Scope check — property must be on caller's account (master bypass).
+    const own = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (own.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== (decoded.id || decoded.accountId)) {
+      return res.status(403).json({ success: false, error: 'Not your property' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL app.terms_bypass_lock = 'yes'`);
+      // Ensure a row exists (INSERT if missing) so the lock has somewhere to land.
+      await client.query(
+        `INSERT INTO property_terms (property_id, content_locked) VALUES ($1, $2)
+         ON CONFLICT (property_id) DO UPDATE SET content_locked = EXCLUDED.content_locked, updated_at = NOW()`,
+        [propertyId, locked]);
+      await client.query('COMMIT');
+      res.json({ success: true, property_id: propertyId, content_locked: locked });
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('[terms-lock]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.put('/api/admin/properties/:id/terms', async (req, res) => {
   const client = await pool.connect();
   try {
     const propertyId = req.params.id;
     const { terms, beds, bathrooms, bathroom_features } = req.body;
-    
+
     await client.query('BEGIN');
+    // Operator save — bypass the property_terms sync-lock guard so this
+    // write always succeeds, even on locked rows. Sync callers don't set
+    // this, so a locked row silently ignores CM re-syncs. Steve 2026-09-09.
+    await client.query(`SET LOCAL app.terms_bypass_lock = 'yes'`);
 
     // Ensure _ml columns exist (self-healing migration)
     const mlCols = ['check_in_instructions_ml','check_out_instructions_ml','damage_policy_ml','terms_conditions_ml','directions_ml','area_info_ml','additional_rules_ml','cancellation_policy_ml'];
@@ -93971,8 +94048,9 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
         additional_rules, bathroom_features, additional_rules_ml, cancellation_policy, cancellation_policy_ml,
         check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info, apply_to_all,
-        check_in_instructions_ml, check_out_instructions_ml, damage_policy_ml, terms_conditions_ml, directions_ml, area_info_ml
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50)
+        check_in_instructions_ml, check_out_instructions_ml, damage_policy_ml, terms_conditions_ml, directions_ml, area_info_ml,
+        children_min_age, children_max_age
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52)
       ON CONFLICT (property_id) DO UPDATE SET
         checkin_from = EXCLUDED.checkin_from,
         checkin_until = EXCLUDED.checkin_until,
@@ -94023,6 +94101,8 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         terms_conditions_ml = EXCLUDED.terms_conditions_ml,
         directions_ml = EXCLUDED.directions_ml,
         area_info_ml = EXCLUDED.area_info_ml,
+        children_min_age = EXCLUDED.children_min_age,
+        children_max_age = EXCLUDED.children_max_age,
         updated_at = CURRENT_TIMESTAMP
     `, [
       propertyId,
@@ -94074,7 +94154,9 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.damage_policy_ml ? JSON.stringify(terms.damage_policy_ml) : null,
       terms.terms_conditions_ml ? JSON.stringify(terms.terms_conditions_ml) : null,
       terms.directions_ml ? JSON.stringify(terms.directions_ml) : null,
-      terms.area_info_ml ? JSON.stringify(terms.area_info_ml) : null
+      terms.area_info_ml ? JSON.stringify(terms.area_info_ml) : null,
+      (terms.children_min_age === '' || terms.children_min_age == null) ? null : parseInt(terms.children_min_age, 10),
+      (terms.children_max_age === '' || terms.children_max_age == null) ? null : parseInt(terms.children_max_age, 10)
     ]);
 
     // Mark every term field the admin just saved as 'edited' so future Beds24
@@ -111514,7 +111596,12 @@ app.get('/api/public/property/:propertyId/terms', async (req, res) => {
         policy: terms.children_policy || 'all',
         cots_available: terms.cots_available || false,
         highchairs_available: terms.highchairs_available || false,
-        cot_fee: terms.cot_fee_per_night || null
+        cot_fee: terms.cot_fee_per_night || null,
+        // Operator-set age range overrides the generic policy label
+        // client-side (WP plugin renders "Children between X and Y
+        // welcome"). Steve 2026-09-09.
+        min_age: terms.children_min_age ?? null,
+        max_age: terms.children_max_age ?? null
       },
       events: {
         policy: terms.events_policy || 'no'
