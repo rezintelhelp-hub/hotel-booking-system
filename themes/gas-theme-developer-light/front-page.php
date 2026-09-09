@@ -248,9 +248,14 @@ $homepage_sections = array(); // position => html
         <video class="developer-hero-video" autoplay muted loop playsinline>
             <source src="<?php echo esc_url($hero_video_url); ?>" type="video/mp4">
         </video>
-        <?php if ($hero_bg) : ?>
-            <!-- Fallback image for mobile/slow connections -->
-            <div class="developer-hero-bg developer-hero-bg-fallback" style="background-image: url('<?php echo esc_url($hero_bg); ?>');"></div>
+        <?php if ($hero_bg || $hero_mobile_image) : ?>
+            <!-- Fallback image for mobile/slow connections.
+                 Steve 2026-09-09 — render whenever EITHER desktop hero_bg
+                 OR hero_mobile_image is set. Mobile-only sites (video
+                 desktop + static mobile) had no fallback div to target.
+                 CSS at ≤600px in style.css overrides the background-image
+                 with hero_mobile_image when set. -->
+            <div class="developer-hero-bg developer-hero-bg-fallback" style="background-image: url('<?php echo esc_url($hero_bg ?: $hero_mobile_image); ?>');"></div>
         <?php endif; ?>
     <?php elseif ($hero_background_type === 'slider') : ?>
         <!-- Image Slider Background -->

@@ -214,9 +214,10 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <video class="developer-hero-video" autoplay muted loop playsinline>
             <source src="<?php echo esc_url($hero_video_url); ?>" type="video/mp4">
         </video>
-        <?php if ($hero_bg) : ?>
-            <!-- Fallback image for mobile/slow connections -->
-            <div class="developer-hero-bg developer-hero-bg-fallback" style="background-image: url('<?php echo esc_url($hero_bg); ?>');"></div>
+        <?php if ($hero_bg || $hero_mobile_image) : ?>
+            <!-- Fallback image (mobile/slow connections). Renders when
+                 either desktop or mobile image is set. Steve 2026-09-09. -->
+            <div class="developer-hero-bg developer-hero-bg-fallback" style="background-image: url('<?php echo esc_url($hero_bg ?: $hero_mobile_image); ?>');"></div>
         <?php endif; ?>
     <?php elseif ($hero_background_type === 'slider') : ?>
         <!-- Image Slider Background -->
