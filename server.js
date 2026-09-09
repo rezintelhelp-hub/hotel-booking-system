@@ -144868,6 +144868,7 @@ app.get('/api/admin/sparks', async (req, res) => {
     let sql = `SELECT s.id, s.slug, s.title, s.subtitle, s.hero_image_url, s.layout, s.cta_type,
                       s.linked_offer_id, s.linked_shop_product_id, s.linked_room_id,
                       s.is_published, s.published_at, s.show_in_nav,
+                      s.property_id, sp_name.name AS property_name,
                       s.created_at, s.updated_at, s.source, s.source_external_id,
                       COALESCE(ev.views, 0)             AS stat_views,
                       COALESCE(ev.clicks, 0)            AS stat_clicks,
@@ -144875,6 +144876,7 @@ app.get('/api/admin/sparks', async (req, res) => {
                       COALESCE(ev.purchased, 0)         AS stat_purchased,
                       COALESCE(ev.revenue, 0)           AS stat_revenue
                FROM sparks s
+               LEFT JOIN properties sp_name ON sp_name.id = s.property_id
                LEFT JOIN (
                  SELECT spark_id,
                         COUNT(*) FILTER (WHERE event_type = 'view')             AS views,
@@ -144920,7 +144922,16 @@ app.get('/api/admin/sparks', async (req, res) => {
       ...s,
       live_host: (s.property_id && hostsByProperty[s.property_id]) || site_host || null,
     }));
-    res.json({ success: true, sparks, site_host });
+    // Also return the account's property list so the admin UI can populate
+    // per-spark scoping dropdowns + filters. Steve 2026-09-09.
+    let properties = [];
+    try {
+      const pRes = await pool.query(
+        `SELECT id, name, city FROM properties WHERE account_id = $1 ORDER BY name`,
+        [account_id]);
+      properties = pRes.rows;
+    } catch (_) { /* tolerate — admin falls back to no-property mode */ }
+    res.json({ success: true, sparks, site_host, properties });
   } catch (e) {
     res.json({ success: false, error: e.message });
   }

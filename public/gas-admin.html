@@ -19553,8 +19553,14 @@
                         <button class="btn" onclick="openSparkModal()" style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); color: white; flex: 0 0 auto;">+ New Spark</button>
                     </div>
                 </div>
-                <div class="card" style="margin-bottom: 1rem;">
-                    <input type="text" id="spark-search" class="form-input" placeholder="Search by title or slug…" oninput="loadSparks()" style="max-width: 360px;">
+                <div class="card" style="margin-bottom: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                    <input type="text" id="spark-search" class="form-input" placeholder="Search by title or slug…" oninput="loadSparks()" style="max-width: 360px; flex: 1 1 200px;">
+                    <!-- Property filter — populated by loadSparks() from
+                         account's deployed properties (Steve 2026-09-09).
+                         Hidden when account has only one (or zero) properties. -->
+                    <select id="spark-property-filter" class="form-input" onchange="_renderSparkGrid()" style="max-width: 240px; flex: 0 0 auto; display: none;">
+                        <option value="">All properties</option>
+                    </select>
                 </div>
                 <div id="sparks-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
                     <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #64748b;">Loading…</div>
@@ -19641,6 +19647,17 @@
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="copySparkPreviewLink()" title="Shareable URL that shows this spark even when unpublished — perfect for client / designer approval">🔗 Copy preview link</button>
                                 <span id="spark-preview-link-status" style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;"></span>
                             </div>
+                        </div>
+
+                        <!-- Property scoping — only meaningful when the account
+                             has more than one deployed site. Hidden otherwise.
+                             Populated on modal open from _sparksLastPayload.
+                             Steve 2026-09-09. -->
+                        <div class="form-group" id="spark-property-row" style="display: none;">
+                            <label>Show on which site? <span style="font-weight:400;color:#64748b;font-size:0.8rem;">— pick the property this Spark belongs to</span></label>
+                            <select id="spark-property-id" class="form-input">
+                                <option value="">🌐 Shared — show on every site on this account</option>
+                            </select>
                         </div>
 
                         <!-- Classic-mode-only fields. Hidden when the operator
@@ -89574,6 +89591,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         };
         
         // ── ⚡ GAS Spark — micro-funnel landing pages ──
+        // Cached per-load payload so the property-filter dropdown can
+        // re-render the grid without hitting the API again.
+        window._sparksLastPayload = null;
+
         async function loadSparks() {
             const accountId = getClientId();
             const grid = document.getElementById('sparks-grid');
@@ -89584,77 +89605,115 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const r = await fetch(url, { headers: authHeaders() });
                 const d = await r.json();
                 if (!d.success) { grid.innerHTML = `<div style="grid-column: 1/-1; color: #dc2626;">${d.error || 'Failed to load'}</div>`; return; }
-                if (!d.sparks || d.sparks.length === 0) {
-                    grid.innerHTML = `<div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: #64748b; background: #f8fafc; border-radius: 8px;">
-                        <div style="font-size: 1.05rem; margin-bottom: 0.5rem;">⚡ No Sparks yet</div>
-                        <div style="font-size: 0.9rem;">Click "+ New Spark" to drop a landing page. Or import from an existing Setseed site (coming next).</div>
-                    </div>`;
-                    return;
+                window._sparksLastPayload = d;
+                // Populate + show the property filter when the account
+                // has >1 property (only useful then).
+                const filterEl = document.getElementById('spark-property-filter');
+                if (filterEl) {
+                    const props = Array.isArray(d.properties) ? d.properties : [];
+                    if (props.length > 1) {
+                        const currentVal = filterEl.value;
+                        filterEl.innerHTML = '<option value="">All properties</option>'
+                            + '<option value="__shared__">🌐 Shared (all sites)</option>'
+                            + props.map(p => `<option value="${p.id}">🏠 ${String(p.name || '').replace(/</g, '&lt;')}</option>`).join('');
+                        filterEl.value = currentVal;
+                        filterEl.style.display = '';
+                    } else {
+                        filterEl.style.display = 'none';
+                    }
                 }
-                const ctaIcon = { offer: '🎁', shop_product: '🛍', room: '🛏', external_url: '🔗', form_embed: '📋' };
-                const siteHost = d.site_host || '';
+                _renderSparkGrid();
+            } catch (e) { grid.innerHTML = `<div style="grid-column: 1/-1; color: #dc2626;">Error: ${e.message}</div>`; }
+        }
+
+        // Render (or re-render) the Sparks grid from the last-loaded payload.
+        // Split out from loadSparks() so the property-filter dropdown can
+        // refilter without an API round-trip. Steve 2026-09-09.
+        function _renderSparkGrid() {
+            const grid = document.getElementById('sparks-grid');
+            const d = window._sparksLastPayload;
+            if (!grid || !d || !d.success) return;
+            const accountId = getClientId();
+            if (!d.sparks || d.sparks.length === 0) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: #64748b; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 1.05rem; margin-bottom: 0.5rem;">⚡ No Sparks yet</div>
+                    <div style="font-size: 0.9rem;">Click "+ New Spark" to drop a landing page.</div>
+                </div>`;
+                return;
+            }
+            // Apply property filter
+            const filterVal = document.getElementById('spark-property-filter')?.value || '';
+            const filtered = d.sparks.filter(s => {
+                if (!filterVal) return true;
+                if (filterVal === '__shared__') return !s.property_id;
+                return String(s.property_id) === String(filterVal);
+            });
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; padding: 2rem; text-align: center; color: #64748b;">No sparks match the current filter.</div>`;
+                return;
+            }
+            const ctaIcon = { offer: '🎁', shop_product: '🛍', room: '🛏', external_url: '🔗', form_embed: '📋' };
+            const siteHost = d.site_host || '';
+            const propsById = {};
+            (d.properties || []).forEach(p => { propsById[p.id] = p; });
                 // Last-worked-on marker (Steve 2026-08-28) — persisted in
                 // localStorage per account so it survives refresh/logout.
                 // Not shared across accounts because operators switching
                 // clients don't want another account's marker leaking.
                 const lastEditedId = parseInt(localStorage.getItem('_gas_spark_last_edited_' + accountId) || '0', 10) || null;
-                // Cache the host so the editor modal can build the "View
-                // live" URL without refetching.
-                window._sparksSiteHost = siteHost;
-                grid.innerHTML = d.sparks.map(s => {
-                    const safeSlug = String(s.slug || '').replace(/"/g, '&quot;');
-                    // Live link only when we resolved a host and the spark
-                    // is published — drafts aren't live yet, so a click
-                    // would 404. Draft sparks show the slug as plain text.
-                    // Prefer per-spark live_host (Steve 2026-09-09 — Belmont
-                    // vs Adelphi on same account) so a Belmont-scoped spark
-                    // opens on Belmont's domain, not Adelphi's.
-                    const perSparkHost = s.live_host || siteHost;
-                    const liveUrl = (perSparkHost && s.is_published) ? `https://${perSparkHost}/${safeSlug}/` : null;
-                    const slugMarkup = liveUrl
-                        ? `<a href="${liveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open live page" style="font-size: 0.78rem; color: #6d28d9; text-decoration: none; display: inline-block; margin-bottom: 0.5rem;">/${safeSlug}/ ↗</a>`
-                        : `<div style="font-size: 0.78rem; color: #64748b; margin-bottom: 0.5rem;">/${safeSlug}/${s.is_published ? '' : ' <span style=\"color:#94a3b8;\">(draft)</span>'}</div>`;
-                    // Funnel counts strip — from spark_events aggregates in
-                    // the list SQL. Only show once the Spark has picked up
-                    // any traffic, otherwise the row is noisy for draft /
-                    // never-launched Sparks.
-                    const views = Number(s.stat_views || 0);
-                    const clicks = Number(s.stat_clicks || 0);
-                    const purchased = Number(s.stat_purchased || 0);
-                    const revenue = Number(s.stat_revenue || 0);
-                    const ctr = views > 0 ? Math.round((clicks / views) * 100) : null;
-                    const cvr = clicks > 0 ? Math.round((purchased / clicks) * 100) : null;
-                    const hasStats = views + clicks + purchased > 0;
-                    const revText = revenue > 0 ? ` · ${revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '';
-                    const statsMarkup = hasStats ? `
-                        <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid #f1f5f9; font-size: 0.75rem; color: #475569;">
-                            <span title="Page views">👁 ${views.toLocaleString()}</span>
-                            <span title="CTA clicks${ctr !== null ? ` — ${ctr}% CTR` : ''}">🖱 ${clicks.toLocaleString()}${ctr !== null ? `<span style="color:#94a3b8;"> (${ctr}%)</span>` : ''}</span>
-                            <span title="Completed purchases${cvr !== null ? ` — ${cvr}% conversion` : ''}${revText}" style="font-weight: 600; color: #166534;">💰 ${purchased.toLocaleString()}${revText}</span>
-                        </div>` : '';
-                    const isLastEdited = lastEditedId && s.id === lastEditedId;
-                    // Amber outline + subtle background + "Last edited" chip
-                    // so returning to the list, the operator sees exactly
-                    // which spark they were working on.
-                    const cardBorder = isLastEdited ? '2px solid #f59e0b' : '1px solid #e2e8f0';
-                    const cardBg     = isLastEdited ? '#fffbeb' : '#fff';
-                    const lastChip   = isLastEdited ? '<span style="position:absolute; top:8px; right:8px; background:#f59e0b; color:#fff; font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:999px; box-shadow:0 1px 3px rgba(0,0,0,0.15);">Last edited</span>' : '';
-                    return `
-                    <div onclick="openSparkModal(${s.id})" style="position:relative; background: ${cardBg}; border: ${cardBorder}; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
-                        ${lastChip}
-                        <div style="background: ${s.hero_image_url ? `url('${s.hero_image_url}') center/cover` : 'linear-gradient(135deg, #fef3c7, #fed7aa)'}; height: 140px;"></div>
-                        <div style="padding: 0.85rem 1rem;">
-                            <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">${(s.title || '').replace(/</g, '&lt;')}</div>
-                            ${slugMarkup}
-                            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-                                ${s.cta_type ? `<span style="font-size: 0.75rem; background: #fef3c7; padding: 0.15rem 0.5rem; border-radius: 999px;">${ctaIcon[s.cta_type] || '⚡'} ${s.cta_type.replace('_', ' ')}</span>` : ''}
-                                <span style="font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: ${s.is_published ? '#dcfce7' : '#f3f4f6'}; color: ${s.is_published ? '#166534' : '#64748b'};">${s.is_published ? '✓ Live' : '○ Draft'}</span>
-                            </div>
-                            ${statsMarkup}
+            // Cache the host so the editor modal can build the "View
+            // live" URL without refetching.
+            window._sparksSiteHost = siteHost;
+            const lastEditedId = parseInt(localStorage.getItem('_gas_spark_last_edited_' + accountId) || '0', 10) || null;
+            grid.innerHTML = filtered.map(s => {
+                const safeSlug = String(s.slug || '').replace(/"/g, '&quot;');
+                // Live link — prefer per-spark live_host (Belmont vs Adelphi).
+                const perSparkHost = s.live_host || siteHost;
+                const liveUrl = (perSparkHost && s.is_published) ? `https://${perSparkHost}/${safeSlug}/` : null;
+                const slugMarkup = liveUrl
+                    ? `<a href="${liveUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open live page" style="font-size: 0.78rem; color: #6d28d9; text-decoration: none; display: inline-block; margin-bottom: 0.5rem;">/${safeSlug}/ ↗</a>`
+                    : `<div style="font-size: 0.78rem; color: #64748b; margin-bottom: 0.5rem;">/${safeSlug}/${s.is_published ? '' : ' <span style=\"color:#94a3b8;\">(draft)</span>'}</div>`;
+                // Property chip — shows which site this spark lives on so
+                // operators managing multiple properties know at a glance.
+                // "🌐 Shared" for NULL property (shows on every account site).
+                const propName = s.property_id ? (propsById[s.property_id]?.name || 'Property ' + s.property_id) : null;
+                const propChip = propName
+                    ? `<span title="Only shows on ${String(propName).replace(/"/g,'&quot;')}'s site" style="font-size: 0.72rem; background: #ede9fe; color: #6d28d9; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 600;">🏠 ${String(propName).replace(/</g, '&lt;')}</span>`
+                    : `<span title="Shared — shows on every site on this account" style="font-size: 0.72rem; background: #f1f5f9; color: #475569; padding: 0.15rem 0.5rem; border-radius: 999px;">🌐 Shared</span>`;
+                const views = Number(s.stat_views || 0);
+                const clicks = Number(s.stat_clicks || 0);
+                const purchased = Number(s.stat_purchased || 0);
+                const revenue = Number(s.stat_revenue || 0);
+                const ctr = views > 0 ? Math.round((clicks / views) * 100) : null;
+                const cvr = clicks > 0 ? Math.round((purchased / clicks) * 100) : null;
+                const hasStats = views + clicks + purchased > 0;
+                const revText = revenue > 0 ? ` · ${revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '';
+                const statsMarkup = hasStats ? `
+                    <div style="display: flex; gap: 0.6rem; align-items: center; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid #f1f5f9; font-size: 0.75rem; color: #475569;">
+                        <span title="Page views">👁 ${views.toLocaleString()}</span>
+                        <span title="CTA clicks${ctr !== null ? ` — ${ctr}% CTR` : ''}">🖱 ${clicks.toLocaleString()}${ctr !== null ? `<span style="color:#94a3b8;"> (${ctr}%)</span>` : ''}</span>
+                        <span title="Completed purchases${cvr !== null ? ` — ${cvr}% conversion` : ''}${revText}" style="font-weight: 600; color: #166534;">💰 ${purchased.toLocaleString()}${revText}</span>
+                    </div>` : '';
+                const isLastEdited = lastEditedId && s.id === lastEditedId;
+                const cardBorder = isLastEdited ? '2px solid #f59e0b' : '1px solid #e2e8f0';
+                const cardBg     = isLastEdited ? '#fffbeb' : '#fff';
+                const lastChip   = isLastEdited ? '<span style="position:absolute; top:8px; right:8px; background:#f59e0b; color:#fff; font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:999px; box-shadow:0 1px 3px rgba(0,0,0,0.15);">Last edited</span>' : '';
+                return `
+                <div onclick="openSparkModal(${s.id})" style="position:relative; background: ${cardBg}; border: ${cardBorder}; border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                    ${lastChip}
+                    <div style="background: ${s.hero_image_url ? `url('${s.hero_image_url}') center/cover` : 'linear-gradient(135deg, #fef3c7, #fed7aa)'}; height: 140px;"></div>
+                    <div style="padding: 0.85rem 1rem;">
+                        <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem;">${(s.title || '').replace(/</g, '&lt;')}</div>
+                        ${slugMarkup}
+                        <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+                            ${propChip}
+                            ${s.cta_type ? `<span style="font-size: 0.75rem; background: #fef3c7; padding: 0.15rem 0.5rem; border-radius: 999px;">${ctaIcon[s.cta_type] || '⚡'} ${s.cta_type.replace('_', ' ')}</span>` : ''}
+                            <span style="font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: ${s.is_published ? '#dcfce7' : '#f3f4f6'}; color: ${s.is_published ? '#166534' : '#64748b'};">${s.is_published ? '✓ Live' : '○ Draft'}</span>
                         </div>
-                    </div>`;
-                }).join('');
-            } catch (e) { grid.innerHTML = `<div style="grid-column: 1/-1; color: #dc2626;">Error: ${e.message}</div>`; }
+                        ${statsMarkup}
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         function autoSparkSlug() {
@@ -90108,6 +90167,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (hostPrefix) hostPrefix.textContent = (cachedHost ? cachedHost : 'yoursite.com') + '/';
 
             await _populateSparkPickers(accountId);
+            // Populate the property picker from _sparksLastPayload (loaded
+            // by the Sparks list before the operator clicked in). If they
+            // opened the modal from a deep-link or refresh, the picker
+            // simply stays hidden — save still works (defaults to shared).
+            _populateSparkPropertyPicker();
 
             if (sparkId) {
                 titleEl.textContent = '⚡ Edit Spark';
@@ -90146,6 +90210,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('spark-meta-title').value = s.meta_title || '';
                         document.getElementById('spark-meta-description').value = s.meta_description || '';
                         document.getElementById('spark-is-published').checked = !!s.is_published;
+                        // Preserve current property scope (populated above from _sparksLastPayload)
+                        const propEl = document.getElementById('spark-property-id');
+                        if (propEl) propEl.value = s.property_id ? String(s.property_id) : '';
                         // Surface the View-live button when this Spark is
                         // published and we have a host. Drafts hide it
                         // (they 404 publicly).
@@ -90198,6 +90265,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             window.open(`https://${host}/${encodeURIComponent(slug)}/`, '_blank', 'noopener');
         }
 
+        // Populate the property picker in the spark edit modal from the
+        // last-loaded Sparks list payload. Hidden when the account has ≤1
+        // property (nothing meaningful to pick). Steve 2026-09-09.
+        function _populateSparkPropertyPicker() {
+            const row = document.getElementById('spark-property-row');
+            const sel = document.getElementById('spark-property-id');
+            const d = window._sparksLastPayload;
+            if (!row || !sel) return;
+            const props = (d && Array.isArray(d.properties)) ? d.properties : [];
+            if (props.length <= 1) { row.style.display = 'none'; return; }
+            sel.innerHTML = '<option value="">🌐 Shared — show on every site on this account</option>'
+                + props.map(p => `<option value="${p.id}">🏠 ${String(p.name || '').replace(/</g, '&lt;')}</option>`).join('');
+            row.style.display = '';
+        }
+
         async function saveSpark(closeAfter) {
             const accountId = getClientId();
             const id = document.getElementById('spark-id').value;
@@ -90223,6 +90305,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 meta_title: document.getElementById('spark-meta-title').value,
                 meta_description: document.getElementById('spark-meta-description').value,
                 is_published: document.getElementById('spark-is-published').checked,
+                // Property scoping — NULL = shared across every site on the
+                // account; a specific id restricts to that property's site.
+                property_id: document.getElementById('spark-property-id')?.value || null,
                 gallery_images: _sparkGallery.slice(),
                 linked_workflow_id: document.getElementById('spark-linked-workflow').value || null,
                 linked_lead_form_id: document.getElementById('spark-linked-lead-form').value || null,
