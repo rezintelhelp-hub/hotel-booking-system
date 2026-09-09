@@ -112428,7 +112428,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     // Get unit with occupancy settings
     const unit = await pool.query(`
       SELECT bu.base_price, bu.max_guests, bu.name, bu.property_id,
-             bu.pricing_mode, bu.base_occupancy,
+             bu.pricing_mode, bu.base_occupancy, bu.quantity,
              bu.extra_adult_type, bu.extra_adult_charge,
              bu.single_discount_type, bu.single_discount_value,
              bu.child_charge_type, bu.child_charge,
@@ -112569,13 +112569,47 @@ app.post('/api/public/calculate-price', async (req, res) => {
       console.warn('[calculate-price pool-aware lookup]', e.message);
     }
 
+    // Multi-unit availability (legacy inventory_model). If quantity > 1 and
+    // the account isn't on the pool model, a single room_availability row can
+    // be flipped to is_available=false by CM sync as soon as ONE booking
+    // exists — but the room really has quantity-N free units left. Mirror the
+    // same units_available = quantity - bookings_count logic /api/availability
+    // uses (server.js:89370-89394) so the "Book Now" price/available check
+    // doesn't say "unavailable" while the mini-calendar happily says
+    // "available". Belmont 2026-09-10 (Steve): pool rooms quantity=3/5 were
+    // greyed out on the search results whenever any night had a booking.
+    const buQuantity = parseInt(roomData.quantity, 10) || 1;
+    const bookingsByDate = {};   // dateStr → count of overlapping bookings
+    if (!poolDayMap && buQuantity > 1) {
+      try {
+        const bkgs = await pool.query(
+          `SELECT arrival_date, departure_date FROM bookings
+            WHERE bookable_unit_id = $1
+              AND status NOT IN ('cancelled','rejected','copied','declined','expired','inquiry')
+              AND arrival_date < $3::date
+              AND departure_date > $2::date`,
+          [unit_id, check_in, check_out]
+        );
+        bkgs.rows.forEach(b => {
+          const start = new Date(b.arrival_date);
+          const end = new Date(b.departure_date);
+          for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+            const dStr = d.toISOString().split('T')[0];
+            bookingsByDate[dStr] = (bookingsByDate[dStr] || 0) + 1;
+          }
+        });
+      } catch (e) {
+        console.warn('[calculate-price multi-unit bookings]', e.message);
+      }
+    }
+
     // Build nightly breakdown with occupancy adjustments
     const nightlyBreakdown = [];
     let accommodationTotal = 0;
     let cmTotal = 0;
     let occupancyAdjustmentTotal = 0;
     let allAvailable = true;
-    
+
     // Occupancy settings
     const pricingMode = roomData.pricing_mode || 'per_room';
     const baseOccupancy = parseInt(roomData.base_occupancy) || 2;
@@ -112632,9 +112666,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
       // ignore the legacy is_blocked/is_available columns when poolDayMap
       // is set — they may be a stale wholesale-block left by pre-fix
       // /api/public/book runs.
+      // Multi-unit override: for legacy quantity>1 rooms, is_available on the
+      // single row goes false as soon as ONE unit is sold. Recompute from
+      // actual bookings count so quantity=5 with 1 booking = 4 units free.
+      // Operator blocks (is_blocked=true) are ALWAYS honoured — only strip
+      // the is_available=false when it's a CM-derived "one booking exists"
+      // false-positive, not an explicit stop-sell.
+      const multiUnitFree = (!poolDayMap && buQuantity > 1 && dayData)
+        ? (buQuantity - (bookingsByDate[dateStr] || 0)) > 0
+        : null;
       const dayUnavailable = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (!dayData || dayData.is_available === false || dayData.is_blocked === true);
+        : (!dayData || (dayData.is_blocked === true)
+            || (multiUnitFree === null ? dayData.is_available === false : !multiUnitFree));
       if (dayUnavailable || !nightPrice) {
         allAvailable = false;
       }
@@ -112682,10 +112726,12 @@ app.post('/api/public/calculate-price', async (req, res) => {
       occupancyAdjustmentTotal += nightOccupancyAdjustment;
       
       // Same pool-aware override as above — legacy room_availability rows
-      // are not the source of truth for pool-model accounts.
+      // are not the source of truth for pool-model accounts. Multi-unit
+      // legacy rooms use bookings-count math identically to dayUnavailable.
       const dayBlocked = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (dayData && (!dayData.is_available || dayData.is_blocked));
+        : (dayData && (dayData.is_blocked
+            || (multiUnitFree === null ? !dayData.is_available : !multiUnitFree)));
       if (dayBlocked) {
         allAvailable = false;
       }
