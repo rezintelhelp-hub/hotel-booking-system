@@ -17262,6 +17262,58 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       } catch (coverErr) { console.warn('[airbnb import] cover image insert failed:', coverErr.message); }
     }
 
+    // Terms & policies from Airbnb (Steve 2026-09-09). Best-effort: field
+    // names vary between Airbnb API versions + Channex may not surface all
+    // of them. Uses defensive multi-key fallbacks. Writes to property_terms
+    // respecting the sync-lock trigger — if Steve's already customised
+    // terms for this property + locked them, this write silently no-ops.
+    const structured = L.structured_house_rules || L.house_rules_details || {};
+    const termsFields = {
+      house_rules_text: L.house_rules || L.house_manual || null,
+      cancel_policy: L.cancellation_policy || L.cancel_policy || null,
+      checkin_from: L.check_in_time_start || L.checkin_time_start || L.check_in_time || null,
+      checkin_until: L.check_in_time_end || L.checkin_time_end || null,
+      checkout_by: L.checkout_time || L.check_out_time || null,
+      checkin_instructions: L.check_in_instructions || L.checkin_instructions || L.guest_manual || null,
+      pets: structured.allow_pets === true ? 'yes' : structured.allow_pets === false ? 'no' : null,
+      smoking: structured.allow_smoking === true ? 'yes' : structured.allow_smoking === false ? 'no' : null,
+      events: structured.allow_events === true ? 'yes' : structured.allow_events === false ? 'no' : null,
+      children: (structured.suitable_for_children === false || structured.allow_children_under_2 === false) ? 'limit'
+              : (structured.suitable_for_children === true) ? 'all' : null,
+    };
+    const anyTerms = Object.values(termsFields).some(v => v !== null && v !== '' && v !== undefined);
+    if (anyTerms) {
+      try {
+        await pool.query(`
+          INSERT INTO property_terms (property_id, additional_rules, additional_rules_ml,
+            cancellation_policy, checkin_from, checkin_until, checkout_by,
+            check_in_instructions, check_in_instructions_ml,
+            pet_policy, smoking_policy, events_policy, children_policy)
+          VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13)
+          ON CONFLICT (property_id) DO UPDATE SET
+            additional_rules = COALESCE(EXCLUDED.additional_rules, property_terms.additional_rules),
+            additional_rules_ml = COALESCE(EXCLUDED.additional_rules_ml, property_terms.additional_rules_ml),
+            cancellation_policy = COALESCE(EXCLUDED.cancellation_policy, property_terms.cancellation_policy),
+            checkin_from = COALESCE(EXCLUDED.checkin_from, property_terms.checkin_from),
+            checkin_until = COALESCE(EXCLUDED.checkin_until, property_terms.checkin_until),
+            checkout_by = COALESCE(EXCLUDED.checkout_by, property_terms.checkout_by),
+            check_in_instructions = COALESCE(EXCLUDED.check_in_instructions, property_terms.check_in_instructions),
+            check_in_instructions_ml = COALESCE(EXCLUDED.check_in_instructions_ml, property_terms.check_in_instructions_ml),
+            pet_policy = COALESCE(EXCLUDED.pet_policy, property_terms.pet_policy),
+            smoking_policy = COALESCE(EXCLUDED.smoking_policy, property_terms.smoking_policy),
+            events_policy = COALESCE(EXCLUDED.events_policy, property_terms.events_policy),
+            children_policy = COALESCE(EXCLUDED.children_policy, property_terms.children_policy),
+            updated_at = NOW()
+        `, [
+          propertyId,
+          termsFields.house_rules_text, termsFields.house_rules_text ? JSON.stringify({ en: termsFields.house_rules_text }) : null,
+          termsFields.cancel_policy, termsFields.checkin_from, termsFields.checkin_until, termsFields.checkout_by,
+          termsFields.checkin_instructions, termsFields.checkin_instructions ? JSON.stringify({ en: termsFields.checkin_instructions }) : null,
+          termsFields.pets, termsFields.smoking, termsFields.events, termsFields.children
+        ]);
+      } catch (termsErr) { console.warn('[airbnb import] terms write skipped (likely content_locked):', termsErr.message); }
+    }
+
     await pool.query(`
       INSERT INTO gas_sync_channel_mappings (channel_id, ota_listing_id, gas_bookable_unit_id, settings)
       VALUES ($1, $2, $3, $4)
@@ -17274,6 +17326,7 @@ async function _importAirbnbListingToGas(channelDbId, listing_id) {
       images_imported: imgCount,
       amenities_total: uniqueAmenities.length,
       amenities_matched: matchedAmenities,
+      terms_populated: anyTerms,
       summary: {
         name: desc.name,
         address: `${L.street || ''}, ${L.city || ''} ${L.country_code || ''}`.trim(),
