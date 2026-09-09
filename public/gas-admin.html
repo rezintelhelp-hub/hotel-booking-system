@@ -89656,13 +89656,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const siteHost = d.site_host || '';
             const propsById = {};
             (d.properties || []).forEach(p => { propsById[p.id] = p; });
-                // Last-worked-on marker (Steve 2026-08-28) — persisted in
-                // localStorage per account so it survives refresh/logout.
-                // Not shared across accounts because operators switching
-                // clients don't want another account's marker leaking.
-                const lastEditedId = parseInt(localStorage.getItem('_gas_spark_last_edited_' + accountId) || '0', 10) || null;
-            // Cache the host so the editor modal can build the "View
-            // live" URL without refetching.
+            // Cache the host so the editor modal can build the "View live"
+            // URL without refetching. Last-worked-on marker is per-account
+            // in localStorage — survives refresh, doesn't leak across
+            // clients (Steve 2026-08-28).
             window._sparksSiteHost = siteHost;
             const lastEditedId = parseInt(localStorage.getItem('_gas_spark_last_edited_' + accountId) || '0', 10) || null;
             grid.innerHTML = filtered.map(s => {
