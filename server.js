@@ -62455,13 +62455,47 @@ app.post('/api/admin/payment-configs/test-stored', async (req, res) => {
          ORDER BY is_default DESC, id DESC LIMIT 1`,
         [pid]
       );
-      if (cfg.rows.length === 0 || !cfg.rows[0].credentials?.secret_key) {
+      if (cfg.rows.length === 0) {
         results.push({ property_id: pid, property_name: propName, ok: false, message: 'No Stripe config saved.' });
         continue;
       }
-      const cred = cfg.rows[0].credentials;
+      const cred = cfg.rows[0].credentials || {};
       const sk = cred.secret_key;
       const pk = cred.publishable_key;
+      const connectAcct = cred.stripe_account_id || cred.account_id || null;
+
+      // Connect-mode (no per-property sk, has stripe_account_id) —
+      // verify via platform key + Stripe-Account header. St Ives 2026-09-09.
+      if (!sk && connectAcct) {
+        const platformSk = process.env.STRIPE_SECRET_KEY;
+        if (!platformSk) {
+          results.push({ property_id: pid, property_name: propName, ok: false, message: 'Platform Stripe secret not configured on server.' });
+          continue;
+        }
+        try {
+          const balResp = await fetch('https://api.stripe.com/v1/balance', {
+            headers: { 'Authorization': 'Bearer ' + platformSk, 'Stripe-Account': connectAcct }
+          });
+          if (balResp.ok) {
+            await pool.query(
+              `UPDATE payment_configurations SET last_tested_at = NOW(), test_result = $2::jsonb
+                WHERE property_id = $1 AND provider = 'stripe' AND is_enabled = true`,
+              [pid, JSON.stringify({ ok: true, mode: 'connect', tested_at: new Date().toISOString() })]);
+            results.push({ property_id: pid, property_name: propName, ok: true, message: 'Connected · Stripe Connect Standard · ' + connectAcct });
+          } else {
+            const errData = await balResp.json().catch(() => ({}));
+            results.push({ property_id: pid, property_name: propName, ok: false, message: 'Stripe rejected Connect account ' + connectAcct + ': ' + (errData.error?.message || balResp.statusText) });
+          }
+        } catch (e) {
+          results.push({ property_id: pid, property_name: propName, ok: false, message: 'Network error contacting Stripe: ' + e.message });
+        }
+        continue;
+      }
+
+      if (!sk) {
+        results.push({ property_id: pid, property_name: propName, ok: false, message: 'No Stripe secret key saved.' });
+        continue;
+      }
 
       // Publishable shape
       if (pk && !/^pk_(live|test)_/.test(pk)) {
