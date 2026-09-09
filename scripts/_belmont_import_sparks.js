@@ -88,6 +88,17 @@ function absolutizeUrl(url) {
   return SETSEED_URL.replace(/\/$/, '') + clean;
 }
 
+// Route HTTP-only app2.rezintel.net images through admin.gas.travel's
+// HTTPS proxy so they don't hit mixed-content blocks on Belmont's HTTPS
+// site. Non-app2 URLs pass through unchanged.
+function proxyIfNeeded(url) {
+  if (!url) return null;
+  if (/^http:\/\/[^/]*app2\.rezintel\.net\//i.test(url)) {
+    return 'https://admin.gas.travel/api/public/proxy-image?url=' + encodeURIComponent(url);
+  }
+  return url;
+}
+
 function extractFirstImage(html) {
   if (!html) return null;
   const m = String(html).match(/<img[^>]+src=["']([^"']+)["']/i);
@@ -105,9 +116,32 @@ async function fetchLiveContent(slug, pathOverride) {
   } catch (e) {
     return { error: e.message, url };
   }
-  // Extract everything between the first <div class="container content ..."
-  // and the <footer> — that's the main content stack on this SetSeed theme.
-  const start = html.search(/<div[^>]*class=["'][^"']*container content[^"']*["']/i);
+  // SetSeed hero banner lives on #content_bar_1 as a data-backgrounds
+  // attribute (CSS background, not an <img>) — extract before stripping
+  // data-* attributes below. Value is JSON-encoded, escaped for HTML.
+  // Steve 2026-09-09.
+  let bannerImage = null;
+  const bannerMatch = html.match(/id="content_bar_1"[\s\S]{0,400}?data-backgrounds="([^"]+)"/i);
+  if (bannerMatch) {
+    try {
+      const decoded = bannerMatch[1].replace(/&quot;/g, '"').replace(/\\\//g, '/');
+      const parsed = JSON.parse(decoded);
+      if (Array.isArray(parsed) && parsed[0]) bannerImage = absolutizeUrl(parsed[0]);
+    } catch (_) { /* malformed json — fall through to img fallback */ }
+  }
+  // Skip #content_bar_1 (banner) from the body — its only content is the
+  // page title/subtitle, and the Spark renderer already draws those from
+  // the title/subtitle fields. Start extraction from the SECOND container
+  // content div (i.e. #content_bar_2 or later).
+  const contentRegex = /<div[^>]*class=["'][^"']*container content[^"']*["'][^>]*id="(content_bar_[0-9]+)"/gi;
+  let firstContentAfterBanner = -1;
+  let m;
+  while ((m = contentRegex.exec(html)) !== null) {
+    if (m[1] !== 'content_bar_1') { firstContentAfterBanner = m.index; break; }
+  }
+  const start = firstContentAfterBanner !== -1
+    ? firstContentAfterBanner
+    : html.search(/<div[^>]*class=["'][^"']*container content[^"']*["']/i);
   const endMatch = html.match(/<footer[\s\S]*?$/i);
   if (start === -1) return { error: 'no container content div found', url };
   const end = endMatch ? html.indexOf(endMatch[0], start) : html.length;
@@ -119,8 +153,10 @@ async function fetchLiveContent(slug, pathOverride) {
   body = body.replace(/\s*data-(background-fade|background-align|background-panzoom|background-duration|background-color|background-opacity|element-id|version|widget-id|bpe-[a-z0-9-]+)=["'][^"']*["']/gi, '');
   // Strip bpe_* widget dividers (SetSeed editor placeholders)
   body = body.replace(/<div[^>]*class=["'][^"']*bpe_split_divider[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
-  // Absolute-ize image URLs + drop scaler query strings
-  body = body.replace(/<img([^>]+?)src=["']([^"']+)["']/gi, (_, before, src) => `<img${before}src="${absolutizeUrl(src)}"`);
+  // Absolute-ize image URLs + drop scaler query strings + route HTTP
+  // app2 images through the HTTPS proxy so Belmont's HTTPS site can
+  // display them without mixed-content blocks.
+  body = body.replace(/<img([^>]+?)src=["']([^"']+)["']/gi, (_, before, src) => `<img${before}src="${proxyIfNeeded(absolutizeUrl(src))}"`);
   // Absolute-ize relative <a href="/foo">
   body = body.replace(/<a([^>]+)href=["'](\/[^"']*)["']/gi, (_, before, href) => `<a${before}href="${absolutizeUrl(href)}"`);
   // Strip srcset (relative URLs that would 404 on GAS)
@@ -129,7 +165,7 @@ async function fetchLiveContent(slug, pathOverride) {
   body = body.replace(/\s+class=["']([^"']*?)bpe_(image|cta|button|text)[^"']*?["']/gi, ' class="$1"');
   // Trim excess whitespace
   body = body.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
-  return { body };
+  return { body, bannerImage };
 }
 
 function htmlToPlain(html, len) {
@@ -155,13 +191,16 @@ function htmlToPlain(html, len) {
   const stats = { created: 0, updated: 0, skipped: 0, errors: 0 };
   for (const page of pages) {
     const externalId = `setseed-belmont:${page.slug}`;
-    const { body, error, url } = await fetchLiveContent(page.slug, page.path);
+    const { body, bannerImage, error, url } = await fetchLiveContent(page.slug, page.path);
     if (error || !body) {
       console.log(`  ✗ ${page.slug} — ${error || 'empty body'} (${url})`);
       stats.errors++;
       continue;
     }
-    const heroImage = extractFirstImage(body);
+    // Prefer SetSeed's #content_bar_1 banner (data-backgrounds) over the
+    // first inline <img> — the banner is the intended hero. Route through
+    // proxy so HTTPS Belmont site can display it.
+    const heroImage = proxyIfNeeded(bannerImage || extractFirstImage(body));
     const subtitle = htmlToPlain(body, 480);
     const metaDesc = htmlToPlain(body, 160);
     const bodyBytes = Buffer.byteLength(body, 'utf8');
