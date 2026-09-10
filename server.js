@@ -37487,7 +37487,18 @@ async function syncBeds24MarketplaceBookings(conn, opts = {}) {
     let pageNumber = 1;
     while (true) {
         const resp = await axios.get('https://api.beds24.com/v2/bookings', {
-            params: { propertyId: beds24PropId, arrivalFrom, arrivalTo, page: pageNumber },
+            // includeInvoiceItems for cancels+modifications visibility, and
+            // explicit status list because Beds24 v2 defaults to non-cancelled
+            // only — meaning cancelled bookings never flow to GAS and stale
+            // "confirmed" rows persist forever (GoSlopeSide Darin Thomas
+            // 88906521 was cancelled on Beds24 in Aug, GAS still shows
+            // confirmed as of 2026-09-10).
+            params: {
+                propertyId: beds24PropId,
+                arrivalFrom, arrivalTo,
+                page: pageNumber,
+                status: 'confirmed,new,request,cancelled,black'
+            },
             headers: { token: masterToken + ':p' + beds24PropId, organization: orgId },
             timeout: 30000
         });
