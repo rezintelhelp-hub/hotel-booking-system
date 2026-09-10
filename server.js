@@ -172245,27 +172245,26 @@ async function buildCommsHealth() {
   // Only report on accounts that have at least one workflow OR sent comms in
   // the last 30 days. Everyone else is silent by design and would just add
   // noise to the digest.
+  // Ensure opt-in column exists — audit only watches accounts the operator
+  // has explicitly asked us to. Belmont / Hebden 2026-09-10: neither had
+  // any intent to run booking-comms, yet the audit flagged them because
+  // they had unrelated workflow rows (an inactive "Copy" placeholder, a
+  // bike-storage code workflow). Steve: "unless they build a command set
+  // in the CRM no welcome messages should go out — why is it looking for
+  // these?". Now the audit only iterates opted-in accounts + accounts with
+  // recent runs (last-30-days heuristic catches accidental disables where
+  // comms USED to fire).
+  await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS comms_expected BOOLEAN DEFAULT false`).catch(() => {});
+
   const rows = await pool.query(`
-    WITH active_accts AS (
-      SELECT DISTINCT account_id FROM workflows
-      UNION
-      SELECT DISTINCT b.property_id AS account_id
-        FROM guest_communications gc
-        JOIN bookings b ON b.id = gc.booking_id
-       WHERE gc.created_at > NOW() - INTERVAL '30 days'
-    ),
-    accts AS (
+    WITH accts AS (
       SELECT a.id AS account_id, a.name AS account_name
         FROM accounts a
-       WHERE a.id IN (
-         SELECT account_id FROM workflows
-         UNION
-         SELECT p.account_id
-           FROM guest_communications gc
-           JOIN bookings b ON b.id = gc.booking_id
-           JOIN properties p ON p.id = b.property_id
-          WHERE gc.created_at > NOW() - INTERVAL '30 days'
-       )
+       WHERE a.comms_expected = true
+          OR a.id IN (
+            SELECT account_id FROM workflow_runs
+             WHERE created_at > NOW() - INTERVAL '30 days'
+          )
     ),
     wf_counts AS (
       SELECT account_id,
