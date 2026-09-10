@@ -112100,6 +112100,14 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     // For multi-unit rooms, pre-load booking counts per night in the window.
     // Uses generate_series to expand each booking into its night-nights,
     // then GROUP BY night. Cost: one query per endpoint call, ~90 dates.
+    //
+    // Status exclusion aligned with /api/availability (server.js:89289) so
+    // both endpoints count the same bookings. Previously excluded only
+    // 'cancelled', which counted 'copied' duplicate rows and over-blocked
+    // dates. Belmont 2026-09-10: Sue Taylor + Donna Hall each had a real
+    // confirmed booking AND a 'copied' duplicate for the same dates —
+    // mini-cal saw 3 bookings on quantity=3, marked date blocked; picker
+    // saw 1 or 2, marked available. Same underlying data, opposite views.
     let bookingCountByDate = null;
     if (roomQuantity > 1) {
       const bkQ = await pool.query(`
@@ -112107,7 +112115,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
           SELECT generate_series(arrival_date, departure_date - INTERVAL '1 day', INTERVAL '1 day')::date AS night
             FROM bookings
            WHERE bookable_unit_id = $1
-             AND status <> 'cancelled'
+             AND status NOT IN ('cancelled','rejected','copied')
              AND arrival_date < $3::date
              AND departure_date > $2::date
         )
