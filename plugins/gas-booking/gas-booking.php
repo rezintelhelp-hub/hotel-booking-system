@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.4.12
+ * Version: 4.4.13
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.11');
+define('GAS_BOOKING_VERSION', '4.4.13');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3698,18 +3698,24 @@ class GAS_Booking {
             wp_enqueue_script('flatpickr-locale', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/' . $current_lang . '.js', array('flatpickr'), '4.6.13', true);
         }
         
-        // Flatpickr custom overrides - today vs selected styling
+        // Flatpickr custom overrides - today vs selected styling.
+        // Today's cell uses a fixed slightly-darker green + white text so
+        // it's legible regardless of the site theme's primary colour.
+        // Belmont 2026-09-10: purple site theme was bleeding into
+        // .flatpickr-day.today via --primary, leaving black date number on
+        // dark purple → unreadable. Extra selector specificity (double
+        // .flatpickr-day) + !important on color beats any theme override.
         $flatpickr_overrides = "
-            /* Today - subtle underline instead of circle */
-            .flatpickr-day.today:not(.selected) {
-                border-color: transparent !important;
-                background: transparent !important;
-                color: inherit;
-                text-decoration: underline;
-                text-underline-offset: 3px;
+            /* Today - fixed green, matches the Available legend colour */
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.today:not(.selected):not(.startRange):not(.endRange) {
+                border-color: #3d8b40 !important;
+                background: #4CAF50 !important;
+                color: #ffffff !important;
+                text-decoration: none !important;
             }
-            .flatpickr-day.today:not(.selected):hover {
-                background: #e6e6e6 !important;
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.today:not(.selected):not(.startRange):not(.endRange):hover {
+                background: #3d8b40 !important;
+                color: #ffffff !important;
             }
             /* Selected date - gold circle */
             .flatpickr-day.selected,
