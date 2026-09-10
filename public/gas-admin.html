@@ -36528,6 +36528,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             } else {
                 loadWebsiteBuilderSection(subTabName);
             }
+
+            // Wrap Body textareas carry data-wysiwyg="true" but sit inside a
+            // sub-panel that was display:none at initial page render. Re-run
+            // init now that the panel is visible; gasWysiwygInit is idempotent
+            // (data-wysiwyg-init guard) so re-firing across other sub-tabs is
+            // harmless.
+            setTimeout(() => {
+                if (typeof gasWysiwygInit === 'function') gasWysiwygInit();
+            }, 200);
         }
 
         // Custom Domain Functions
