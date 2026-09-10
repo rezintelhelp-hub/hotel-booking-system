@@ -522,12 +522,48 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
             ?>
             <?php if ($has_media || $has_card) : ?>
                 <div class="developer-wrap-media-col" style="float: <?php echo esc_attr($wrap_media_position); ?>; width: <?php echo $wrap_media_width; ?>%; margin: 0 <?php echo $wrap_media_position === 'right' ? '0 1.5rem 1.5rem' : '1.5rem 1.5rem 0'; ?>; max-width: 100%;">
-                    <?php if ($has_media) : ?>
+                    <?php if ($has_media) :
+                        // Slider opt-in (2026-09-10). If enabled AND at least one
+                        // extra slide URL is set, render as auto-advancing slider.
+                        // Otherwise fall back to single image (existing behaviour).
+                        $wrap_slider_enabled = !empty($api['wrap_media_slider_enabled']);
+                        $wrap_slide_urls = array();
+                        if ($wrap_media_type === 'image' && $wrap_media_image) $wrap_slide_urls[] = $wrap_media_image;
+                        if ($wrap_slider_enabled) {
+                            if (!empty($api['wrap_media_2_image_url'])) $wrap_slide_urls[] = $api['wrap_media_2_image_url'];
+                            if (!empty($api['wrap_media_3_image_url'])) $wrap_slide_urls[] = $api['wrap_media_3_image_url'];
+                        }
+                        $wrap_use_slider = $wrap_slider_enabled && count($wrap_slide_urls) > 1 && $wrap_media_type === 'image';
+                        $wrap_slider_uid = 'dw-slider-' . mt_rand(1000, 9999);
+                    ?>
                         <div class="developer-wrap-media">
                             <?php if ($wrap_media_type === 'video' && $embed_url) : ?>
                                 <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
                                     <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                 </div>
+                            <?php elseif ($wrap_use_slider) : ?>
+                                <div id="<?php echo esc_attr($wrap_slider_uid); ?>" class="developer-wrap-slider" style="position: relative; overflow: hidden;">
+                                    <?php foreach ($wrap_slide_urls as $si => $surl) : ?>
+                                        <img src="<?php echo esc_url($surl); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; display: <?php echo $si === 0 ? 'block' : 'none'; ?>;" data-slide-idx="<?php echo $si; ?>">
+                                    <?php endforeach; ?>
+                                    <div style="position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px;">
+                                        <?php foreach ($wrap_slide_urls as $si => $surl) : ?>
+                                            <span data-dot-idx="<?php echo $si; ?>" style="width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,<?php echo $si === 0 ? '0.95' : '0.5'; ?>); box-shadow: 0 0 4px rgba(0,0,0,0.4); cursor: pointer;"></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <script>
+                                (function(){
+                                    var wrap = document.getElementById('<?php echo esc_js($wrap_slider_uid); ?>');
+                                    if (!wrap) return;
+                                    var imgs = wrap.querySelectorAll('img[data-slide-idx]');
+                                    var dots = wrap.querySelectorAll('[data-dot-idx]');
+                                    var i = 0, n = imgs.length;
+                                    function show(x){ i = ((x % n) + n) % n; imgs.forEach(function(el,k){ el.style.display = k===i?'block':'none'; }); dots.forEach(function(d,k){ d.style.background = 'rgba(255,255,255,'+(k===i?'0.95':'0.5')+')'; }); }
+                                    dots.forEach(function(d,k){ d.addEventListener('click', function(){ show(k); }); });
+                                    setInterval(function(){ show(i+1); }, 5000);
+                                })();
+                                </script>
                             <?php elseif ($wrap_media_type === 'image' && $wrap_media_image) : ?>
                                 <img src="<?php echo esc_url($wrap_media_image); ?>" alt="<?php echo esc_attr($wrap_title); ?>" style="width: 100%; height: auto; display: block;">
                             <?php endif; ?>

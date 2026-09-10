@@ -3186,6 +3186,11 @@ function developer_get_api_settings() {
         'wrap_media_type' => $website_wrap['media-type'] ?? 'image',
         'wrap_media_url' => $website_wrap['media-url'] ?? '',
         'wrap_media_image_url' => $website_wrap['media-image-url'] ?? '',
+        // 2026-09-10 — slider opt-in. When TRUE and any of slide 2/3 URLs
+        // are set, front-page renders a slider instead of a single image.
+        'wrap_media_slider_enabled' => $website_wrap['media-slider-enabled'] ?? false,
+        'wrap_media_2_image_url' => $website_wrap['media-2-image-url'] ?? '',
+        'wrap_media_3_image_url' => $website_wrap['media-3-image-url'] ?? '',
         'wrap_media_position' => $website_wrap['media-position'] ?? 'right',
         'wrap_media_width' => $website_wrap['media-width'] ?? '40',
         // 2026-07-22 Steve — heading layout: 'inline' (default, next to media)
