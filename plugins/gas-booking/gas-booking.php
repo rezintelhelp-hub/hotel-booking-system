@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.4.14
+ * Version: 4.4.15
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.14');
+define('GAS_BOOKING_VERSION', '4.4.15');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3717,18 +3717,28 @@ class GAS_Booking {
                 background: #3d8b40 !important;
                 color: #ffffff !important;
             }
-            /* Selected date - gold circle */
-            .flatpickr-day.selected,
-            .flatpickr-day.startRange,
-            .flatpickr-day.endRange {
-                background: #d4a84b !important;
-                border-color: #d4a84b !important;
-                color: #1a1a2e !important;
+            /* Selected date + checkin/checkout endpoints — fixed green,
+               matches the today cell and Available legend. Belmont 2026-09-10:
+               the operator's site theme was overriding gold with purple via
+               .flatpickr-day.selected. Bumped specificity (double-class
+               .flatpickr-day.flatpickr-day) + late-emit at wp_footer 9999
+               guarantees no theme override wins. */
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.selected,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.startRange,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.endRange,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.selected:hover,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.startRange:hover,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.endRange:hover {
+                background: #4CAF50 !important;
+                border-color: #3d8b40 !important;
+                color: #ffffff !important;
             }
-            /* Range between dates */
-            .flatpickr-day.inRange {
-                background: rgba(212, 168, 75, 0.2) !important;
+            /* Range between dates — same green at reduced opacity */
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.inRange,
+            .flatpickr-calendar .flatpickr-day.flatpickr-day.inRange:hover {
+                background: rgba(76, 175, 80, 0.2) !important;
                 border-color: transparent !important;
+                color: #1a1a1a !important;
             }
             /* Disabled/past dates */
             .flatpickr-day.flatpickr-disabled,
