@@ -89372,28 +89372,23 @@ app.get('/api/availability/:roomId', async (req, res) => {
         dayData.capacity = buQuantity;
         dayData.bookings_count = bookingsCount;
         dayData.units_available = unitsAvailable;
-        // For multi-qty rooms the is_blocked flag from beds24_webhook is a
-        // false positive — it flips true whenever ANY single booking lands
-        // (webhook has no notion of quantity). Treating it as a full-room
-        // stop-sell makes the widget say "no availability" while 49/50 units
-        // are actually free (Hotel Caracas 2026-07-20). Multi-qty rooms
-        // trust the units_available calc unconditionally. Real stop-sells
-        // (maintenance, owner stay) belong on individual_units or an
-        // explicit operator block — Belmont 2026-09-08: HONOUR is_blocked
-        // when source indicates operator action, only strip for webhook-
-        // derived false positives.
-        // Strip is_blocked ONLY when it's a clear webhook false-positive:
-        // source came from a channel-manager webhook AND at least one booking
-        // exists on that date (the webhook flag was set as a side-effect of
-        // the booking, not as a real stop-sell). Otherwise HONOUR is_blocked
-        // — operator blocks with unknown source shouldn't get silently wiped.
-        const isWebhookFalsePositive = dayData.is_blocked === true &&
-          ['beds24_webhook', 'channex_webhook'].includes(dayData.source || '') &&
-          bookingsCount > 0;
-        const keepBlocked = dayData.is_blocked === true && !isWebhookFalsePositive;
-        dayData.is_available = keepBlocked ? false : (unitsAvailable > 0);
+        // For multi-qty rooms the is_blocked flag from any CM sync is a
+        // false positive at capacity math — quantity=3 with 1 sold still has
+        // 2 free, regardless of what Beds24/Channex stamped. Only OPERATOR-
+        // intent blocks (source in operator_block/manual/admin) actually
+        // stop the sell. Mirrors /api/public/availability's multi-unit logic
+        // (server.js:112222-112229) so the date-picker (which uses this
+        // endpoint) shows the same state as the mini-calendar (which uses
+        // /api/public/availability). Belmont 2026-09-10: same room disagreed
+        // across the two endpoints on 34 dates because the old rule only
+        // stripped is_blocked for beds24_webhook source, not source='beds24'
+        // (the tier sync).
+        const OPERATOR_BLOCK_SOURCES = ['operator_block', 'manual', 'admin'];
+        const operatorBlocked = dayData.is_blocked === true &&
+          OPERATOR_BLOCK_SOURCES.includes(dayData.source || '');
+        dayData.is_available = operatorBlocked ? false : (unitsAvailable > 0);
         dayData.is_booked = unitsAvailable === 0 && bookingsCount > 0;
-        dayData.is_blocked = keepBlocked;
+        dayData.is_blocked = operatorBlocked;
       }
     }
 
