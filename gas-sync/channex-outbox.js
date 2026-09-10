@@ -430,17 +430,44 @@ async function getChannexMapping(pool, gasRoomId) {
  * This is what powers "keep channels dark, sell direct" for cure packages
  * and generic high-demand inventory holdback. See project_per_channel_daily_visibility.
  */
-async function enqueueAvailabilityForRoom(pool, gasRoomId, date, count) {
+async function enqueueAvailabilityForRoom(pool, gasRoomId, date, _legacyCountArg) {
   const m = await getChannexMapping(pool, gasRoomId);
   if (!m) return false;
-  let finalCount = count;
+
+  // Compute the true count from GAS state via the shared availability helper.
+  // Callers historically passed hardcoded 0/1 which was wrong for multi-unit
+  // rooms (quantity=5 with 1 booking should push count=4, not 0 or 1). Belmont
+  // 2026-09-10: Seaview Double Non Smoking (quantity=3, 1 booking) was
+  // pushing count=3 to Channex, hiding the booking → over-book risk on BDC.
+  // The _legacyCountArg is now ignored; kept in the signature for backward
+  // compat with existing call sites which will be simplified later.
+  let finalCount;
+  try {
+    const { computeRoomAvailabilityForDate } = require('../lib/availability');
+    const result = await computeRoomAvailabilityForDate(pool, gasRoomId, date);
+    // Any kind of block → count=0. Available → send true units_free.
+    // Covers: single-unit is_blocked (blocked_by='cm_block' or 'operator'),
+    // multi-unit fully sold (blocked_by='bookings'), operator holds.
+    finalCount = (result && result.available) ? result.units_free : 0;
+  } catch (helperErr) {
+    // If the helper fails for any reason, fall back to the legacy caller-
+    // supplied count so we don't drop the push entirely. Log loudly so we
+    // notice — this shouldn't happen in prod.
+    console.error(`[channex-outbox] availability helper failed for room ${gasRoomId} date ${date}, falling back to legacy count=${_legacyCountArg}:`, helperErr.message);
+    finalCount = _legacyCountArg;
+  }
+
+  // Per-date channel visibility override — operator toggled Channex off for
+  // this (unit, date) in the availability calendar drill-down. Force
+  // count=0 regardless of computed availability. Powers "keep channels
+  // dark, sell direct" for holdback inventory.
   try {
     const vis = await pool.query(
       `SELECT is_visible FROM unit_channel_daily_visibility
         WHERE bookable_unit_id = $1 AND date = $2 AND channel = 'channex' LIMIT 1`,
       [gasRoomId, date]);
     if (vis.rows[0] && vis.rows[0].is_visible === false) {
-      finalCount = 0; // operator toggled Channex off for this date
+      finalCount = 0;
     }
   } catch (_) { /* table may not exist in dev — fall through with computed count */ }
   await enqueue(pool, {
