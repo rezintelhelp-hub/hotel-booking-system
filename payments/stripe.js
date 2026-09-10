@@ -79,9 +79,12 @@ module.exports = {
   },
 
   // Build the request options bag for every Stripe SDK call so Connect-mode
-  // calls carry { stripeAccount }. Direct-key calls get an empty object.
+  // calls carry { stripeAccount }. Direct-key calls get undefined — NOT {},
+  // because stripe-node 14.25 rejects an empty options object with
+  // "Unknown arguments ([object Object])" on POST /v1/customers etc.
+  // Hebden 2026-09-10: attach-card modal died with that exact error.
   _reqOpts(cfg) {
-    return cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : {};
+    return cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : undefined;
   },
 
   // opts: {
