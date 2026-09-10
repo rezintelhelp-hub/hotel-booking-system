@@ -205,6 +205,19 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 $has_media = ($media_type === 'video' && $embed_url) || ($media_type === 'image' && $media_url);
                 $mw_uid = 'gas-mw-' . ($section['id'] ?? rand(1000,9999));
                 ?>
+                <?php
+                // Slider opt-in (2026-09-10). If enabled AND at least one extra
+                // slide is set, render an auto-advancing slider. Otherwise fall
+                // back to the single-image behaviour (back-compat).
+                $slider_enabled = !empty($section['media-slider-enabled']);
+                $slide_urls = array();
+                if ($media_type === 'image' && $media_url) $slide_urls[] = $media_url;
+                if ($slider_enabled) {
+                    if (!empty($section['media-2-image-url'])) $slide_urls[] = $section['media-2-image-url'];
+                    if (!empty($section['media-3-image-url'])) $slide_urls[] = $section['media-3-image-url'];
+                }
+                $use_slider = $slider_enabled && count($slide_urls) > 1 && $media_type === 'image';
+                ?>
                 <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-media-wrap <?php echo esc_attr($mw_uid); ?>" style="padding: 40px 24px; background: <?php echo $bg_col ? esc_attr($bg_col) : '#fff'; ?>;">
                     <div style="max-width: <?php echo $max_w; ?>; margin: 0 auto;">
                         <div class="gas-ps-media-wrap-inner" style="overflow: hidden;">
@@ -214,6 +227,29 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                         <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: <?php echo esc_attr($lg_radius); ?>px;">
                                             <iframe src="<?php echo esc_url($embed_url); ?>" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                         </div>
+                                    <?php elseif ($use_slider) : ?>
+                                        <div class="gas-ps-mw-slider <?php echo esc_attr($mw_uid); ?>-slider" style="position: relative; overflow: hidden; border-radius: <?php echo esc_attr($lg_radius); ?>px;" data-slide-count="<?php echo count($slide_urls); ?>">
+                                            <?php foreach ($slide_urls as $si => $surl) : ?>
+                                                <img src="<?php echo esc_url($surl); ?>" alt="<?php echo esc_attr($heading); ?>" style="width: 100%; height: auto; display: <?php echo $si === 0 ? 'block' : 'none'; ?>; border-radius: <?php echo esc_attr($lg_radius); ?>px;" data-slide-idx="<?php echo $si; ?>">
+                                            <?php endforeach; ?>
+                                            <div style="position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; display: flex; justify-content: center; gap: 6px;">
+                                                <?php foreach ($slide_urls as $si => $surl) : ?>
+                                                    <span class="gas-ps-mw-dot" data-slide-idx="<?php echo $si; ?>" style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,<?php echo $si === 0 ? '0.95' : '0.5'; ?>); box-shadow: 0 0 4px rgba(0,0,0,0.4); cursor: pointer;"></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
+                                        <script>
+                                        (function(){
+                                            var wrap = document.querySelector('.<?php echo esc_js($mw_uid); ?>-slider');
+                                            if (!wrap) return;
+                                            var imgs = wrap.querySelectorAll('img[data-slide-idx]');
+                                            var dots = wrap.querySelectorAll('.gas-ps-mw-dot');
+                                            var i = 0, n = imgs.length;
+                                            function show(x){ i = ((x % n) + n) % n; imgs.forEach(function(el,k){ el.style.display = k===i?'block':'none'; }); dots.forEach(function(d,k){ d.style.background = 'rgba(255,255,255,'+(k===i?'0.95':'0.5')+')'; }); }
+                                            dots.forEach(function(d,k){ d.addEventListener('click', function(){ show(k); }); });
+                                            setInterval(function(){ show(i+1); }, 5000);
+                                        })();
+                                        </script>
                                     <?php elseif ($media_type === 'image' && $media_url) : ?>
                                         <img src="<?php echo esc_url($media_url); ?>" alt="<?php echo esc_attr($heading); ?>" style="width: 100%; height: auto; border-radius: <?php echo esc_attr($lg_radius); ?>px; display: block;">
                                     <?php endif; ?>

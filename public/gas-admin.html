@@ -9431,7 +9431,7 @@
                                             </select>
                                         </div>
                                     </div>
-                                    <div class="form-group" style="margin-bottom: 0;">
+                                    <div class="form-group" style="margin-bottom: 0.5rem;">
                                         <label class="form-label">Media URL <small style="color: #64748b; font-weight: normal;">— image URL, or YouTube/Vimeo video URL</small></label>
                                         <div style="display: flex; gap: 8px; align-items: flex-start;">
                                             <!-- 2026-07-22 fix: field ids didn't match previewWebsiteImage('wrap-media')'s
@@ -9445,6 +9445,37 @@
                                             </label>
                                         </div>
                                         <div id="wb-wrap-media-image-preview" style="margin-top: 8px; height: 100px; background-size: cover; background-position: center; border-radius: 8px; display: none;"></div>
+                                    </div>
+                                    <!-- Slider opt-in (2026-09-10) — when ticked, media becomes a slider of
+                                         up to 3 images. Unticked = single image (existing behaviour, back-compat
+                                         for every existing site). -->
+                                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                                        <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="checkbox" id="wb-wrap-media-slider-enabled" onchange="document.getElementById('wb-wrap-slider-extras').style.display = this.checked ? 'block' : 'none';"> Enable slider (up to 3 images)
+                                        </label>
+                                        <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 28px;">Auto-advancing slider that cycles through your images. Leave blank slots to skip. Video media type ignores this.</p>
+                                    </div>
+                                    <div id="wb-wrap-slider-extras" style="display: none;">
+                                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                                            <label class="form-label">Slide 2 <small style="color: #64748b; font-weight: normal;">— optional image URL</small></label>
+                                            <div style="display: flex; gap: 8px; align-items: flex-start;">
+                                                <input type="text" class="form-input" id="wb-wrap-media-2-image-url" placeholder="https://... or upload an image →" style="flex: 1;">
+                                                <label style="display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 0.85rem; white-space: nowrap;">
+                                                    Upload <input type="file" id="wb-wrap-media-2-image" accept="image/*" onchange="previewWebsiteImage('wrap-media-2')" style="display: none;">
+                                                </label>
+                                            </div>
+                                            <div id="wb-wrap-media-2-image-preview" style="margin-top: 8px; height: 80px; background-size: cover; background-position: center; border-radius: 8px; display: none;"></div>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label class="form-label">Slide 3 <small style="color: #64748b; font-weight: normal;">— optional image URL</small></label>
+                                            <div style="display: flex; gap: 8px; align-items: flex-start;">
+                                                <input type="text" class="form-input" id="wb-wrap-media-3-image-url" placeholder="https://... or upload an image →" style="flex: 1;">
+                                                <label style="display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 0.85rem; white-space: nowrap;">
+                                                    Upload <input type="file" id="wb-wrap-media-3-image" accept="image/*" onchange="previewWebsiteImage('wrap-media-3')" style="display: none;">
+                                                </label>
+                                            </div>
+                                            <div id="wb-wrap-media-3-image-preview" style="margin-top: 8px; height: 80px; background-size: cover; background-position: center; border-radius: 8px; display: none;"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -38912,6 +38943,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                         mirror('wb-footer-newsletter-heading-en', 'wb-footer-newsletter-heading-en-pb');
                         mirror('wb-footer-legal-text-en', 'wb-footer-legal-text-en-pb');
                     }, 50);
+                }
+                // Wrap-media-slider extras panel: sync visibility to the
+                // just-loaded checkbox state (checkbox onchange fires on click,
+                // not on programmatic load). Added 2026-09-10 for the 3-image
+                // slider opt-in.
+                if (section === 'wrap') {
+                    const cb = getEl('wb-wrap-media-slider-enabled');
+                    const extras = getEl('wb-wrap-slider-extras');
+                    if (cb && extras) extras.style.display = cb.checked ? 'block' : 'none';
                 }
             } catch (error) {
                 console.error('Error loading website builder section:', error);
