@@ -37490,27 +37490,48 @@ async function syncBeds24MarketplaceBookings(conn, opts = {}) {
     // merge. A single comma-separated status param 400s. GoSlopeSide
     // 2026-09-10 — Darin Thomas 88906521 was cancelled + replaced on
     // Beds24 in Aug, GAS still showed confirmed today.
+    //
+    // Rate-limit handling: Beds24 v2 tolerates ~1 req/sec sustained.
+    // Estate sweep across 140 marketplace connections × 2 calls will 429
+    // without spacing. Retry on 429 with exponential backoff (up to 3
+    // attempts, 3s / 6s / 12s waits).
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const doFetch = async (params, attempt = 0) => {
+        try {
+            return await axios.get('https://api.beds24.com/v2/bookings', {
+                params,
+                headers: { token: masterToken + ':p' + beds24PropId, organization: orgId },
+                timeout: 30000
+            });
+        } catch (e) {
+            if (e.response?.status === 429 && attempt < 3) {
+                const wait = 3000 * Math.pow(2, attempt);
+                console.warn(`[syncBeds24MarketplaceBookings] 429 on propId ${beds24PropId}, backoff ${wait}ms (attempt ${attempt+1}/3)`);
+                await sleep(wait);
+                return doFetch(params, attempt + 1);
+            }
+            throw e;
+        }
+    };
     const fetchByStatus = async (statusVal) => {
         let out = [];
         let pn = 1;
         while (true) {
             const params = { propertyId: beds24PropId, arrivalFrom, arrivalTo, page: pn };
             if (statusVal) params.status = statusVal;
-            const resp = await axios.get('https://api.beds24.com/v2/bookings', {
-                params,
-                headers: { token: masterToken + ':p' + beds24PropId, organization: orgId },
-                timeout: 30000
-            });
+            const resp = await doFetch(params);
             const list = Array.isArray(resp.data?.data) ? resp.data.data : [];
             out = out.concat(list);
             if (!resp.data?.pages?.nextPageExists) break;
             pn++;
             if (pn > 50) break;
+            await sleep(700);
         }
         return out;
     };
     // Active bookings (default status set)
     allRows = await fetchByStatus(null);
+    await sleep(700);
     // Cancelled (Beds24 uses 'cancelled' — 'black' is legacy synonym)
     try {
         const cancelled = await fetchByStatus('cancelled');
@@ -38031,7 +38052,10 @@ app.post('/api/admin/beds24/sync-bookings', async (req, res) => {
             } catch (e) {
                 totals.errors.push({ conn: conn.id, error: e.message });
             }
-            await new Promise(r => setTimeout(r, 300));
+            // 1.5s pause between connections — was 300ms which triggered 429s
+            // on high-volume accounts (EasyLandlord 67 conns, Bookin Riga 40)
+            // during the 2026-09-10 estate sweep.
+            await new Promise(r => setTimeout(r, 1500));
         }
         res.json({ success: true, account_id, total_connections: conns.rows.length, dry_run, debugSample: syncBeds24MarketplaceBookings._debugSample, ...totals });
         delete syncBeds24MarketplaceBookings._debugSample;
