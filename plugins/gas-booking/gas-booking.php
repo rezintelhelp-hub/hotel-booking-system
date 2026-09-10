@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.4.13
+ * Version: 4.4.14
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.13');
+define('GAS_BOOKING_VERSION', '4.4.14');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3740,6 +3740,15 @@ class GAS_Booking {
             }
         ";
         wp_add_inline_style('flatpickr', $flatpickr_overrides);
+        // Also emit the overrides at wp_footer with a late priority so they
+        // load AFTER every theme stylesheet. Belmont 2026-09-10: even with
+        // !important + double-class specificity, some site themes enqueue
+        // their brand CSS after flatpickr's inline block, and win on tie-
+        // breaker CSS-cascade order. Emitting late guarantees this rule
+        // is the last-loaded !important for .flatpickr-day.today.
+        add_action('wp_footer', function() use ($flatpickr_overrides) {
+            echo "<style id=\"gas-flatpickr-today-override\">{$flatpickr_overrides}</style>";
+        }, 9999);
         
         // Leaflet map library
         wp_enqueue_style('leaflet', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', array(), '1.9.4');
