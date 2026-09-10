@@ -1341,9 +1341,24 @@ async function resolveNotificationRecipients(accountId, siteId) {
       // Fallback to accounts.email only when notify_main_email !== false.
       // Owner-opt-out lets a client route all booking-notify traffic to a
       // team/site-level address without the owner's inbox getting a copy.
-      const acct = await pool.query('SELECT email, notify_main_email FROM accounts WHERE id = $1', [accountId]);
-      if (acct.rows[0]?.notify_main_email !== false) {
-        out.to = splitList(acct.rows[0]?.email);
+      // Always additionally include accounts.booking_cc_email (the operator's
+      // "extra address that gets a copy of every booking" — Sarah at Hebden
+      // 2026-09-10 set this to bookings@ but the enquiry sender was
+      // hardcoded to owner_email + gas dev only).
+      const acct = await pool.query('SELECT email, notify_main_email, booking_cc_email FROM accounts WHERE id = $1', [accountId]);
+      const row = acct.rows[0] || {};
+      if (row.notify_main_email !== false) {
+        out.to = splitList(row.email);
+      }
+      const cc = splitList(row.booking_cc_email);
+      for (const addr of cc) {
+        if (!out.cc.includes(addr) && !out.to.includes(addr)) out.cc.push(addr);
+      }
+      // If the owner is opted out AND no site-level 'notification-email' set,
+      // promote the booking_cc_email to the primary To — an email needs a
+      // recipient, otherwise the whole send skips silently.
+      if (out.to.length === 0 && out.cc.length > 0) {
+        out.to = out.cc; out.cc = [];
       }
     }
   } catch (_) { /* fallback handled by empty arrays */ }
@@ -41269,10 +41284,31 @@ app.post('/api/public/payment-failed', async (req, res) => {
         console.log(`⚠️ Payment failed for ${guest_first_name} ${guest_last_name} - ${unit.property_name} / ${unit.room_name} (owner lang: ${ownerLang})`);
 
         // 1. SEND EMAIL TO PROPERTY OWNER
-        if (unit.owner_email) {
+        // Route via resolveNotificationRecipients so this respects the
+        // account's notify_main_email opt-out + booking_cc_email additions.
+        // Hebden 2026-09-10: Sarah wanted enquiries off her personal inbox
+        // and routed to bookings@hebdenbridgehostel.org, but this sender
+        // was hardcoded to owner_email + development@gas.travel.
+        let notifTo = [], notifCc = [], notifReplyTo = null;
+        try {
+            const recips = await resolveNotificationRecipients(unit.account_id, null);
+            notifTo = recips.to || []; notifCc = recips.cc || [];
+            const rt = await pool.query('SELECT reply_to_email FROM accounts WHERE id = $1', [unit.account_id]);
+            notifReplyTo = (rt.rows[0]?.reply_to_email || '').trim() || null;
+        } catch (_) { /* fall through to legacy */ }
+        // Legacy fallback — if the helper returned nothing, use owner_email
+        // (mirrors pre-2026-09-10 behaviour so we never DROP an enquiry).
+        if (notifTo.length === 0 && unit.owner_email) notifTo = [unit.owner_email];
+        // Always CC GAS dev for visibility.
+        if (!notifCc.includes('development@gas.travel') && !notifTo.includes('development@gas.travel')) {
+            notifCc.push('development@gas.travel');
+        }
+        if (notifTo.length > 0) {
             try {
                 await sendEmail({
-                    to: [unit.owner_email, 'development@gas.travel'],
+                    to: notifTo,
+                    cc: notifCc,
+                    replyTo: notifReplyTo || undefined,
                     subject: `⚠️ ${t.subject}`,
                     html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -41311,7 +41347,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
                         </div>
                     `
                 });
-                console.log(`📧 Payment failed notification sent to ${unit.owner_email}`);
+                console.log(`📧 ${isEnquiry ? 'Enquiry' : 'Payment failed'} notification sent to=${notifTo.join(',')} cc=${notifCc.join(',')||'-'} replyTo=${notifReplyTo || '-'}`);
             } catch (emailError) {
                 console.error('Failed to send payment failed email:', emailError.message);
             }
