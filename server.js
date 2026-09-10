@@ -37484,29 +37484,39 @@ async function syncBeds24MarketplaceBookings(conn, opts = {}) {
 
     let inserted = 0, updated = 0, skipped_no_room = 0;
     let allRows = [];
-    let pageNumber = 1;
-    while (true) {
-        const resp = await axios.get('https://api.beds24.com/v2/bookings', {
-            // includeInvoiceItems for cancels+modifications visibility, and
-            // explicit status list because Beds24 v2 defaults to non-cancelled
-            // only — meaning cancelled bookings never flow to GAS and stale
-            // "confirmed" rows persist forever (GoSlopeSide Darin Thomas
-            // 88906521 was cancelled on Beds24 in Aug, GAS still shows
-            // confirmed as of 2026-09-10).
-            params: {
-                propertyId: beds24PropId,
-                arrivalFrom, arrivalTo,
-                page: pageNumber,
-                status: 'confirmed,new,request,cancelled,black'
-            },
-            headers: { token: masterToken + ':p' + beds24PropId, organization: orgId },
-            timeout: 30000
-        });
-        const list = Array.isArray(resp.data?.data) ? resp.data.data : [];
-        allRows = allRows.concat(list);
-        if (!resp.data?.pages?.nextPageExists) break;
-        pageNumber++;
-        if (pageNumber > 50) break; // safety cap
+    // Beds24 v2 /bookings defaults to non-cancelled. To also catch cancels
+    // (so operator-side cancellations flow to GAS status='cancelled'),
+    // fetch ACTIVE and CANCELLED as two separate paginated queries and
+    // merge. A single comma-separated status param 400s. GoSlopeSide
+    // 2026-09-10 — Darin Thomas 88906521 was cancelled + replaced on
+    // Beds24 in Aug, GAS still showed confirmed today.
+    const fetchByStatus = async (statusVal) => {
+        let out = [];
+        let pn = 1;
+        while (true) {
+            const params = { propertyId: beds24PropId, arrivalFrom, arrivalTo, page: pn };
+            if (statusVal) params.status = statusVal;
+            const resp = await axios.get('https://api.beds24.com/v2/bookings', {
+                params,
+                headers: { token: masterToken + ':p' + beds24PropId, organization: orgId },
+                timeout: 30000
+            });
+            const list = Array.isArray(resp.data?.data) ? resp.data.data : [];
+            out = out.concat(list);
+            if (!resp.data?.pages?.nextPageExists) break;
+            pn++;
+            if (pn > 50) break;
+        }
+        return out;
+    };
+    // Active bookings (default status set)
+    allRows = await fetchByStatus(null);
+    // Cancelled (Beds24 uses 'cancelled' — 'black' is legacy synonym)
+    try {
+        const cancelled = await fetchByStatus('cancelled');
+        allRows = allRows.concat(cancelled);
+    } catch (e) {
+        console.warn(`[syncBeds24MarketplaceBookings] cancelled pull failed for propId ${beds24PropId}: ${e.message}`);
     }
 
     if (!syncBeds24MarketplaceBookings._debugSample) {
