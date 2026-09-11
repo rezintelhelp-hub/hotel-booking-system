@@ -22660,13 +22660,18 @@ app.get('/api/setup-accounts', async (req, res) => {
     // cancel-booking path reads this list and cancels every block too.
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS buyout_block_beds24_ids JSONB`).catch(() => {});
 
-    // Deposit rules — room-level override (Steve 2026-09-12, Cordelia Belmont).
-    // Property-level rules stay the default (bookable_unit_id IS NULL); a rule
-    // with bookable_unit_id set only applies to that specific room type. The
-    // resolver at server.js:60944 prefers room-specific rules over property
-    // rules over account rules. Existing 348 rules unchanged.
+    // Deposit rules — room-level scoping. Steve 2026-09-12 (Cordelia
+    // Belmont). Two columns kept side by side for back-compat + the
+    // multi-select UX Steve asked for after the single-select shipped:
+    //   bookable_unit_id   INTEGER            (single-room legacy)
+    //   bookable_unit_ids  INTEGER[]          (many-rooms, GIN indexed)
+    // Resolver at server.js:60944 matches ANY(bookable_unit_ids), then
+    // falls back to bookable_unit_id, then property-wide, then account.
+    // Existing rules keep working; new rules populate the array.
     await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`).catch(() => {});
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS bookable_unit_ids INTEGER[]`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_deposit_rules_bookable_unit ON deposit_rules(bookable_unit_id) WHERE bookable_unit_id IS NOT NULL`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_deposit_rules_bookable_unit_ids ON deposit_rules USING GIN(bookable_unit_ids)`).catch(() => {});
 
     // ── Pool-sync trigger ────────────────────────────────────────────
     // Fires on INSERT / UPDATE / DELETE of bookings. Gated on the
@@ -34557,7 +34562,8 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             payment_schedule,
             auto_charge_retry,
             max_retry_attempts,
-            bookable_unit_id
+            bookable_unit_id,
+            bookable_unit_ids
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
@@ -34596,6 +34602,10 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
 
         const customJson = (refund_policy === 'custom' && refund_policy_custom) ? JSON.stringify(refund_policy_custom) : null;
         const buId = Number.isFinite(parseInt(bookable_unit_id, 10)) ? parseInt(bookable_unit_id, 10) : null;
+        const buIdsArray = Array.isArray(bookable_unit_ids)
+            ? bookable_unit_ids.map(v => parseInt(v, 10)).filter(Number.isFinite)
+            : null;
+        const buIdsParam = (buIdsArray && buIdsArray.length) ? buIdsArray : null;
         const result = await pool.query(`
             INSERT INTO deposit_rules (
                 property_id, account_id, rule_name, rule_name_ml, deposit_type, deposit_percentage,
@@ -34603,8 +34613,8 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
                 auto_charge_balance, auto_charge_days_before, refund_policy, refund_policy_custom,
                 valid_from, valid_until, min_nights, max_nights, is_active,
                 schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts,
-                bookable_unit_id
-            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23)
+                bookable_unit_id, bookable_unit_ids
+            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23, $24::int[])
             RETURNING *
         `, [
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
@@ -34616,7 +34626,7 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             min_nights || null, max_nights || null, is_active !== false,
             schedule_mode || 'basic', scheduleJson,
             auto_charge_retry || false, max_retry_attempts || 3,
-            buId
+            buId, buIdsParam
         ]);
 
         res.json({ success: true, rule: result.rows[0] });
@@ -34650,7 +34660,8 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             payment_schedule,
             auto_charge_retry,
             max_retry_attempts,
-            bookable_unit_id
+            bookable_unit_id,
+            bookable_unit_ids
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
@@ -34687,6 +34698,15 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
         const buIdParam = (buIdRaw === undefined) ? null // keep existing (see COALESCE guard)
                         : (buIdRaw === null || buIdRaw === '' ? null : parseInt(buIdRaw, 10) || null);
         const buIdWasProvided = (buIdRaw !== undefined);
+        // Same semantics for the array — undefined = leave as-is; provided
+        // (even empty) = set. Empty array or all-elements-invalid = NULL
+        // (means "property-wide default").
+        const buIdsRaw = bookable_unit_ids;
+        const buIdsClean = Array.isArray(buIdsRaw)
+            ? buIdsRaw.map(v => parseInt(v, 10)).filter(Number.isFinite)
+            : null;
+        const buIdsParam = (buIdsClean && buIdsClean.length) ? buIdsClean : null;
+        const buIdsWasProvided = (buIdsRaw !== undefined);
         const result = await pool.query(`
             UPDATE deposit_rules SET
                 rule_name = COALESCE($1, rule_name),
@@ -34710,6 +34730,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
                 auto_charge_retry = COALESCE($19, auto_charge_retry),
                 max_retry_attempts = COALESCE($20, max_retry_attempts),
                 bookable_unit_id = CASE WHEN $22::boolean THEN $23::int ELSE bookable_unit_id END,
+                bookable_unit_ids = CASE WHEN $24::boolean THEN $25::int[] ELSE bookable_unit_ids END,
                 updated_at = NOW()
             WHERE id = $16
             RETURNING *
@@ -34722,6 +34743,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             auto_charge_retry, max_retry_attempts,
             customJson === undefined ? null : customJson,
             buIdWasProvided, buIdParam,
+            buIdsWasProvided, buIdsParam,
         ]);
         
         if (result.rows.length === 0) {
@@ -60994,24 +61016,36 @@ async function resolveDepositRule(pool, propertyId, accountId, offerRefundPolicy
   const wantsNonRefundable = offerRefundPolicy === 'non_refundable' || withinShortTermWindow;
 
   // Priority order (Steve 2026-09-12 — Cordelia Belmont, Hebden Ex Hire):
-  //   1. room-specific rule (bookable_unit_id = X)
-  //   2. property-wide rule (property_id set, bookable_unit_id NULL)
-  //   3. account-wide fallback (both NULL)
-  // ORDER BY sorts by specificity: room-specific rows first, then property.
+  //   1. room-specific rule via bookable_unit_ids ARRAY containing X
+  //   2. room-specific rule via legacy bookable_unit_id = X
+  //   3. property-wide rule (property_id set, both room fields empty)
+  //   4. account-wide fallback
+  // ORDER BY sorts by specificity — room-scoped rows first, then property.
+  const buId = bookableUnitId || null;
   const result = await pool.query(`
     SELECT dr.*
     FROM deposit_rules dr
     WHERE dr.is_active = true
       AND (
-        (dr.bookable_unit_id = $3)
-        OR (dr.bookable_unit_id IS NULL AND dr.property_id = $1)
-        OR (dr.bookable_unit_id IS NULL AND dr.property_id IS NULL AND dr.account_id = $2)
+        ($3::int IS NOT NULL AND dr.bookable_unit_ids IS NOT NULL AND $3::int = ANY(dr.bookable_unit_ids))
+        OR (dr.bookable_unit_id = $3)
+        OR (
+            (dr.bookable_unit_id IS NULL AND (dr.bookable_unit_ids IS NULL OR array_length(dr.bookable_unit_ids, 1) IS NULL))
+            AND dr.property_id = $1
+          )
+        OR (
+            dr.bookable_unit_id IS NULL
+            AND (dr.bookable_unit_ids IS NULL OR array_length(dr.bookable_unit_ids, 1) IS NULL)
+            AND dr.property_id IS NULL
+            AND dr.account_id = $2
+          )
       )
     ORDER BY
+      (dr.bookable_unit_ids IS NOT NULL AND $3::int = ANY(COALESCE(dr.bookable_unit_ids, ARRAY[]::int[]))) DESC,
       (dr.bookable_unit_id IS NOT NULL) DESC,
       (dr.property_id IS NOT NULL) DESC,
       dr.created_at DESC
-  `, [propertyId, accountId, bookableUnitId || null]);
+  `, [propertyId, accountId, buId]);
 
   if (result.rows.length === 0) return null;
 

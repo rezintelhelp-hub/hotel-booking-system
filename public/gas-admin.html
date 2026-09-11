@@ -29712,19 +29712,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                             style="padding: 0.75rem; border-radius: 8px;">
                     </div>
 
-                    <!-- Room scoping — 2026-09-12 Steve/Cordelia Belmont. Optional
-                         room selector so a property can have different rules per
-                         room (e.g. 20% standard, 50% Ex Hire). Blank = all rooms
-                         (existing property-wide behaviour). Populated from the
-                         property's bookable_units when the modal opens. -->
+                    <!-- Room scoping — 2026-09-12 Steve/Cordelia Belmont.
+                         Rooms can be ticked / unticked so one rule covers a
+                         subset (e.g. "Standard deposit for everything except
+                         Ex Hire" = untick Ex Hire on the standard rule).
+                         Populated from the property's bookable_units when the
+                         modal opens. -->
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Applies to
                         </label>
-                        <select id="deposit-rule-bookable-unit" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
-                            <option value="">All rooms in this property (default)</option>
+                        <div id="deposit-rule-rooms-empty" style="font-size: 0.85rem; color: #6b7280; padding: 0.5rem 0.75rem; background: #f9fafb; border-radius: 8px;">
+                            (loading rooms…)
+                        </div>
+                        <div id="deposit-rule-rooms-wrap" style="display: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.6rem 0.8rem; background: #fff;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid #f1f5f9; margin-bottom: 0.3rem; font-weight: 600; color: #374151; cursor: pointer;">
+                                <input type="checkbox" id="deposit-rule-rooms-all" style="width: 16px; height: 16px;" onchange="toggleDepositRuleAllRooms(this.checked)">
+                                All rooms
+                            </label>
+                            <div id="deposit-rule-rooms-list" style="max-height: 180px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 0.15rem 0.75rem; padding-top: 0.15rem;"></div>
+                        </div>
+                        <!-- Hidden fallback for the legacy single-value column so
+                             old rules still work. Kept off the visible form. -->
+                        <select id="deposit-rule-bookable-unit" style="display: none;">
+                            <option value=""></option>
                         </select>
-                        <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.35rem;">Room-specific rule wins over the property default.</div>
+                        <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.35rem;">
+                            Tick "All rooms" for a property-wide default, or pick specific rooms — the rule only applies to bookings on those rooms.
+                        </div>
                     </div>
                     
                     <!-- Deposit Mode Toggle -->
@@ -82509,13 +82524,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('deposit-rule-name').value = defaultName;
             renderDepositRuleLangTabs();
 
-            // Populate the "Applies to" room selector from the property's rooms.
+            // Populate the "Applies to" room checkboxes from the property's rooms.
             // Account-level rules skip this (no single property in play).
             if (!isAccountLevel) {
-                await populateDepositRuleRoomOptions(selectValue, '');
+                await populateDepositRuleRoomOptions(selectValue, []);
             } else {
-                const sel = document.getElementById('deposit-rule-bookable-unit');
-                if (sel) { sel.innerHTML = '<option value="">All rooms (account-level)</option>'; sel.disabled = true; }
+                const wrap = document.getElementById('deposit-rule-rooms-wrap');
+                const empty = document.getElementById('deposit-rule-rooms-empty');
+                if (wrap) wrap.style.display = 'none';
+                if (empty) { empty.style.display = 'block'; empty.textContent = 'Account-level rules apply to every room across the account.'; }
             }
             
             document.getElementById('deposit-type').value = 'percentage';
@@ -82546,30 +82563,90 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('fixed-amount-field').style.display = (type === 'fixed') ? 'block' : 'none';
         }
 
-        // Populate the "Applies to" room selector inside the deposit rule modal.
-        // Loads the property's bookable_units (visible only) and preselects the
-        // supplied unit id. Blank preselect + property-wide as the default.
-        async function populateDepositRuleRoomOptions(propertyId, preselectId) {
-            const sel = document.getElementById('deposit-rule-bookable-unit');
-            if (!sel) return;
-            sel.disabled = false;
-            sel.innerHTML = '<option value="">All rooms in this property (default)</option>';
-            if (!propertyId || propertyId === 'all') return;
+        // Populate the "Applies to" checkbox list inside the deposit rule
+        // modal. Loads the property's bookable_units (visible only). preselect
+        // may be: an array of ids (multi-select rule), a single id (legacy
+        // single-value rule), or empty (property-wide → All rooms ticked).
+        async function populateDepositRuleRoomOptions(propertyId, preselect) {
+            const wrap = document.getElementById('deposit-rule-rooms-wrap');
+            const empty = document.getElementById('deposit-rule-rooms-empty');
+            const list = document.getElementById('deposit-rule-rooms-list');
+            const allBox = document.getElementById('deposit-rule-rooms-all');
+            if (!wrap || !list) return;
+            wrap.style.display = 'none';
+            if (empty) { empty.style.display = 'block'; empty.textContent = 'Loading rooms…'; }
+            list.innerHTML = '';
+            if (!propertyId || propertyId === 'all') {
+                if (empty) empty.textContent = 'Account-level rules apply to every room across the account.';
+                return;
+            }
             try {
                 const r = await fetch(`/api/db/bookable-units?property_id=${encodeURIComponent(propertyId)}`, { headers: authHeaders() });
                 const d = await r.json();
                 const units = Array.isArray(d) ? d : (Array.isArray(d && d.units) ? d.units : (Array.isArray(d && d.data) ? d.data : []));
-                for (const u of units) {
-                    const opt = document.createElement('option');
-                    opt.value = String(u.id);
-                    const role = u.unit_role && u.unit_role !== 'room' ? ' (' + u.unit_role.replace('_', ' ') + ')' : '';
-                    opt.textContent = (u.name || ('Room ' + u.id)) + role;
-                    if (String(u.id) === String(preselectId || '')) opt.selected = true;
-                    sel.appendChild(opt);
+                if (!units.length) {
+                    if (empty) empty.textContent = 'No rooms found for this property yet.';
+                    return;
                 }
+                const preselectSet = new Set(
+                    Array.isArray(preselect)
+                        ? preselect.map(v => String(v))
+                        : (preselect ? [String(preselect)] : [])
+                );
+                const noneSelected = preselectSet.size === 0;
+                for (const u of units) {
+                    const idStr = String(u.id);
+                    const role = u.unit_role && u.unit_role !== 'room' ? ' <span style="color:#94a3b8;font-size:0.75rem;">(' + u.unit_role.replace('_', ' ') + ')</span>' : '';
+                    const label = document.createElement('label');
+                    label.style.cssText = 'display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0; font-size: 0.88rem; color: #374151; cursor: pointer;';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.className = 'deposit-rule-room-checkbox';
+                    cb.value = idStr;
+                    cb.style.cssText = 'width: 15px; height: 15px;';
+                    // Tick if preselected OR if no preselect (default = All rooms).
+                    cb.checked = noneSelected || preselectSet.has(idStr);
+                    cb.addEventListener('change', syncDepositRuleAllRoomsState);
+                    label.appendChild(cb);
+                    const span = document.createElement('span');
+                    span.innerHTML = (u.name || ('Room ' + u.id)) + role;
+                    label.appendChild(span);
+                    list.appendChild(label);
+                }
+                wrap.style.display = 'block';
+                if (empty) empty.style.display = 'none';
+                syncDepositRuleAllRoomsState();
             } catch (e) {
+                if (empty) empty.textContent = 'Could not load rooms — check the network and try again.';
                 console.warn('[deposit rule room list]', e.message);
             }
+        }
+
+        // Tick/untick every room checkbox from the "All rooms" master.
+        function toggleDepositRuleAllRooms(checked) {
+            document.querySelectorAll('.deposit-rule-room-checkbox').forEach(cb => { cb.checked = checked; });
+        }
+
+        // Update the "All rooms" master state — checked when ALL rooms are ticked.
+        function syncDepositRuleAllRoomsState() {
+            const boxes = document.querySelectorAll('.deposit-rule-room-checkbox');
+            const master = document.getElementById('deposit-rule-rooms-all');
+            if (!master) return;
+            const total = boxes.length;
+            const ticked = Array.from(boxes).filter(cb => cb.checked).length;
+            master.checked = total > 0 && ticked === total;
+            master.indeterminate = ticked > 0 && ticked < total;
+        }
+
+        // Collect the ticked room ids for the save payload. If "All rooms"
+        // is ticked (or every room ticked individually), returns null so the
+        // rule saves as property-wide default rather than storing every id.
+        function collectDepositRuleRoomIds() {
+            const boxes = document.querySelectorAll('.deposit-rule-room-checkbox');
+            if (!boxes.length) return null;
+            const ticked = Array.from(boxes).filter(cb => cb.checked).map(cb => parseInt(cb.value, 10)).filter(Number.isFinite);
+            if (ticked.length === 0 || ticked.length === boxes.length) return null;
+            return ticked;
         }
 
         
@@ -82857,8 +82934,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('deposit-rule-id').value = rule.id;
                     document.getElementById('deposit-rule-property-id').value = rule.property_id;
 
-                    // Room dropdown — populate + preselect from rule.bookable_unit_id
-                    await populateDepositRuleRoomOptions(rule.property_id, rule.bookable_unit_id || '');
+                    // Room checkbox list — preselect from bookable_unit_ids array
+                    // (new multi-value column) with a legacy fallback to the
+                    // single bookable_unit_id column.
+                    const preselect = Array.isArray(rule.bookable_unit_ids) && rule.bookable_unit_ids.length
+                        ? rule.bookable_unit_ids
+                        : (rule.bookable_unit_id ? [rule.bookable_unit_id] : []);
+                    await populateDepositRuleRoomOptions(rule.property_id, preselect);
 
                     // Parse multilingual name
                     depositRuleMultilingualData.name = parseMultilingualField(rule.rule_name_ml || rule.rule_name);
@@ -82930,11 +83012,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 refund_policy: document.getElementById('refund-policy').value,
                 is_active: document.getElementById('deposit-rule-active').checked,
                 schedule_mode: scheduleMode,
-                // Room scoping (2026-09-12 Steve/Cordelia). Blank => property-wide.
-                bookable_unit_id: (function () {
-                    const v = document.getElementById('deposit-rule-bookable-unit')?.value || '';
-                    return v ? parseInt(v, 10) : null;
-                })()
+                // Room scoping (2026-09-12 Steve/Cordelia). null = All rooms.
+                // Array = only these rooms.
+                bookable_unit_id: null, // legacy single-value column no longer used from this UI
+                bookable_unit_ids: collectDepositRuleRoomIds()
             };
 
             // Steve 2026-07-28 (Barbara bespoke policy): if the operator picked
