@@ -25045,6 +25045,52 @@ app.post('/api/onboarding/create-account', async (req, res) => {
   }
 });
 
+// GAS Onboard wizard — SetupIntent for signup card capture.
+// Powers /public/gas-onboard.html step 7. Uses PLATFORM Stripe (env
+// STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY) because the operator's
+// property doesn't exist yet — this is the pre-signup card-on-file
+// moment. Creates a Stripe customer + SetupIntent, returns the pieces
+// Stripe.js needs to mount the card element.
+//
+// The signup endpoint (built next) reads customer_id + payment_method_id
+// off the wizard payload and persists them onto the newly-created
+// accounts row so future subscription charges can fire without another
+// card prompt.
+//
+// Steve 2026-09-11 — booking-assist rebuild + GAS Onboard MVP.
+app.post('/api/onboarding/create-signup-setup-intent', async (req, res) => {
+  try {
+    const { email, name } = req.body || {};
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    const stripePub = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (!stripeSecret || !stripePub) {
+      return res.status(500).json({ success: false, error: 'Platform Stripe not configured' });
+    }
+    const platformStripe = new Stripe(stripeSecret);
+    const customer = await platformStripe.customers.create({
+      email: email || undefined,
+      name: name || undefined,
+      metadata: { source: 'gas-onboard-signup' }
+    });
+    const setupIntent = await platformStripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ['card'],
+      usage: 'off_session',
+      metadata: { source: 'gas-onboard-signup', email: email || '' }
+    });
+    return res.json({
+      success: true,
+      client_secret: setupIntent.client_secret,
+      setup_intent_id: setupIntent.id,
+      customer_id: customer.id,
+      publishable_key: stripePub
+    });
+  } catch (e) {
+    console.error('[gas-onboard SetupIntent]', e);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Agent Registration — coming soon interest form
 app.post('/api/agent-registration', async (req, res) => {
   try {

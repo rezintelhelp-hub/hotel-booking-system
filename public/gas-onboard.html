@@ -7,6 +7,7 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -94,6 +95,7 @@
             <div class="st" data-step="4"></div>
             <div class="st" data-step="5"></div>
             <div class="st" data-step="6"></div>
+            <div class="st" data-step="7"></div>
         </div>
         <div class="step-label" id="step-label">Step 1 of 6 — About your property</div>
 
@@ -311,6 +313,23 @@
             </div>
         </div>
 
+        <!-- STEP 7: card capture -->
+        <div class="step-panel" id="panel-7" style="display:none;">
+            <h1>Card on file</h1>
+            <p class="sub">We store your card securely with Stripe — <strong>no charge today</strong>. Once you're live and taking bookings we bill your monthly subscription to this card. Cancel anytime from your dashboard.</p>
+
+            <label>Cardholder name</label>
+            <input type="text" id="card-name" placeholder="As printed on card">
+
+            <label>Card details</label>
+            <div id="card-element" style="padding: 0.85rem 0.9rem; border: 2px solid #e2e8f0; border-radius: 10px; background: #fff;"></div>
+            <div id="card-errors" class="status err" style="display:none; margin-top: 0.5rem;"></div>
+
+            <div class="beds24-note" style="background: #dcfce7; border-color: #86efac; color: #14532d; margin-top: 1rem;">
+                🔒 Powered by Stripe. Your card details never touch our servers — Stripe handles it directly. We only store a reference token.
+            </div>
+        </div>
+
         <div class="status" id="status"></div>
 
         <!-- Nav row -->
@@ -343,8 +362,15 @@
 // State
 // ============================================================
 let currentStep = 1;
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 const rooms = [];  // { name, type, beds, maxGuests }
+
+// Stripe state — populated on step 7 entry
+let stripe = null;
+let cardElement = null;
+let stripeSetupIntentId = null;
+let stripeCustomerId = null;
+let stripePaymentMethodId = null;
 
 // ============================================================
 // Step navigation
@@ -357,17 +383,29 @@ function showStep(n) {
         if (i < n) bar.classList.add('done');
         else if (i === n) bar.classList.add('active');
     }
-    const labels = ['About your property', 'Your rooms', 'Amenities', 'Policies', 'OTA channels', 'Create your login'];
+    const labels = ['About your property', 'Your rooms', 'Amenities', 'Policies', 'OTA channels', 'Create your login', 'Card on file'];
     document.getElementById('step-label').textContent = 'Step ' + n + ' of ' + TOTAL_STEPS + ' — ' + labels[n - 1];
     document.getElementById('back-btn').style.visibility = n === 1 ? 'hidden' : 'visible';
     document.getElementById('next-btn').textContent = n === TOTAL_STEPS ? 'Create my account →' : 'Continue →';
     document.getElementById('status').textContent = '';
     if (n === 6) renderReview();
+    if (n === 7) initStripeCard();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function nextStep() {
+async function nextStep() {
     if (!validateStep(currentStep)) return;
+    // Step 6 (signup) → before advancing to step 7 (card) we must have a
+    // SetupIntent client_secret. Fetch it up-front so Stripe Elements
+    // can mount immediately when the panel becomes visible.
+    if (currentStep === 6 && !stripeSetupIntentId) {
+        const s = document.getElementById('status');
+        s.className = 'status';
+        s.textContent = 'Preparing secure payment…';
+        const ok = await fetchSetupIntent();
+        s.textContent = '';
+        if (!ok) return;
+    }
     if (currentStep === TOTAL_STEPS) return submitWizard();
     currentStep++;
     if (currentStep === 2 && rooms.length === 0) addRoom(); // seed a first room
@@ -509,11 +547,101 @@ function renderReview() {
 }
 
 // ============================================================
+// Stripe — SetupIntent + card confirm
+// ============================================================
+async function fetchSetupIntent() {
+    try {
+        const r = await fetch('/api/onboarding/create-signup-setup-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: v('user-email'), name: v('user-name') })
+        });
+        const d = await r.json();
+        if (!d.success) {
+            const s = document.getElementById('status');
+            s.className = 'status err';
+            s.textContent = '❌ ' + (d.error || 'Failed to prepare payment');
+            return false;
+        }
+        stripeSetupIntentId = d.setup_intent_id;
+        stripeCustomerId = d.customer_id;
+        window.__stripe_client_secret = d.client_secret;
+        window.__stripe_publishable_key = d.publishable_key;
+        return true;
+    } catch (e) {
+        const s = document.getElementById('status');
+        s.className = 'status err';
+        s.textContent = '❌ ' + e.message;
+        return false;
+    }
+}
+
+function initStripeCard() {
+    if (cardElement) return; // already mounted
+    if (!window.Stripe || !window.__stripe_publishable_key) return;
+    stripe = window.Stripe(window.__stripe_publishable_key);
+    const elements = stripe.elements();
+    cardElement = elements.create('card', {
+        style: {
+            base: {
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '16px',
+                color: '#1e293b',
+                '::placeholder': { color: '#94a3b8' }
+            },
+            invalid: { color: '#dc2626' }
+        }
+    });
+    cardElement.mount('#card-element');
+    cardElement.on('change', (e) => {
+        const errEl = document.getElementById('card-errors');
+        if (e.error) {
+            errEl.style.display = 'block';
+            errEl.textContent = e.error.message;
+        } else {
+            errEl.style.display = 'none';
+        }
+    });
+}
+
+async function confirmStripeCard() {
+    if (!stripe || !cardElement || !window.__stripe_client_secret) {
+        return { error: 'Payment not initialised' };
+    }
+    const { setupIntent, error } = await stripe.confirmCardSetup(window.__stripe_client_secret, {
+        payment_method: {
+            card: cardElement,
+            billing_details: {
+                name: v('card-name') || v('user-name'),
+                email: v('user-email')
+            }
+        }
+    });
+    if (error) return { error: error.message };
+    stripePaymentMethodId = setupIntent.payment_method;
+    return { ok: true };
+}
+
+// ============================================================
 // Submit
 // ============================================================
 async function submitWizard() {
     if (!validateStep(6)) return;
     collectRooms();
+
+    // Card must be confirmed BEFORE we build the account server-side, so
+    // if the card check fails the operator can retry without losing their
+    // account/property state.
+    const s = document.getElementById('status');
+    s.className = 'status';
+    s.textContent = 'Verifying card…';
+    const cardResult = await confirmStripeCard();
+    if (cardResult.error) {
+        s.className = 'status err';
+        s.textContent = '❌ ' + cardResult.error;
+        return;
+    }
+    s.textContent = '';
 
     const payload = {
         user: {
@@ -548,7 +676,12 @@ async function submitWizard() {
             children: v('pol-children'),
             house_rules: v('pol-rules')
         },
-        otas: collectAmenities('panel-5')
+        otas: collectAmenities('panel-5'),
+        stripe: {
+            setup_intent_id: stripeSetupIntentId,
+            customer_id: stripeCustomerId,
+            payment_method_id: stripePaymentMethodId
+        }
     };
 
     // Show progress
