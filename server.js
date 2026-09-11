@@ -10743,9 +10743,20 @@ app.post('/api/admin/bookings/:id/reassign-unit', async (req, res) => {
       req.headers.authorization = 'Bearer ' + String(req.query.token);
     }
     const decoded = await extractAccountFromToken(req);
-    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
     const bookingId = parseInt(req.params.id, 10);
     if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    // Scope check: master_admin can move any booking; regular admin can only
+    // move bookings on properties their account owns (Cordelia Belmont 2026-09-12).
+    if (decoded.role !== 'master_admin') {
+      const scope = await pool.query(
+        `SELECT p.account_id FROM bookings b JOIN properties p ON p.id = b.property_id WHERE b.id = $1`,
+        [bookingId]
+      );
+      if (!scope.rows[0] || scope.rows[0].account_id !== decoded.accountId) {
+        return res.status(403).json({ success: false, error: 'This booking is not on your account' });
+      }
+    }
     const { bookable_unit_id, individual_unit_id } = req.body || {};
     const newBu = parseInt(bookable_unit_id, 10);
     if (!newBu) return res.status(400).json({ success: false, error: 'bookable_unit_id required' });
@@ -22649,6 +22660,14 @@ app.get('/api/setup-accounts', async (req, res) => {
     // cancel-booking path reads this list and cancels every block too.
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS buyout_block_beds24_ids JSONB`).catch(() => {});
 
+    // Deposit rules — room-level override (Steve 2026-09-12, Cordelia Belmont).
+    // Property-level rules stay the default (bookable_unit_id IS NULL); a rule
+    // with bookable_unit_id set only applies to that specific room type. The
+    // resolver at server.js:60944 prefers room-specific rules over property
+    // rules over account rules. Existing 348 rules unchanged.
+    await pool.query(`ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_deposit_rules_bookable_unit ON deposit_rules(bookable_unit_id) WHERE bookable_unit_id IS NOT NULL`).catch(() => {});
+
     // ── Pool-sync trigger ────────────────────────────────────────────
     // Fires on INSERT / UPDATE / DELETE of bookings. Gated on the
     // booking's account having inventory_model='pool' AND the row
@@ -26699,19 +26718,26 @@ app.patch('/api/admin/bookings/:id/card-capture-flag', async (req, res) => {
 });
 
 app.post('/api/admin/bookings/:id/reassign-room', async (req, res) => {
-  const admin = await requireMasterAdmin(req, res);
-  if (!admin) return;
+  const decoded = await extractAccountFromToken(req);
+  if (!decoded) return res.status(401).json({ success: false, error: 'Not authenticated' });
   try {
     const bookingId = parseInt(req.params.id, 10);
     const newRoomId = parseInt(req.body?.bookable_unit_id, 10);
     if (!bookingId || !newRoomId) return res.status(400).json({ success: false, error: 'bookingId + bookable_unit_id required' });
     const check = await pool.query(
-      `SELECT b.id, b.property_id, b.bookable_unit_id AS current_room, bu.property_id AS new_room_property
-         FROM bookings b, bookable_units bu
-        WHERE b.id = $1 AND bu.id = $2`,
+      `SELECT b.id, b.property_id, b.bookable_unit_id AS current_room, bu.property_id AS new_room_property,
+              p.account_id
+         FROM bookings b
+         JOIN bookable_units bu ON bu.id = $2
+         JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`,
       [bookingId, newRoomId]);
     if (check.rows.length === 0) return res.status(404).json({ success: false, error: 'booking or room not found' });
     const row = check.rows[0];
+    // Scope: master_admin unrestricted; regular admin must own the booking's account.
+    if (decoded.role !== 'master_admin' && row.account_id !== decoded.accountId) {
+      return res.status(403).json({ success: false, error: 'This booking is not on your account' });
+    }
     if (row.property_id !== row.new_room_property) {
       return res.status(400).json({ success: false, error: `target room ${newRoomId} belongs to property ${row.new_room_property}, booking is on property ${row.property_id}` });
     }
@@ -34530,7 +34556,8 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             schedule_mode,
             payment_schedule,
             auto_charge_retry,
-            max_retry_attempts
+            max_retry_attempts,
+            bookable_unit_id
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
@@ -34568,14 +34595,16 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
         const scheduleJson = payment_schedule ? JSON.stringify(payment_schedule) : null;
 
         const customJson = (refund_policy === 'custom' && refund_policy_custom) ? JSON.stringify(refund_policy_custom) : null;
+        const buId = Number.isFinite(parseInt(bookable_unit_id, 10)) ? parseInt(bookable_unit_id, 10) : null;
         const result = await pool.query(`
             INSERT INTO deposit_rules (
                 property_id, account_id, rule_name, rule_name_ml, deposit_type, deposit_percentage,
                 deposit_fixed_amount, balance_due_type, balance_due_days,
                 auto_charge_balance, auto_charge_days_before, refund_policy, refund_policy_custom,
                 valid_from, valid_until, min_nights, max_nights, is_active,
-                schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts
-            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22)
+                schedule_mode, payment_schedule, auto_charge_retry, max_retry_attempts,
+                bookable_unit_id
+            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20::jsonb, $21, $22, $23)
             RETURNING *
         `, [
             propertyId, accountId, rule_name || 'Default', ruleNameJson,
@@ -34586,9 +34615,10 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             valid_from || null, valid_until || null,
             min_nights || null, max_nights || null, is_active !== false,
             schedule_mode || 'basic', scheduleJson,
-            auto_charge_retry || false, max_retry_attempts || 3
+            auto_charge_retry || false, max_retry_attempts || 3,
+            buId
         ]);
-        
+
         res.json({ success: true, rule: result.rows[0] });
     } catch (error) {
         console.error('Error creating deposit rule:', error);
@@ -34619,7 +34649,8 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             schedule_mode,
             payment_schedule,
             auto_charge_retry,
-            max_retry_attempts
+            max_retry_attempts,
+            bookable_unit_id
         } = req.body;
         const rule_name = mlStr(rawRuleName);
         const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
@@ -34649,6 +34680,13 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
         const customJson = (refund_policy === 'custom' && refund_policy_custom)
             ? JSON.stringify(refund_policy_custom)
             : (refund_policy && refund_policy !== 'custom' ? null : undefined);
+        // Room scoping: bookable_unit_id may be a number (scope to that room),
+        // null (property-wide), or undefined (leave unchanged). CASE handles
+        // both null-out and update while preserving existing value on undefined.
+        const buIdRaw = bookable_unit_id;
+        const buIdParam = (buIdRaw === undefined) ? null // keep existing (see COALESCE guard)
+                        : (buIdRaw === null || buIdRaw === '' ? null : parseInt(buIdRaw, 10) || null);
+        const buIdWasProvided = (buIdRaw !== undefined);
         const result = await pool.query(`
             UPDATE deposit_rules SET
                 rule_name = COALESCE($1, rule_name),
@@ -34671,6 +34709,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
                 payment_schedule = COALESCE($18::jsonb, payment_schedule),
                 auto_charge_retry = COALESCE($19, auto_charge_retry),
                 max_retry_attempts = COALESCE($20, max_retry_attempts),
+                bookable_unit_id = CASE WHEN $22::boolean THEN $23::int ELSE bookable_unit_id END,
                 updated_at = NOW()
             WHERE id = $16
             RETURNING *
@@ -34682,6 +34721,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             schedule_mode, scheduleJson,
             auto_charge_retry, max_retry_attempts,
             customJson === undefined ? null : customJson,
+            buIdWasProvided, buIdParam,
         ]);
         
         if (result.rows.length === 0) {
@@ -45642,7 +45682,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
 
                 const schedRule = await resolveDepositRule(
                     client, createdBookings[0].property_id, propAccountId, offerRefundPolicy,
-                    createdBookings[0].arrival_date || req.body.check_in, new Date().toISOString()
+                    createdBookings[0].arrival_date || req.body.check_in, new Date().toISOString(),
+                    createdBookings[0].bookable_unit_id
                 );
 
                 if (schedRule) {
@@ -60941,7 +60982,7 @@ app.get('/api/property/:propertyId/payments', async (req, res) => {
 // guest must pay in full and is non-refundable.
 const SHORT_TERM_NON_REFUNDABLE_DAYS = 30;
 
-async function resolveDepositRule(pool, propertyId, accountId, offerRefundPolicy, arrivalDate, bookingDate) {
+async function resolveDepositRule(pool, propertyId, accountId, offerRefundPolicy, arrivalDate, bookingDate, bookableUnitId) {
   let withinShortTermWindow = false;
   if (arrivalDate) {
     const arrival = new Date(arrivalDate);
@@ -60952,13 +60993,25 @@ async function resolveDepositRule(pool, propertyId, accountId, offerRefundPolicy
 
   const wantsNonRefundable = offerRefundPolicy === 'non_refundable' || withinShortTermWindow;
 
+  // Priority order (Steve 2026-09-12 — Cordelia Belmont, Hebden Ex Hire):
+  //   1. room-specific rule (bookable_unit_id = X)
+  //   2. property-wide rule (property_id set, bookable_unit_id NULL)
+  //   3. account-wide fallback (both NULL)
+  // ORDER BY sorts by specificity: room-specific rows first, then property.
   const result = await pool.query(`
     SELECT dr.*
     FROM deposit_rules dr
     WHERE dr.is_active = true
-      AND (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = $2))
-    ORDER BY (dr.property_id IS NOT NULL) DESC, dr.created_at DESC
-  `, [propertyId, accountId]);
+      AND (
+        (dr.bookable_unit_id = $3)
+        OR (dr.bookable_unit_id IS NULL AND dr.property_id = $1)
+        OR (dr.bookable_unit_id IS NULL AND dr.property_id IS NULL AND dr.account_id = $2)
+      )
+    ORDER BY
+      (dr.bookable_unit_id IS NOT NULL) DESC,
+      (dr.property_id IS NOT NULL) DESC,
+      dr.created_at DESC
+  `, [propertyId, accountId, bookableUnitId || null]);
 
   if (result.rows.length === 0) return null;
 
@@ -61085,7 +61138,7 @@ function calculatePaymentScheduleForBooking(rule, totalAmount, arrivalDate, book
 // Calculate deposit for a booking
 app.post('/api/payments/calculate-deposit', async (req, res) => {
   try {
-    const { property_id, total_amount, arrival_date, booking_date, offer_id } = req.body;
+    const { property_id, total_amount, arrival_date, booking_date, offer_id, bookable_unit_id } = req.body;
 
     if (arrival_date) {
       // Rate-aware rule selection — see resolveDepositRule.
@@ -61103,7 +61156,7 @@ app.post('/api/payments/calculate-deposit', async (req, res) => {
         [property_id]
       );
       const propAccountId = propLookup.rows[0]?.account_id;
-      const rule = await resolveDepositRule(pool, property_id, propAccountId, offerRefundPolicy, arrival_date, booking_date || new Date().toISOString());
+      const rule = await resolveDepositRule(pool, property_id, propAccountId, offerRefundPolicy, arrival_date, booking_date || new Date().toISOString(), bookable_unit_id);
 
       if (rule) {
         const schedule = calculatePaymentScheduleForBooking(rule, total_amount, arrival_date, booking_date || new Date().toISOString());
@@ -82693,7 +82746,7 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
     // Deposit rule resolution — see /api/admin/bookings for rationale.
     let depositRule = null;
     try {
-      depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date());
+      depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date(), room_id);
     } catch (_) {}
 
     const paymentStatus = provider === 'card_guarantee' ? 'guaranteed' : 'fully_paid';
@@ -84093,7 +84146,7 @@ app.post('/api/admin/bookings', async (req, res) => {
     // operator picked the dates so we treat as a normal direct booking).
     let depositRule = null;
     try {
-      depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date());
+      depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date(), room_id);
     } catch (e) {
       console.error('[admin booking] resolveDepositRule failed:', e.message);
     }
@@ -114111,7 +114164,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const offerRefundPolicy = (chosenOffer && chosenOffer.refund_policy && chosenOffer.refund_policy !== 'inherit')
         ? chosenOffer.refund_policy
         : null;
-      appliedDepositRule = await resolveDepositRule(pool, roomData.property_id, unitAccountId, offerRefundPolicy, req.body.check_in, new Date().toISOString());
+      appliedDepositRule = await resolveDepositRule(pool, roomData.property_id, unitAccountId, offerRefundPolicy, req.body.check_in, new Date().toISOString(), unit_id);
     } catch (e) {
       console.warn('[calculate-price deposit-rule lookup]', e.message);
     }
@@ -114486,7 +114539,7 @@ app.post('/api/public/book', async (req, res) => {
       const _grand = parseFloat(total_price || 0);
       if (_grand > 0) {
         const _depRule = await resolveDepositRule(pool,
-          unit.rows[0].property_id, unit.rows[0].account_id, null, check_in, new Date());
+          unit.rows[0].property_id, unit.rows[0].account_id, null, check_in, new Date(), unit_id);
         if (_depRule) {
           let _newDep = null;
           // 2026-08-12 — schedule-mode branch. Only fires when the operator
@@ -115269,7 +115322,7 @@ app.post('/api/public/book', async (req, res) => {
       }
       _resolvedDepositRule = await resolveDepositRule(
         pool, unit.rows[0].property_id, unit.rows[0].account_id,
-        _offerRefundPolicy, check_in, new Date()
+        _offerRefundPolicy, check_in, new Date(), unit_id
       );
     } catch (e) {
       console.error('[public/book] resolveDepositRule failed:', e.message);
