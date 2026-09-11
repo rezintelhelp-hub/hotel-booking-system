@@ -455,25 +455,37 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php $card_count = count($cards); $card_cols = min($card_count, 4); // was capped at 3 — 4-card layouts (Cleveland About Location/Bedrooms/Dining/Parking) wrapped to 3+1 (2026-07-06). Now 4 stays on one row; 5+ wraps at 4 cols. ?>
                         <div class="gas-ps-cards-grid" style="display: grid; grid-template-columns: repeat(<?php echo $card_cols; ?>, 1fr); gap: 24px;">
                             <?php foreach ($cards as $card) : ?>
+                                <?php
+                                // Hoisted so we can decide whether the text-panel
+                                // div renders at all. Image-only cards (Steve's
+                                // St Ives award badges 2026-09-11) otherwise had
+                                // an empty padding: 24px div underneath the image,
+                                // leaving a 48px gap the operator can't populate.
+                                $card_title = gas_ps_field($card, 'title', $lang);
+                                $card_body = gas_ps_field($card, 'description', $lang) ?: gas_ps_field($card, 'body', $lang);
+                                $cta_link = $card['cta_link'] ?? $card['link'] ?? '';
+                                $cta_text = gas_ps_field($card, 'cta_text', $lang);
+                                if (empty($cta_text)) {
+                                    foreach (array('en','fr','de','es','nl','ja') as $fl) {
+                                        if (!empty($card['cta_text_' . $fl])) { $cta_text = $card['cta_text_' . $fl]; break; }
+                                    }
+                                }
+                                if (empty($cta_text)) $cta_text = gas_ps_field($card, 'link_text', $lang, '');
+                                $has_cta = !empty($cta_link) && !empty($cta_text);
+                                $has_panel_content = !empty($card_title) || !empty($card_body) || $has_cta;
+                                $cta_size = $card['cta_size'] ?? 'sm';
+                                $cta_pad = $cta_size === 'lg' ? '16px 40px' : ($cta_size === 'md' ? '12px 32px' : '8px 20px');
+                                $cta_font = $cta_size === 'lg' ? '1.05rem' : ($cta_size === 'md' ? '0.95rem' : '0.85rem');
+                                ?>
                                 <div style="background: #fff; border-radius: <?php echo esc_attr($card_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
-                                    <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover;"><?php endif; ?>
+                                    <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover; display: block;"><?php endif; ?>
+                                    <?php if ($has_panel_content) : ?>
                                     <div style="padding: 24px;">
-                                        <?php if (!empty(gas_ps_field($card, 'title', $lang))) : ?><h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html(gas_ps_field($card, 'title', $lang)); ?></h3><?php endif; ?>
-                                        <?php $card_body = gas_ps_field($card, 'description', $lang) ?: gas_ps_field($card, 'body', $lang); if (!empty($card_body)) : ?><div style="color: #475569; margin: 0; line-height: 1.6; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
-                                        <?php
-                                        $cta_link = $card['cta_link'] ?? $card['link'] ?? '';
-                                        $cta_text = gas_ps_field($card, 'cta_text', $lang);
-                                        if (empty($cta_text)) {
-                                            foreach (array('en','fr','de','es','nl','ja') as $fl) {
-                                                if (!empty($card['cta_text_' . $fl])) { $cta_text = $card['cta_text_' . $fl]; break; }
-                                            }
-                                        }
-                                        if (empty($cta_text)) $cta_text = gas_ps_field($card, 'link_text', $lang, '');
-                                        $cta_size = $card['cta_size'] ?? 'sm';
-                                        $cta_pad = $cta_size === 'lg' ? '16px 40px' : ($cta_size === 'md' ? '12px 32px' : '8px 20px');
-                                        $cta_font = $cta_size === 'lg' ? '1.05rem' : ($cta_size === 'md' ? '0.95rem' : '0.85rem');
-                                        if (!empty($cta_link) && !empty($cta_text)) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                                        <?php if (!empty($card_title)) : ?><h3 style="font-size: 1.2rem; font-weight: 600; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
+                                        <?php if (!empty($card_body)) : ?><div style="color: #475569; margin: 0; line-height: 1.6; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
+                                        <?php if ($has_cta) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                                     </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
