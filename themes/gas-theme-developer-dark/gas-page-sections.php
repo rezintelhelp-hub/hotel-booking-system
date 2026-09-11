@@ -592,6 +592,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     }
                 }
                 if (!empty($reviews_data)) :
+                    $rev_layout = $section['review_layout'] ?? 'slider';
                     $rev_section_bg = !empty($bg_col) ? esc_attr($bg_col) : '#0f172a';
                     $rev_card_bg = !empty($section['card_bg']) ? esc_attr($section['card_bg']) : '#1e293b';
                     $rev_text_color = !empty($section['text_color']) ? esc_attr($section['text_color']) : '#ffffff';
@@ -608,6 +609,73 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                     <section<?php echo $id_attr; ?> class="gas-ps-section gas-ps-reviews" style="padding: 60px 24px; background: <?php echo $rev_section_bg; ?>;">
                         <div style="max-width: 1200px; margin: 0 auto;">
                             <?php if ($heading) : ?><h2 style="font-size: 2rem; font-weight: 700; color: <?php echo $rev_text_color; ?>; margin: 0 0 32px; text-align: center;"><?php echo esc_html($heading); ?></h2><?php endif; ?>
+                            <?php if ($rev_layout === 'slider') :
+                                // Homepage-replica slider. See light theme for full
+                                // rationale. Steve 2026-09-11.
+                                ?>
+                                <style>
+                                #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: <?php echo $rev_star_color; ?>; border: 2px solid <?php echo $rev_star_color; ?>; cursor: pointer; font-size: 20px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10; transition: all 0.3s ease; }
+                                #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-nav:hover { background: <?php echo $rev_card_bg; ?>; color: <?php echo $rev_star_color; ?>; }
+                                #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-nav.prev { left: 0; }
+                                #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-nav.next { right: 0; }
+                                #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-card-cell { flex: 0 0 25%; max-width: 25%; padding: 0 8px; box-sizing: border-box; }
+                                @media (max-width: 1279px) { #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-card-cell { flex-basis: 33.3333%; max-width: 33.3333%; } }
+                                @media (max-width: 1023px) { #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-card-cell { flex-basis: 50%; max-width: 50%; } }
+                                @media (max-width: 767px)  { #<?php echo esc_attr($rev_uid); ?>-slider-wrap .gas-review-card-cell { flex-basis: 100%; max-width: 100%; } }
+                                </style>
+                                <div id="<?php echo esc_attr($rev_uid); ?>-slider-wrap" style="position: relative; padding: 0 60px;">
+                                    <div style="overflow: hidden;">
+                                        <div id="<?php echo esc_attr($rev_uid); ?>-slider" style="display: flex; transition: transform 0.5s ease;">
+                                            <?php foreach ($reviews_data as $rev) :
+                                                $r_rating = max(1, min(5, $rev['rating'] ?: 5));
+                                                $r_stars  = str_repeat('★', $r_rating);
+                                                $r_date   = !empty($rev['date']) ? date('M Y', strtotime($rev['date'])) : '';
+                                                $r_meta   = trim($rev['source'] . (($rev['source'] && $r_date) ? ' · ' : '') . $r_date);
+                                                $r_text   = !empty($rev['text']) ? mb_strimwidth($rev['text'], 0, 160, '…') : '';
+                                                ?>
+                                                <div class="gas-review-card-cell">
+                                                    <div style="background: <?php echo $rev_card_bg; ?>; border-radius: <?php echo $rev_card_radius; ?>px; padding: 20px; height: 298px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                                                        <div style="color: <?php echo $rev_star_color; ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
+                                                        <?php if ($r_text) : ?><p style="color: <?php echo $rev_card_text; ?>; font-size: 0.95rem; line-height: 1.6; flex: 1; width: 100%; margin: 0 0 12px 0; padding: 0; overflow: hidden; opacity: 0.9; text-align: left;">"<?php echo esc_html($r_text); ?>"</p><?php endif; ?>
+                                                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
+                                                            <div style="font-weight: 600; color: <?php echo $rev_card_text; ?>; font-size: 14px;"><?php echo esc_html($rev['name']); ?></div>
+                                                            <?php if ($r_meta) : ?><div style="font-size: 12px; color: <?php echo $rev_card_text; ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_meta); ?></div><?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                    <button class="gas-review-nav prev" onclick="slideSbReviews_<?php echo esc_attr($rev_uid); ?>(-1)">‹</button>
+                                    <button class="gas-review-nav next" onclick="slideSbReviews_<?php echo esc_attr($rev_uid); ?>(1)">›</button>
+                                </div>
+                                <script>
+                                (function() {
+                                    var slider = document.getElementById('<?php echo esc_js($rev_uid); ?>-slider');
+                                    if (!slider) return;
+                                    var pos = 0;
+                                    var total = <?php echo intval($rev_initial_count); ?>;
+                                    function cardW() { var c = slider.firstElementChild; return c ? c.getBoundingClientRect().width : 0; }
+                                    function visible() { var w = cardW(); return w ? Math.max(1, Math.floor(slider.getBoundingClientRect().width / w)) : 1; }
+                                    function apply() {
+                                        var max = Math.max(0, total - visible());
+                                        if (pos > max) pos = max;
+                                        slider.style.transform = 'translateX(-' + Math.round(pos * cardW()) + 'px)';
+                                    }
+                                    window['slideSbReviews_<?php echo esc_js($rev_uid); ?>'] = function(dir) {
+                                        var max = Math.max(0, total - visible());
+                                        pos = Math.max(0, Math.min(max, pos + dir));
+                                        apply();
+                                    };
+                                    setInterval(function() {
+                                        var max = Math.max(0, total - visible());
+                                        pos = pos >= max ? 0 : pos + 1;
+                                        apply();
+                                    }, 5000);
+                                    window.addEventListener('resize', apply);
+                                })();
+                                </script>
+                            <?php else : ?>
                             <div id="<?php echo $rev_uid; ?>-grid" class="gas-ps-reviews-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
                                 <?php foreach ($reviews_data as $rev) :
                                     $r_rating = max(1, min(5, $rev['rating'] ?: 5));
@@ -686,6 +754,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                             })();
                             </script>
                             <?php endif; ?>
+                            <?php endif; // rev_layout branch ?>
                         </div>
                     </section>
                 <?php endif; break;
