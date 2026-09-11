@@ -143,7 +143,7 @@ const sanitizeHtml = require('sanitize-html');
 const { formatChannelDescription } = require('./lib/description-formatter');
 const { signGuestToken, verifyGuestToken, peekGuestToken, PURPOSES: GUEST_TOKEN_PURPOSES } = require('./lib/guest-tokens');
 const depositGateway = require('./lib/payment-gateways');
-const { computeRoomAvailability } = require('./lib/availability');
+const { computeRoomAvailability, getBuyoutDates } = require('./lib/availability');
 
 // Recursively flatten Beds24 V2 featureCodes / features into a clean
 // deduped array of code strings. Beds24 returns this field in many shapes:
@@ -89202,6 +89202,25 @@ app.get('/api/availability/:roomId', async (req, res) => {
           for (const d of result) if (_otasHiddenDates.has(d.date)) d.otas_hidden = true;
         }
 
+        // Buyout overlay (Hebden 2026-09-11): if any exclusive_hire unit
+        // on this property has an active booking on the date, close it
+        // regardless of pool counter / Beds24 flags. Beds24 sometimes
+        // leaks a wrapper-close date open in the API.
+        try {
+          const _buyout = await getBuyoutDates(pool, _propId, from, to);
+          if (_buyout.size > 0) {
+            for (const d of result) {
+              if (_buyout.has(d.date)) {
+                d.is_available = false;
+                d.is_blocked = true;
+                d.is_booked = true;
+                d.available_count = 0;
+                d.buyout = true;
+              }
+            }
+          }
+        } catch (_) { /* buyout is best-effort safety net */ }
+
         const multiplier = parseFloat(roomInfo.rows[0]?.booking_page_multiplier) || null;
         const roundUp = roomInfo.rows[0]?.round_prices_up || false;
         return res.json({
@@ -112297,12 +112316,16 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     // room_availability.is_blocked row — otherwise a hostel dorm shows
     // closed after one bed sells (because /api/public/book used to also
     // wholesale-block the bookable_unit). poolDayMap[dateStr] = beds left;
-    // null when the unit isn't pool-backed.
+    // null when the unit isn't pool-backed. poolBuyoutDates carries the
+    // set of dates the property is fully bought out (Ex Hire booked) so
+    // the pool math can stamp them closed regardless of Beds24 leaking
+    // one date open (Hebden 2026-09-11).
     let poolDayMap = null;
     let poolAware = false;
+    let poolBuyoutDates = new Set();
     try {
       const acct = await pool.query(
-        `SELECT a.inventory_model
+        `SELECT a.inventory_model, bu.property_id
            FROM bookable_units bu
            JOIN properties p ON bu.property_id = p.id
            JOIN accounts a ON p.account_id = a.id
@@ -112310,6 +112333,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
         [unitId]
       );
       if (acct.rows[0]?.inventory_model === 'pool') {
+        poolBuyoutDates = await getBuyoutDates(pool, acct.rows[0].property_id, startDate, endDate);
         const lpc = await pool.query(
           `SELECT lpc.pool_id, lpc.units_consumed, ip.default_capacity
              FROM bookable_listings bl
@@ -112396,8 +112420,14 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
         // green that GAS Admin + widget picker (both /api/availability)
         // correctly showed as blocked, causing guests to click and be
         // rejected at /public/book.
+        // Buyout guard (Hebden 2026-09-11): Beds24 sometimes leaks a
+        // wrapper-closed date open in the API — property is bought out
+        // but a mid-range date returns is_available=true. Overlay a
+        // buyout check from GAS's bookings table so those dates stamp
+        // closed regardless of what Beds24 says.
         const rawBlocked = dayData ? (dayData.is_blocked === true || dayData.is_available === false) : false;
-        dayAvailable = !rawBlocked && (poolDayMap[dateStr] || 0) > 0 && dayPrice > 0;
+        const isBuyout = poolBuyoutDates.has(dateStr);
+        dayAvailable = !isBuyout && !rawBlocked && (poolDayMap[dateStr] || 0) > 0 && dayPrice > 0;
       } else if (helperMap[dateStr]) {
         // Non-pool: shared helper is source of truth. Handles single-unit
         // AND multi-unit correctly (multi-unit uses bookings-count vs
@@ -112681,12 +112711,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let poolDayMap = null;
     let poolTotalCapacity = null;
     let poolCapacityUnit = null;
+    let poolBuyoutDates = new Set();
     try {
       const acctRow = await pool.query(
         `SELECT inventory_model FROM accounts WHERE id = $1`,
         [roomData.account_id]
       );
       if (acctRow.rows[0]?.inventory_model === 'pool') {
+        poolBuyoutDates = await getBuyoutDates(pool, roomData.property_id, check_in, check_out);
         const lpc = await pool.query(
           `SELECT lpc.pool_id, lpc.units_consumed, ip.default_capacity, ip.capacity_unit
              FROM bookable_listings bl
@@ -112838,13 +112870,15 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const nightCmPrice = dayData?.cm_price ? parseFloat(dayData.cm_price) : nightPrice;
       cmTotal += nightCmPrice;
       // Availability rule delegated to lib/availability.js helper for
-      // non-pool rooms. Pool-model still uses its cascade counter.
+      // non-pool rooms. Pool-model still uses its cascade counter, plus a
+      // buyout overlay so Ex Hire dates close every room even when Beds24
+      // leaks one date open (Hebden 2026-09-11).
       // multiUnitFree preserved for legacy fallback path (helper down).
       const multiUnitFree = (!poolDayMap && buQuantity > 1 && dayData)
         ? (buQuantity - (bookingsByDate[dateStr] || 0)) > 0
         : null;
       const dayUnavailable = poolDayMap
-        ? (poolDayMap[dateStr] || 0) <= 0
+        ? (poolBuyoutDates.has(dateStr) || (poolDayMap[dateStr] || 0) <= 0)
         : (helperMap[dateStr]
             ? !helperMap[dateStr].available
             : (multiUnitFree !== null
@@ -112899,8 +112933,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
       // Same helper decision as above — kept as a second check because
       // downstream tier/offer/voucher paths mutate accommodationTotal
       // above this point and can't be trusted to short-circuit the loop.
+      // Pool-model gets its buyout overlay too.
       const dayBlocked = poolDayMap
-        ? (poolDayMap[dateStr] || 0) <= 0
+        ? (poolBuyoutDates.has(dateStr) || (poolDayMap[dateStr] || 0) <= 0)
         : (helperMap[dateStr]
             ? !helperMap[dateStr].available
             : (multiUnitFree !== null
@@ -114687,6 +114722,26 @@ app.post('/api/public/book', async (req, res) => {
       const unitQuantity = Math.max(1, parseInt(unit.rows[0].quantity, 10) || 1);
 
       if (inventoryModel === 'pool') {
+        // Buyout guard (Hebden 2026-09-11): reject before pool cascade
+        // check if any exclusive_hire unit on this property has an
+        // active booking overlapping the requested dates. Whole property
+        // is sold to one guest — no room on it can be booked.
+        try {
+          const buyoutSet = await getBuyoutDates(pool, unit.rows[0].property_id, check_in, check_out);
+          for (let d = new Date(check_in); d < new Date(check_out); d.setDate(d.getDate() + 1)) {
+            const dStr = d.toISOString().slice(0, 10);
+            if (buyoutSet.has(dStr)) {
+              console.warn(`[avail-gas] REJECT (buyout) — property ${unit.rows[0].property_id} bought out on ${dStr}, unit ${unit_id}`);
+              return res.json({
+                success: false,
+                error: 'Sorry, these dates are no longer available. Please select different dates.',
+                unavailable_date: dStr
+              });
+            }
+          }
+        } catch (buyoutErr) {
+          console.warn('[avail-gas pool buyout check]', buyoutErr.message);
+        }
         // Per-night capacity check against inventory_pool_dates. Same shape
         // as /api/public/availability:96606-96645 so the two paths agree.
         const lpc = await pool.query(
