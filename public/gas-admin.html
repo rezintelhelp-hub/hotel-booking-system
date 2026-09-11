@@ -51352,8 +51352,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (clientId) {
                     queryParams.push(`client_id=${clientId}`);
                 }
+                // Property management page — show inactive properties too so
+                // operators can reactivate or clean them up. Every other
+                // caller (bookings, deposit rules, availability, etc.) hits
+                // /api/db/properties without this flag and gets active-only.
+                queryParams.push('include_inactive=true');
                 const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
-                
+
                 // Fetch properties and agencies
                 const [propsRes, agenciesRes] = await Promise.all([
                     fetch(`/api/db/properties${queryString}`),

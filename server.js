@@ -61351,6 +61351,20 @@ app.get('/api/db/properties', async (req, res) => {
       result = await pool.query('SELECT * FROM properties ORDER BY COALESCE(portfolio_order, 999999), name');
     }
 
+    // Hide inactive / archived / deleted properties by default (Steve
+    // 2026-09-12). Hebden consolidated its mirror Ex Hire property last
+    // night; leaving property 1102 as status='inactive' preserved its
+    // Beds24 sync mapping but every property dropdown across the admin
+    // (Bookings, Deposit Rules, Availability, Manual Booking, etc.) was
+    // still listing it. Callers that legitimately need to see inactive
+    // properties (Properties management page, admin reactivate flows)
+    // opt in via ?include_inactive=true.
+    const includeInactive = req.query.include_inactive === 'true' || req.query.include_inactive === '1';
+    if (!includeInactive) {
+      const HIDDEN = new Set(['inactive', 'archived', 'deleted']);
+      result.rows = result.rows.filter(r => !HIDDEN.has(String(r.status || 'active').toLowerCase()));
+    }
+
     // Attach accepted_methods from property_payment_settings so the Properties
     // list can render payment-method chips inline (Stripe / Direct / etc).
     if (result.rows.length > 0) {
