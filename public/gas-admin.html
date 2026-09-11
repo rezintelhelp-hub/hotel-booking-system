@@ -30196,7 +30196,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div class="booking-room-row" style="display:flex; gap:0.5rem; align-items:end; margin-bottom:0.5rem;">
                                 <div style="flex:1;">
                                     <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room *</label>
-                                    <select id="booking-room" class="form-input booking-room-select" style="padding: 0.6rem; border-radius: 8px;" onchange="_bookingCalOnRoomChange()" required>
+                                    <select id="booking-room" class="form-input booking-room-select" style="padding: 0.6rem; border-radius: 8px;" onchange="_bookingCalOnRoomChange(); loadBookingDepositRules();" required>
                                         <option value="">Select Room...</option>
                                     </select>
                                 </div>
@@ -30370,51 +30370,79 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
-                    <!-- Deposit override + record-payment-now — Cordelia Belmont
-                         2026-09-12. Any admin can override the auto-computed
-                         deposit or log a cash/phone/bank payment taken at the
-                         moment of booking creation. On submit the payment
-                         posts to /api/admin/bookings/:id/add-payment right
-                         after the booking row is inserted. -->
+                    <!-- Deposit picker + record-payment-now — Cordelia Belmont
+                         2026-09-12. Two clean modes:
+                           (a) Apply a deposit rule (dropdown auto-loads the
+                               rules configured for the selected room /
+                               property). Balance auto-charge follows the rule.
+                           (b) Manual deposit — operator types the value they
+                               took / expect. Balance is collected manually
+                               (no auto-charge cron on it).
+                         Below that, an optional "Record a payment now" panel
+                         posts a payment_transactions row against the new
+                         booking so the deposit shows on the payment summary. -->
                     <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #065f46; margin-bottom: 0.75rem; display: block;">
                             💵 Deposit &amp; Payment on Booking
                         </label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
-                            <div>
-                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Deposit override <span style="color:#94a3b8; font-weight:400; font-size: 0.75rem;">(optional — blank = use rule)</span></label>
-                                <input type="number" id="booking-deposit-override" class="form-input" step="0.01" min="0" placeholder="e.g. 60.00" style="padding: 0.6rem; border-radius: 8px;">
+
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; background: #fff; border: 2px solid #a7f3d0; border-radius: 8px; cursor: pointer;" id="booking-deposit-mode-rule-label">
+                                <input type="radio" name="booking-deposit-mode" value="rule" checked onchange="toggleBookingDepositMode('rule')" style="width: 16px; height: 16px;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: #065f46;">Apply a deposit rule</div>
+                                    <div style="font-size: 0.78rem; color: #6b7280;">Uses your configured rule for this room / property (auto-charge, balance schedule).</div>
+                                </div>
+                            </label>
+                            <div id="booking-deposit-rule-picker" style="padding: 0 0.75rem 0.25rem 2rem;">
+                                <select id="booking-deposit-rule-id" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
+                                    <option value="">Auto — best match for this room</option>
+                                </select>
+                                <div id="booking-deposit-rule-preview" style="font-size: 0.78rem; color: #065f46; margin-top: 0.3rem;"></div>
                             </div>
-                            <div style="display: flex; align-items: end;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #065f46; cursor: pointer;">
-                                    <input type="checkbox" id="booking-record-payment-now" style="width: 18px; height: 18px;" onchange="document.getElementById('booking-manual-payment-detail').style.display = this.checked ? 'grid' : 'none';">
-                                    Record a payment now (cash / phone / bank)
-                                </label>
+
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; background: #fff; border: 2px solid #a7f3d0; border-radius: 8px; cursor: pointer;" id="booking-deposit-mode-manual-label">
+                                <input type="radio" name="booking-deposit-mode" value="manual" onchange="toggleBookingDepositMode('manual')" style="width: 16px; height: 16px;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: #065f46;">Manual deposit</div>
+                                    <div style="font-size: 0.78rem; color: #6b7280;">Set your own deposit amount. Balance stays outstanding and is collected manually — no auto-charge cron.</div>
+                                </div>
+                            </label>
+                            <div id="booking-deposit-manual-input" style="display: none; padding: 0 0.75rem 0.25rem 2rem;">
+                                <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.2rem;">Deposit amount</label>
+                                <input type="number" id="booking-deposit-override" class="form-input" step="0.01" min="0" placeholder="e.g. 60.00" style="padding: 0.55rem; border-radius: 8px; max-width: 200px;">
                             </div>
                         </div>
-                        <div id="booking-manual-payment-detail" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #a7f3d0;">
-                            <div>
-                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Amount</label>
-                                <input type="number" id="booking-manual-payment-amount" class="form-input" step="0.01" min="0" placeholder="0.00" style="padding: 0.55rem; border-radius: 8px;">
-                            </div>
-                            <div>
-                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Method</label>
-                                <select id="booking-manual-payment-method" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
-                                    <option value="cash">Cash</option>
-                                    <option value="phone">Phone</option>
-                                    <option value="bank_transfer">Bank</option>
-                                    <option value="cheque">Cheque</option>
-                                    <option value="card_guarantee">Card guarantee</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
-                                <select id="booking-manual-payment-type" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
-                                    <option value="deposit">Deposit</option>
-                                    <option value="balance">Balance</option>
-                                    <option value="other">Other</option>
-                                </select>
+
+                        <div style="padding-top: 0.75rem; border-top: 1px dashed #a7f3d0;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #065f46; cursor: pointer;">
+                                <input type="checkbox" id="booking-record-payment-now" style="width: 18px; height: 18px;" onchange="document.getElementById('booking-manual-payment-detail').style.display = this.checked ? 'grid' : 'none';">
+                                Record a payment now (cash / phone / bank / cheque)
+                            </label>
+                            <div id="booking-manual-payment-detail" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Amount</label>
+                                    <input type="number" id="booking-manual-payment-amount" class="form-input" step="0.01" min="0" placeholder="0.00" style="padding: 0.55rem; border-radius: 8px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Method</label>
+                                    <select id="booking-manual-payment-method" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
+                                        <option value="cash">Cash</option>
+                                        <option value="phone">Phone</option>
+                                        <option value="bank_transfer">Bank</option>
+                                        <option value="cheque">Cheque</option>
+                                        <option value="card_guarantee">Card guarantee</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
+                                    <select id="booking-manual-payment-type" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
+                                        <option value="deposit">Deposit</option>
+                                        <option value="balance">Balance</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -73648,6 +73676,75 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (box) box.style.display = 'none';
         }
 
+        // Deposit-mode toggle inside the manual booking modal.
+        // 'rule'   → dropdown of rules for the picked room / property.
+        // 'manual' → operator types a value; balance is collected manually.
+        function toggleBookingDepositMode(mode) {
+            const picker = document.getElementById('booking-deposit-rule-picker');
+            const manual = document.getElementById('booking-deposit-manual-input');
+            const ruleLabel = document.getElementById('booking-deposit-mode-rule-label');
+            const manLabel = document.getElementById('booking-deposit-mode-manual-label');
+            if (picker) picker.style.display = mode === 'rule' ? 'block' : 'none';
+            if (manual) manual.style.display = mode === 'manual' ? 'block' : 'none';
+            if (ruleLabel) ruleLabel.style.background = mode === 'rule' ? '#f0fdf4' : '#fff';
+            if (manLabel)  manLabel.style.background  = mode === 'manual' ? '#f0fdf4' : '#fff';
+        }
+
+        // Load the deposit rules that apply to the picked room /
+        // property. Fires on room change. "Auto" (blank value) uses the
+        // server-side resolver — best match for the room. Explicit rule
+        // ids are sent to the /api/admin/bookings endpoint so the operator
+        // can pin a specific one.
+        async function loadBookingDepositRules() {
+            const propertyId = document.getElementById('booking-property')?.value;
+            const roomId = document.getElementById('booking-room')?.value;
+            const sel = document.getElementById('booking-deposit-rule-id');
+            const preview = document.getElementById('booking-deposit-rule-preview');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">Auto — best match for this room</option>';
+            if (preview) preview.textContent = '';
+            if (!propertyId) return;
+            try {
+                const r = await fetch(`/api/properties/${propertyId}/deposit-rules`, { headers: authHeaders() });
+                const d = await r.json();
+                const rules = (d && d.success && Array.isArray(d.data)) ? d.data
+                              : (Array.isArray(d && d.rules) ? d.rules : (Array.isArray(d) ? d : []));
+                if (!rules.length) {
+                    if (preview) preview.textContent = 'No deposit rules configured for this property — Auto falls back to the account default.';
+                    return;
+                }
+                const roomIdInt = roomId ? parseInt(roomId, 10) : null;
+                for (const rule of rules) {
+                    // Show only rules that could apply to this room:
+                    //   - property-wide (no room targeting)
+                    //   - room-specific rule where the array / single column matches
+                    const arr = Array.isArray(rule.bookable_unit_ids) ? rule.bookable_unit_ids : null;
+                    const scoped = (arr && arr.length) || rule.bookable_unit_id;
+                    let matches = !scoped; // property-wide always shows
+                    if (scoped && roomIdInt) {
+                        if (arr && arr.map(v => parseInt(v, 10)).includes(roomIdInt)) matches = true;
+                        else if (rule.bookable_unit_id && parseInt(rule.bookable_unit_id, 10) === roomIdInt) matches = true;
+                    }
+                    if (!matches) continue;
+                    const nm = (typeof rule.rule_name === 'string')
+                        ? rule.rule_name
+                        : ((rule.rule_name_ml && (rule.rule_name_ml.en || Object.values(rule.rule_name_ml)[0])) || 'Rule ' + rule.id);
+                    const dep = rule.deposit_type === 'percentage'
+                        ? (rule.deposit_percentage + '%')
+                        : (rule.deposit_type === 'fixed' ? ('fixed ' + rule.deposit_fixed_amount) : rule.deposit_type);
+                    const scopeTag = scoped ? ' (this room)' : ' (all rooms)';
+                    const opt = document.createElement('option');
+                    opt.value = String(rule.id);
+                    opt.textContent = `${nm} — ${dep}${scopeTag}`;
+                    sel.appendChild(opt);
+                }
+                if (preview) preview.textContent = 'Auto picks the most specific rule that matches this room.';
+            } catch (e) {
+                if (preview) preview.textContent = '';
+                console.warn('[booking deposit rules]', e.message);
+            }
+        }
+
         function openAddBookingModal() {
             // Reset form
             document.getElementById('add-booking-form').reset();
@@ -75415,11 +75512,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                             applied_offer_id: appliedOfferId,
                             upsells: bookingUpsells,
                             voucher_code: bookingVoucherCode,
-                            // Cordelia Belmont 2026-09-12 — optional deposit override
-                            deposit_amount_override: (function () {
-                                const v = parseFloat(document.getElementById('booking-deposit-override')?.value);
-                                return Number.isFinite(v) && v > 0 ? v : null;
+                            // Cordelia Belmont 2026-09-12 — deposit mode.
+                            //   rule mode  → optional deposit_rule_id pins that rule
+                            //   manual mode → deposit_amount_override + no auto-charge
+                            deposit_rule_id: (function () {
+                                const mode = document.querySelector('input[name="booking-deposit-mode"]:checked')?.value;
+                                if (mode !== 'rule') return null;
+                                const v = document.getElementById('booking-deposit-rule-id')?.value;
+                                return v ? parseInt(v, 10) : null;
                             })(),
+                            deposit_amount_override: (function () {
+                                const mode = document.querySelector('input[name="booking-deposit-mode"]:checked')?.value;
+                                if (mode !== 'manual') return null;
+                                const v = parseFloat(document.getElementById('booking-deposit-override')?.value);
+                                return Number.isFinite(v) && v >= 0 ? v : null;
+                            })(),
+                            manual_balance_collection: document.querySelector('input[name="booking-deposit-mode"]:checked')?.value === 'manual',
                             allow_over_block: true
                         })
                     });

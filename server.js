@@ -84254,7 +84254,14 @@ app.post('/api/admin/bookings', async (req, res) => {
       // deposit amount. Blank/null = use the resolved deposit rule (default).
       // Number = pin the deposit to that value regardless of rule. Balance
       // recomputes from grand_total - override so cash-on-arrival etc. work.
-      deposit_amount_override
+      deposit_amount_override,
+      // Explicit rule pin — operator picked a specific rule from the
+      // dropdown instead of "Auto". Bypasses resolveDepositRule when set.
+      deposit_rule_id,
+      // Manual mode — balance is collected manually (cash on arrival etc.),
+      // so we skip balance_due_date + auto-charge scheduling for this
+      // booking. Also suppresses the chase cron down the line.
+      manual_balance_collection
     } = req.body;
 
     if (!property_id || !room_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
@@ -84303,7 +84310,15 @@ app.post('/api/admin/bookings', async (req, res) => {
     // operator picked the dates so we treat as a normal direct booking).
     let depositRule = null;
     try {
-      depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date(), room_id);
+      // Operator can pin a specific rule via deposit_rule_id — otherwise
+      // fall back to the resolver (room-specific → property → account).
+      if (Number.isFinite(parseInt(deposit_rule_id, 10))) {
+        const pinned = await pool.query('SELECT * FROM deposit_rules WHERE id = $1 AND is_active = true', [parseInt(deposit_rule_id, 10)]);
+        if (pinned.rows[0]) depositRule = pinned.rows[0];
+      }
+      if (!depositRule) {
+        depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date(), room_id);
+      }
     } catch (e) {
       console.error('[admin booking] resolveDepositRule failed:', e.message);
     }
@@ -84332,12 +84347,19 @@ app.post('/api/admin/bookings', async (req, res) => {
     }
     // Operator override (Belmont Cordelia 2026-09-12) — if the modal sent
     // a specific deposit_amount_override, pin the deposit to that value
-    // and recompute the balance. Zero / negative / non-numeric = ignored
-    // so a blank input keeps the rule-computed value above.
+    // and recompute the balance. Zero is a legitimate value (no deposit
+    // taken yet, balance in cash on arrival). Non-numeric / negative =
+    // ignore + fall back to rule-computed value above.
     const overrideVal = parseFloat(deposit_amount_override);
-    if (Number.isFinite(overrideVal) && overrideVal > 0 && totalAmount > 0) {
+    if (Number.isFinite(overrideVal) && overrideVal >= 0 && totalAmount > 0) {
       depositAmount = Math.min(Math.round(overrideVal * 100) / 100, totalAmount);
       balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
+    }
+    // Manual balance collection — operator will take the balance in
+    // person / in cash / via bank. Skip the balance_due_date so the
+    // auto-charge cron leaves it alone, and clear balance chase.
+    if (manual_balance_collection) {
+      balanceDueDate = null;
     }
 
     await client.query('BEGIN');
