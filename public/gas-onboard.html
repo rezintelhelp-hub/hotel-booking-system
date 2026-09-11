@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GAS Onboard — Get a live booking site + PMS in under 30 minutes</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        min-height: 100vh;
+        color: #e2e8f0;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 2rem 1rem;
+    }
+    .hdr { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; color: #94a3b8; font-size: 0.85rem; }
+    .hdr strong { color: #e2e8f0; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; gap: 0.35rem; background: #059669; color: white; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+    .card { background: #ffffff; color: #1e293b; border-radius: 16px; max-width: 720px; width: 100%; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 2rem; }
+    .stepper .st { flex: 1; height: 4px; background: #e2e8f0; border-radius: 2px; transition: background 0.3s; }
+    .stepper .st.done { background: #10b981; }
+    .stepper .st.active { background: #1e40af; }
+    .step-label { color: #64748b; font-size: 0.8rem; margin-bottom: 0.35rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.5rem; color: #0f172a; }
+    .sub { color: #64748b; font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.5; }
+    label { display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 0.35rem; margin-top: 1rem; }
+    label:first-of-type { margin-top: 0; }
+    input[type=text], input[type=email], input[type=password], input[type=number], select, textarea {
+        width: 100%; padding: 0.75rem 0.9rem; border: 2px solid #e2e8f0; border-radius: 10px;
+        font-size: 0.95rem; font-family: inherit; transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af; }
+    textarea { min-height: 80px; resize: vertical; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .helper { font-size: 0.78rem; color: #94a3b8; margin-top: 0.35rem; }
+    .btn { padding: 0.85rem 1.75rem; background: linear-gradient(135deg, #1e40af, #1e3a8a); color: white; border: 0; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: transform 0.1s, opacity 0.15s; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .btn.ghost { background: transparent; color: #64748b; border: 2px solid #e2e8f0; }
+    .btn.ghost:hover:not(:disabled) { border-color: #cbd5e1; background: #f8fafc; }
+    .nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+    .status { margin-top: 1rem; font-size: 0.9rem; }
+    .status.ok { color: #059669; }
+    .status.err { color: #dc2626; }
+    .amenity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem 1rem; }
+    @media (max-width: 600px) { .amenity-grid { grid-template-columns: 1fr 1fr; } }
+    .amenity-grid label { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-weight: 400; font-size: 0.88rem; color: #475569; cursor: pointer; }
+    .amenity-grid input[type=checkbox] { width: auto; margin: 0; }
+    .room-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.25rem; margin-top: 0.75rem; }
+    .room-block-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .room-block-hdr strong { color: #1e293b; font-size: 0.9rem; }
+    .room-block-hdr .rm-del { background: none; border: 0; color: #dc2626; cursor: pointer; font-size: 0.8rem; }
+    .add-room { display: inline-block; margin-top: 0.75rem; padding: 0.5rem 1rem; background: #f1f5f9; color: #1e40af; border: 1px dashed #94a3b8; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .add-room:hover { background: #e0e7ff; }
+    .review-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+    .review-block h3 { font-size: 0.95rem; color: #1e40af; margin-bottom: 0.5rem; }
+    .review-block .kv { display: flex; padding: 0.2rem 0; font-size: 0.85rem; color: #475569; }
+    .review-block .kv b { color: #1e293b; min-width: 140px; font-weight: 600; }
+    .progress-panel { display: none; padding: 2rem 0; }
+    .prog-step { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; font-size: 0.95rem; color: #64748b; }
+    .prog-step.done { color: #059669; font-weight: 600; }
+    .prog-step.active { color: #1e40af; font-weight: 600; }
+    .prog-step .ico { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #cbd5e1; color: white; font-size: 0.75rem; }
+    .prog-step.done .ico { background: #10b981; }
+    .prog-step.active .ico { background: #1e40af; }
+    .prog-step.active .ico::after { content: ''; width: 10px; height: 10px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .prog-step.active .ico { color: transparent; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .done-panel { display: none; text-align: center; padding: 1rem 0.5rem; }
+    .done-panel h2 { color: #059669; margin-bottom: 0.75rem; font-size: 1.6rem; }
+    .site-link { display: inline-block; margin: 1.25rem 0 0.5rem; padding: 0.85rem 1.75rem; background: linear-gradient(135deg, #059669, #047857); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .beds24-note { margin-top: 1rem; padding: 0.75rem 1rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; font-size: 0.82rem; color: #78350f; }
+</style>
+</head>
+<body>
+    <div class="hdr">
+        <span class="badge">🚀 GAS Onboard</span>
+        <span>Live booking site + PMS in under 30 minutes — <strong>no setup fee</strong></span>
+    </div>
+
+    <div class="card">
+        <!-- Stepper -->
+        <div class="stepper" id="stepper">
+            <div class="st active" data-step="1"></div>
+            <div class="st" data-step="2"></div>
+            <div class="st" data-step="3"></div>
+            <div class="st" data-step="4"></div>
+            <div class="st" data-step="5"></div>
+            <div class="st" data-step="6"></div>
+        </div>
+        <div class="step-label" id="step-label">Step 1 of 6 — About your property</div>
+
+        <!-- STEP 1: property basics -->
+        <div class="step-panel" id="panel-1">
+            <h1>Tell us about your property</h1>
+            <p class="sub">The essentials — everything else you can adjust later.</p>
+
+            <label>Property name *</label>
+            <input type="text" id="prop-name" placeholder="e.g. Belmont House B&amp;B">
+
+            <div class="grid-2">
+                <div>
+                    <label>Country *</label>
+                    <input type="text" id="prop-country" placeholder="United Kingdom">
+                </div>
+                <div>
+                    <label>City *</label>
+                    <input type="text" id="prop-city" placeholder="Edinburgh">
+                </div>
+            </div>
+
+            <label>Street address *</label>
+            <input type="text" id="prop-address" placeholder="12 Royal Crescent">
+
+            <div class="grid-3">
+                <div>
+                    <label>Post code *</label>
+                    <input type="text" id="prop-postcode">
+                </div>
+                <div>
+                    <label>Currency *</label>
+                    <select id="prop-currency">
+                        <option value="GBP">£ GBP</option>
+                        <option value="EUR">€ EUR</option>
+                        <option value="USD">$ USD</option>
+                        <option value="AUD">$ AUD</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Property type *</label>
+                    <select id="prop-type">
+                        <option value="hotel">Hotel</option>
+                        <option value="bnb">Bed &amp; Breakfast</option>
+                        <option value="villa">Villa</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="gite">Gite / Cottage</option>
+                        <option value="hostel">Hostel</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: rooms -->
+        <div class="step-panel" id="panel-2" style="display:none;">
+            <h1>Your rooms</h1>
+            <p class="sub">Add each room type you sell. You can have up to 20.</p>
+            <div id="rooms-list"></div>
+            <div class="add-room" onclick="addRoom()">+ Add another room</div>
+        </div>
+
+        <!-- STEP 3: amenities -->
+        <div class="step-panel" id="panel-3" style="display:none;">
+            <h1>Amenities</h1>
+            <p class="sub">Tick what your property offers. Guests filter searches by these.</p>
+
+            <label style="margin-top:0;">Property amenities</label>
+            <div class="amenity-grid" id="prop-amenities">
+                <label><input type="checkbox" value="wifi"> Free WiFi</label>
+                <label><input type="checkbox" value="parking"> Free parking</label>
+                <label><input type="checkbox" value="pool"> Swimming pool</label>
+                <label><input type="checkbox" value="hottub"> Hot tub</label>
+                <label><input type="checkbox" value="gym"> Gym</label>
+                <label><input type="checkbox" value="spa"> Spa</label>
+                <label><input type="checkbox" value="breakfast"> Breakfast included</label>
+                <label><input type="checkbox" value="restaurant"> Restaurant</label>
+                <label><input type="checkbox" value="bar"> Bar</label>
+                <label><input type="checkbox" value="garden"> Garden</label>
+                <label><input type="checkbox" value="bbq"> BBQ area</label>
+                <label><input type="checkbox" value="pets"> Pet-friendly</label>
+                <label><input type="checkbox" value="ev-charge"> EV charging</label>
+                <label><input type="checkbox" value="airport-shuttle"> Airport shuttle</label>
+                <label><input type="checkbox" value="24h-reception"> 24hr reception</label>
+                <label><input type="checkbox" value="laundry"> Laundry service</label>
+                <label><input type="checkbox" value="beachfront"> Beachfront</label>
+                <label><input type="checkbox" value="lakefront"> Lakefront</label>
+            </div>
+
+            <label>Room amenities (applied to all rooms)</label>
+            <div class="amenity-grid" id="room-amenities">
+                <label><input type="checkbox" value="private-bathroom"> Private bathroom</label>
+                <label><input type="checkbox" value="tv"> TV</label>
+                <label><input type="checkbox" value="aircon"> Air conditioning</label>
+                <label><input type="checkbox" value="hairdryer"> Hairdryer</label>
+                <label><input type="checkbox" value="kettle"> Kettle</label>
+                <label><input type="checkbox" value="minibar"> Minibar</label>
+                <label><input type="checkbox" value="safe"> Safe</label>
+                <label><input type="checkbox" value="balcony"> Balcony</label>
+                <label><input type="checkbox" value="workspace"> Workspace</label>
+                <label><input type="checkbox" value="toiletries"> Toiletries</label>
+                <label><input type="checkbox" value="bathrobes"> Bathrobes</label>
+                <label><input type="checkbox" value="iron"> Iron / board</label>
+            </div>
+        </div>
+
+        <!-- STEP 4: policies -->
+        <div class="step-panel" id="panel-4" style="display:none;">
+            <h1>Policies</h1>
+            <p class="sub">Guests see these at booking. You can tweak later.</p>
+
+            <div class="grid-2">
+                <div>
+                    <label>Check-in time</label>
+                    <input type="text" id="pol-checkin" value="15:00" placeholder="15:00">
+                </div>
+                <div>
+                    <label>Check-out time</label>
+                    <input type="text" id="pol-checkout" value="11:00" placeholder="11:00">
+                </div>
+            </div>
+
+            <div class="grid-3">
+                <div>
+                    <label>Deposit % at booking</label>
+                    <input type="number" id="pol-deposit" value="20" min="0" max="100">
+                </div>
+                <div>
+                    <label>Cleaning fee</label>
+                    <input type="number" id="pol-cleaning" value="0" min="0" step="0.01">
+                </div>
+                <div>
+                    <label>Local tax %</label>
+                    <input type="number" id="pol-tax" value="0" min="0" step="0.01">
+                </div>
+            </div>
+
+            <label>Cancellation policy</label>
+            <select id="pol-cancel">
+                <option value="flexible">Flexible — full refund up to 24h before check-in</option>
+                <option value="moderate" selected>Moderate — full refund up to 5 days before</option>
+                <option value="strict">Strict — non-refundable</option>
+            </select>
+
+            <div class="grid-2">
+                <div>
+                    <label>Pets allowed?</label>
+                    <select id="pol-pets">
+                        <option value="no">No</option>
+                        <option value="yes-free">Yes — no charge</option>
+                        <option value="yes-fee">Yes — with fee</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Children allowed?</label>
+                    <select id="pol-children">
+                        <option value="yes">Yes</option>
+                        <option value="no">No — adults only</option>
+                    </select>
+                </div>
+            </div>
+
+            <label>House rules (optional)</label>
+            <textarea id="pol-rules" placeholder="e.g. No smoking indoors. Quiet hours 22:00–08:00."></textarea>
+        </div>
+
+        <!-- STEP 5: OTAs -->
+        <div class="step-panel" id="panel-5" style="display:none;">
+            <h1>OTA channels</h1>
+            <p class="sub">Which distribution channels do you want live? We connect them after your account is created — no need to know account IDs now.</p>
+
+            <div class="amenity-grid" style="grid-template-columns: 1fr 1fr;">
+                <label><input type="checkbox" value="booking-com" checked> Booking.com</label>
+                <label><input type="checkbox" value="airbnb" checked> Airbnb</label>
+                <label><input type="checkbox" value="expedia"> Expedia</label>
+                <label><input type="checkbox" value="vrbo"> VRBO / HomeAway</label>
+                <label><input type="checkbox" value="agoda"> Agoda</label>
+                <label><input type="checkbox" value="direct" checked> Direct bookings (your GAS site)</label>
+            </div>
+
+            <div class="beds24-note">
+                💡 We'll create your Beds24 sub-account automatically as part of setup — no separate signup, no cost added to you, and no logging in to a second system. Your GAS admin becomes your one dashboard.
+            </div>
+        </div>
+
+        <!-- STEP 6: sign up -->
+        <div class="step-panel" id="panel-6" style="display:none;">
+            <h1>Almost there</h1>
+            <p class="sub">Create your GAS login. On submit we build your Beds24 account, your website, and connect your OTAs.</p>
+
+            <div class="grid-2">
+                <div>
+                    <label>Your name *</label>
+                    <input type="text" id="user-name" placeholder="Jane Smith">
+                </div>
+                <div>
+                    <label>Phone (optional)</label>
+                    <input type="text" id="user-phone" placeholder="+44 7123 456789">
+                </div>
+            </div>
+
+            <label>Email *</label>
+            <input type="email" id="user-email" placeholder="you@yourdomain.com">
+
+            <label>Password * <span style="font-weight: 400; color: #94a3b8; font-size: 0.75rem;">— minimum 8 characters</span></label>
+            <input type="password" id="user-password" placeholder="Choose a strong password">
+
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 400; font-size: 0.85rem; margin-top: 1rem;">
+                <input type="checkbox" id="user-terms" style="width: auto;">
+                I accept the <a href="/terms/" target="_blank" style="color: #1e40af;">Terms of Service</a> and <a href="/privacy/" target="_blank" style="color: #1e40af;">Privacy Policy</a>
+            </label>
+
+            <div class="review-block" style="margin-top: 1.25rem;">
+                <h3>Review</h3>
+                <div id="review-summary"></div>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+
+        <!-- Nav row -->
+        <div class="nav-row" id="nav-row">
+            <button class="btn ghost" id="back-btn" onclick="prevStep()" style="visibility:hidden;">← Back</button>
+            <button class="btn" id="next-btn" onclick="nextStep()">Continue →</button>
+        </div>
+
+        <!-- Progress + done -->
+        <div class="progress-panel" id="progress-panel">
+            <div class="prog-step" id="prog-1"><span class="ico">1</span> Creating your GAS account…</div>
+            <div class="prog-step" id="prog-2"><span class="ico">2</span> Provisioning your Beds24 sub-account…</div>
+            <div class="prog-step" id="prog-3"><span class="ico">3</span> Pushing your property, rooms &amp; policies to Beds24…</div>
+            <div class="prog-step" id="prog-4"><span class="ico">4</span> Deploying your website…</div>
+            <div class="prog-step" id="prog-5"><span class="ico">5</span> Populating design &amp; content…</div>
+        </div>
+
+        <div class="done-panel" id="done-panel">
+            <h2>🎉 Your setup is live</h2>
+            <div id="done-summary"></div>
+            <a id="site-link" class="site-link" href="#" target="_blank" rel="noopener">Open my site →</a><br>
+            <a id="admin-link" href="/gas-admin.html" style="font-size: 0.9rem; color: #64748b;">Go to my dashboard →</a>
+        </div>
+    </div>
+
+<script>
+'use strict';
+
+// ============================================================
+// State
+// ============================================================
+let currentStep = 1;
+const TOTAL_STEPS = 6;
+const rooms = [];  // { name, type, beds, maxGuests }
+
+// ============================================================
+// Step navigation
+// ============================================================
+function showStep(n) {
+    for (let i = 1; i <= TOTAL_STEPS; i++) {
+        document.getElementById('panel-' + i).style.display = i === n ? 'block' : 'none';
+        const bar = document.querySelector('.stepper .st[data-step="' + i + '"]');
+        bar.classList.remove('active', 'done');
+        if (i < n) bar.classList.add('done');
+        else if (i === n) bar.classList.add('active');
+    }
+    const labels = ['About your property', 'Your rooms', 'Amenities', 'Policies', 'OTA channels', 'Create your login'];
+    document.getElementById('step-label').textContent = 'Step ' + n + ' of ' + TOTAL_STEPS + ' — ' + labels[n - 1];
+    document.getElementById('back-btn').style.visibility = n === 1 ? 'hidden' : 'visible';
+    document.getElementById('next-btn').textContent = n === TOTAL_STEPS ? 'Create my account →' : 'Continue →';
+    document.getElementById('status').textContent = '';
+    if (n === 6) renderReview();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextStep() {
+    if (!validateStep(currentStep)) return;
+    if (currentStep === TOTAL_STEPS) return submitWizard();
+    currentStep++;
+    if (currentStep === 2 && rooms.length === 0) addRoom(); // seed a first room
+    showStep(currentStep);
+}
+
+function prevStep() {
+    if (currentStep === 1) return;
+    currentStep--;
+    showStep(currentStep);
+}
+
+// ============================================================
+// Validation
+// ============================================================
+function validateStep(n) {
+    const s = document.getElementById('status');
+    s.className = 'status';
+    s.textContent = '';
+    const missing = [];
+    if (n === 1) {
+        if (!v('prop-name')) missing.push('Property name');
+        if (!v('prop-country')) missing.push('Country');
+        if (!v('prop-city')) missing.push('City');
+        if (!v('prop-address')) missing.push('Address');
+        if (!v('prop-postcode')) missing.push('Post code');
+    } else if (n === 2) {
+        collectRooms();
+        if (rooms.length === 0) missing.push('At least one room');
+        rooms.forEach((r, i) => {
+            if (!r.name) missing.push('Room ' + (i + 1) + ' name');
+        });
+    } else if (n === 6) {
+        if (!v('user-name')) missing.push('Your name');
+        if (!v('user-email')) missing.push('Email');
+        if (v('user-password').length < 8) missing.push('Password (min 8 chars)');
+        if (!document.getElementById('user-terms').checked) missing.push('Accept terms');
+    }
+    if (missing.length) {
+        s.className = 'status err';
+        s.textContent = '⚠️ Please fill: ' + missing.join(', ');
+        return false;
+    }
+    return true;
+}
+
+function v(id) { return document.getElementById(id).value.trim(); }
+
+// ============================================================
+// Rooms — dynamic list
+// ============================================================
+function addRoom() {
+    if (rooms.length >= 20) return;
+    rooms.push({ name: '', type: 'double', beds: '1-double', maxGuests: 2 });
+    renderRooms();
+}
+
+function removeRoom(idx) {
+    rooms.splice(idx, 1);
+    renderRooms();
+}
+
+function collectRooms() {
+    rooms.forEach((r, i) => {
+        r.name = v('room-name-' + i);
+        r.type = v('room-type-' + i);
+        r.beds = v('room-beds-' + i);
+        r.maxGuests = parseInt(v('room-max-' + i)) || 2;
+    });
+}
+
+function renderRooms() {
+    const list = document.getElementById('rooms-list');
+    list.innerHTML = rooms.map((r, i) => `
+        <div class="room-block">
+            <div class="room-block-hdr">
+                <strong>Room ${i + 1}</strong>
+                ${rooms.length > 1 ? `<button class="rm-del" onclick="removeRoom(${i})">Remove</button>` : ''}
+            </div>
+            <label style="margin-top:0;">Name / label *</label>
+            <input type="text" id="room-name-${i}" value="${escapeAttr(r.name)}" placeholder="e.g. Sea View Double">
+            <div class="grid-3">
+                <div>
+                    <label>Type</label>
+                    <select id="room-type-${i}">
+                        <option value="single"${r.type === 'single' ? ' selected' : ''}>Single</option>
+                        <option value="double"${r.type === 'double' ? ' selected' : ''}>Double</option>
+                        <option value="twin"${r.type === 'twin' ? ' selected' : ''}>Twin</option>
+                        <option value="family"${r.type === 'family' ? ' selected' : ''}>Family</option>
+                        <option value="suite"${r.type === 'suite' ? ' selected' : ''}>Suite</option>
+                        <option value="dorm"${r.type === 'dorm' ? ' selected' : ''}>Dorm bed</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Bed configuration</label>
+                    <select id="room-beds-${i}">
+                        <option value="1-single"${r.beds === '1-single' ? ' selected' : ''}>1 single</option>
+                        <option value="2-single"${r.beds === '2-single' ? ' selected' : ''}>2 singles</option>
+                        <option value="1-double"${r.beds === '1-double' ? ' selected' : ''}>1 double</option>
+                        <option value="1-queen"${r.beds === '1-queen' ? ' selected' : ''}>1 queen</option>
+                        <option value="1-king"${r.beds === '1-king' ? ' selected' : ''}>1 king</option>
+                        <option value="1-double-1-single"${r.beds === '1-double-1-single' ? ' selected' : ''}>1 double + 1 single</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Max guests</label>
+                    <input type="number" id="room-max-${i}" value="${r.maxGuests}" min="1" max="12">
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+// ============================================================
+// Amenity collection
+// ============================================================
+function collectAmenities(containerId) {
+    return Array.from(document.querySelectorAll('#' + containerId + ' input[type=checkbox]:checked')).map(c => c.value);
+}
+
+// ============================================================
+// Review render
+// ============================================================
+function renderReview() {
+    collectRooms();
+    const propAmenities = collectAmenities('prop-amenities');
+    const roomAmenities = collectAmenities('room-amenities');
+    const otas = collectAmenities('panel-5');
+    const html = `
+        <div class="kv"><b>Property</b><span>${escapeHtml(v('prop-name'))} (${escapeHtml(v('prop-type'))})</span></div>
+        <div class="kv"><b>Location</b><span>${escapeHtml(v('prop-city'))}, ${escapeHtml(v('prop-country'))}</span></div>
+        <div class="kv"><b>Currency</b><span>${escapeHtml(v('prop-currency'))}</span></div>
+        <div class="kv"><b>Rooms</b><span>${rooms.length} room${rooms.length === 1 ? '' : 's'}</span></div>
+        <div class="kv"><b>Property amenities</b><span>${propAmenities.length || 'none selected'}</span></div>
+        <div class="kv"><b>Room amenities</b><span>${roomAmenities.length || 'none selected'}</span></div>
+        <div class="kv"><b>Check-in / out</b><span>${escapeHtml(v('pol-checkin'))} / ${escapeHtml(v('pol-checkout'))}</span></div>
+        <div class="kv"><b>Deposit</b><span>${escapeHtml(v('pol-deposit'))}%</span></div>
+        <div class="kv"><b>OTA channels</b><span>${otas.length}: ${otas.join(', ') || 'none'}</span></div>`;
+    document.getElementById('review-summary').innerHTML = html;
+}
+
+// ============================================================
+// Submit
+// ============================================================
+async function submitWizard() {
+    if (!validateStep(6)) return;
+    collectRooms();
+
+    const payload = {
+        user: {
+            name: v('user-name'),
+            email: v('user-email'),
+            password: v('user-password'),
+            phone: v('user-phone'),
+            terms_accepted: true
+        },
+        property: {
+            name: v('prop-name'),
+            country: v('prop-country'),
+            city: v('prop-city'),
+            address: v('prop-address'),
+            postcode: v('prop-postcode'),
+            currency: v('prop-currency'),
+            type: v('prop-type')
+        },
+        rooms: rooms.slice(),
+        amenities: {
+            property: collectAmenities('prop-amenities'),
+            room: collectAmenities('room-amenities')
+        },
+        policies: {
+            checkin: v('pol-checkin'),
+            checkout: v('pol-checkout'),
+            deposit_percent: parseFloat(v('pol-deposit')) || 0,
+            cleaning_fee: parseFloat(v('pol-cleaning')) || 0,
+            tax_percent: parseFloat(v('pol-tax')) || 0,
+            cancellation: v('pol-cancel'),
+            pets: v('pol-pets'),
+            children: v('pol-children'),
+            house_rules: v('pol-rules')
+        },
+        otas: collectAmenities('panel-5')
+    };
+
+    // Show progress
+    document.querySelectorAll('.step-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('nav-row').style.display = 'none';
+    document.getElementById('stepper').style.display = 'none';
+    document.getElementById('step-label').style.display = 'none';
+    document.getElementById('progress-panel').style.display = 'block';
+    setStep('prog-1', 'active');
+
+    // Faked pacing so the user sees phases even though the endpoint is one call.
+    setTimeout(() => { setStep('prog-1', 'done'); setStep('prog-2', 'active'); }, 1200);
+    setTimeout(() => { setStep('prog-2', 'done'); setStep('prog-3', 'active'); }, 4000);
+    setTimeout(() => { setStep('prog-3', 'done'); setStep('prog-4', 'active'); }, 8000);
+    setTimeout(() => { setStep('prog-4', 'done'); setStep('prog-5', 'active'); }, 14000);
+
+    try {
+        const r = await fetch('/api/onboarding/gas-onboard-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (!d.success) {
+            failWith(d.message || d.error || 'Something went wrong.');
+            return;
+        }
+        setStep('prog-5', 'done');
+        if (d.session_token) {
+            try { localStorage.setItem('gas_token', d.session_token); } catch (_) {}
+        }
+        setTimeout(() => {
+            document.getElementById('progress-panel').style.display = 'none';
+            document.getElementById('done-panel').style.display = 'block';
+            document.getElementById('done-summary').innerHTML =
+                '<b>Account:</b> ' + escapeHtml(d.account_email || v('user-email')) +
+                (d.beds24_account_id ? '<br><b>Beds24 account:</b> #' + escapeHtml(d.beds24_account_id) : '<br><span style="color:#78350f;">⚠️ Beds24 provisioning pending — we\'ll email you when live</span>') +
+                '<br><b>Rooms:</b> ' + rooms.length;
+            if (d.site_url) {
+                const link = document.getElementById('site-link');
+                link.href = d.site_url;
+                link.textContent = 'Open ' + d.site_url.replace(/^https?:\/\//, '') + ' →';
+            }
+        }, 600);
+    } catch (e) {
+        failWith(e.message);
+    }
+}
+
+function setStep(id, state) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('done', 'active');
+    if (state) el.classList.add(state);
+    if (state === 'done') el.querySelector('.ico').textContent = '✓';
+}
+
+function failWith(msg) {
+    document.getElementById('progress-panel').style.display = 'none';
+    document.getElementById('stepper').style.display = 'flex';
+    document.getElementById('step-label').style.display = 'block';
+    document.getElementById('nav-row').style.display = 'flex';
+    document.getElementById('panel-' + currentStep).style.display = 'block';
+    const s = document.getElementById('status');
+    s.className = 'status err';
+    s.textContent = '❌ ' + msg;
+}
+
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
+// ============================================================
+// Kick-off
+// ============================================================
+showStep(1);
+if (rooms.length === 0) addRoom();
+</script>
+</body>
+</html>
