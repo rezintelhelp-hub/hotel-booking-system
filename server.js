@@ -143,6 +143,7 @@ const sanitizeHtml = require('sanitize-html');
 const { formatChannelDescription } = require('./lib/description-formatter');
 const { signGuestToken, verifyGuestToken, peekGuestToken, PURPOSES: GUEST_TOKEN_PURPOSES } = require('./lib/guest-tokens');
 const depositGateway = require('./lib/payment-gateways');
+const { computeRoomAvailability } = require('./lib/availability');
 
 // Recursively flatten Beds24 V2 featureCodes / features into a clean
 // deduped array of code strings. Beds24 returns this field in many shapes:
@@ -89290,11 +89291,18 @@ app.get('/api/availability/:roomId', async (req, res) => {
       };
     });
     
+    // Booking-linked room ids — populated inside the try block below when
+    // the wrapper/child dependency lookup succeeds. Hoisted so the shared
+    // availability helper stamp (further down) can see the full linked set
+    // for Beds24 wrapper rooms (Belmont pattern). Defaults to just [roomId]
+    // when the try below fails or finds no children.
+    let linkedRoomIds = [parseInt(roomId, 10)];
+
     // Try to get bookings - but don't fail if table structure is different
     try {
       // First check what columns exist in bookings table
       const columnsResult = await pool.query(`
-        SELECT column_name FROM information_schema.columns 
+        SELECT column_name FROM information_schema.columns
         WHERE table_name = 'bookings'
       `);
       
@@ -89351,7 +89359,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
           WHERE me.my_beds24_room_id IS NOT NULL
             AND gsrt2.raw_data #>> '{dependencies,includeBookingsRoomId1}' = me.my_beds24_room_id::text`,
         [roomId]);
-      const linkedRoomIds = [parseInt(roomId, 10), ...linkedRoomsRes.rows.map(r => r.gas_room_id).filter(Boolean)];
+      linkedRoomIds = [parseInt(roomId, 10), ...linkedRoomsRes.rows.map(r => r.gas_room_id).filter(Boolean)];
 
       const bookings = await pool.query(`
         SELECT
@@ -89471,6 +89479,31 @@ app.get('/api/availability/:roomId', async (req, res) => {
         dayData.is_booked = unitsAvailable === 0 && bookingsCount > 0;
         dayData.is_blocked = operatorBlocked;
       }
+    }
+
+    // Availability helper — stamp shared-rule decision over availMap so
+    // this admin endpoint agrees per-date with mini-cal, calculate-price
+    // and the /book gate. Wrapper rooms (Beds24 hidden-child pattern)
+    // pass linkedRoomIds so the helper sums bookings across the wrapper
+    // set. Multi-qty single-visible rooms fall through with linkedRoomIds
+    // == [roomId]. See project_availability_unification_20260911.md.
+    try {
+      const helperDays = await computeRoomAvailability(pool, roomId, from, to, linkedRoomIds);
+      for (const h of helperDays) {
+        if (!availMap[h.date]) availMap[h.date] = { date: h.date };
+        availMap[h.date].is_available = h.available;
+        // Preserve operator-vs-cm block distinction. Only operator intent
+        // stamps is_blocked=true; CM-noise blocks (source outside the
+        // whitelist) surface via is_available=false without is_blocked.
+        availMap[h.date].is_blocked = !h.available && h.blocked_by === 'operator';
+        if (h.quantity > 1) {
+          availMap[h.date].capacity = h.quantity;
+          availMap[h.date].bookings_count = h.bookings;
+          availMap[h.date].units_available = h.units_free;
+        }
+      }
+    } catch (helperErr) {
+      console.warn('[availability helper stamp]', helperErr.message);
     }
 
     // Convert to array and fill missing dates
@@ -112208,6 +112241,11 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       for (const r of bkQ.rows) bookingCountByDate[r.date] = r.n;
     }
 
+    // Availability helper — non-pool rooms only. Stamped in the day loop
+    // below so mini-cal, picker, calculate-price and /book all agree per
+    // date. See project_availability_unification_20260911.md.
+    const helperMap = {};
+
     // Pool-aware availability lookup. Done BEFORE the calendar loop so the
     // per-day `available` flag uses the pool counter rather than the legacy
     // room_availability.is_blocked row — otherwise a hostel dorm shows
@@ -112267,6 +112305,17 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       console.warn('[public availability] pool-aware lookup skipped:', e.message);
     }
 
+    // Pull helper decision for non-pool rooms so the loop can stamp
+    // dayAvailable from the shared rule.
+    if (!poolAware) {
+      try {
+        const hd = await computeRoomAvailability(pool, unitId, startDate, endDate);
+        for (const r of hd) helperMap[r.date] = r;
+      } catch (e) {
+        console.warn('[public availability] helper skipped:', e.message);
+      }
+    }
+
     // Build calendar with all dates
     const calendar = [];
     let current = new Date(startDate);
@@ -112303,25 +112352,15 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
         // rejected at /public/book.
         const rawBlocked = dayData ? (dayData.is_blocked === true || dayData.is_available === false) : false;
         dayAvailable = !rawBlocked && (poolDayMap[dateStr] || 0) > 0 && dayPrice > 0;
-      } else if (bookingCountByDate) {
-        // Multi-unit room (quantity > 1): count active bookings on this
-        // night against quantity. Ignore the single is_available/is_blocked
-        // flag — it's meaningless for 50-quantity rooms where ONE booking
-        // flips it false. Hotel Caracas Casco Viejo, Cotswolds Barnsley
-        // pattern (Steve 2026-07-20).
-        const sold = bookingCountByDate[dateStr] || 0;
-        dayAvailable = (roomQuantity - sold) > 0 && dayPrice > 0;
+      } else if (helperMap[dateStr]) {
+        // Non-pool: shared helper is source of truth. Handles single-unit
+        // AND multi-unit correctly (multi-unit uses bookings-count vs
+        // quantity + operator-source awareness). Same rule the /book
+        // gate + admin picker + Channex outbox push apply.
+        dayAvailable = helperMap[dateStr].available && dayPrice > 0;
       } else {
-        // Legacy single-room model. Day is unavailable if: no calendar
-        // data, explicitly unavailable, blocked, OR no price.
-        // V1 fallback: when the V2 sync (`is_available`) hasn't refreshed
-        // recently — e.g. tier 5 weekly run hasn't cycled yet — it can
-        // flip stale-false for far-future dates even though the legacy V1
-        // column (`available`) is still correctly true and the operator
-        // hasn't actually closed the date. Trust either column saying
-        // available; price > 0 + not blocked still gate the day. Caught
-        // 2026-06-18 on Cotswolds (Barnsley Turret 33, unit 589) where
-        // Jun-Dec 2027 was stale-false on V2 but live in V1.
+        // No helper row (e.g. helper query failed) — fall back to legacy
+        // behaviour so we never over-block due to a helper glitch.
         const effectivelyAvailable = dayData ? (dayData.is_available === true || dayData.available === true) : false;
         dayAvailable = dayData ? (effectivelyAvailable && !dayData.is_blocked && dayPrice > 0) : false;
       }
@@ -112687,6 +112726,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
 
+    // Availability helper — non-pool rooms only. Same rule as the /book
+    // gate + admin picker + mini-cal. See project_availability_unification_20260911.md.
+    const helperMap = {};
+    if (!poolDayMap) {
+      try {
+        const hd = await computeRoomAvailability(pool, unit_id, check_in, check_out);
+        for (const r of hd) helperMap[r.date] = r;
+      } catch (e) {
+        console.warn('[calculate-price helper]', e.message);
+      }
+    }
+
     // Build nightly breakdown with occupancy adjustments
     const nightlyBreakdown = [];
     let accommodationTotal = 0;
@@ -112740,30 +112791,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
 
       const nightCmPrice = dayData?.cm_price ? parseFloat(dayData.cm_price) : nightPrice;
       cmTotal += nightCmPrice;
-      // A night is unavailable if: no calendar data, the calendar marks
-      // it unavailable (booked), the calendar marks it blocked, or it
-      // has no price. Pre-fix this only flipped on missing-data, which
-      // let booked-but-priced nights pass as available — eg Cotswolds
-      // room 630 (Poppy Meadow) for 23-29 Jun showed in the website's
-      // available-rooms grid even though 28-29 Jun were Airbnb-booked.
-      // Pool-model override: the pool counter is the source of truth, so
-      // ignore the legacy is_blocked/is_available columns when poolDayMap
-      // is set — they may be a stale wholesale-block left by pre-fix
-      // /api/public/book runs.
-      // Multi-unit override: for legacy quantity>1 rooms, is_available AND
-      // is_blocked on the single row both go stale as soon as ONE unit is
-      // sold (Beds24 flips the whole row false). Mirror what
-      // /api/public/availability does at server.js:112222-112229 —
-      // for multi-unit rooms, IGNORE is_available/is_blocked entirely, use
-      // bookings-count vs quantity as the only truth.
+      // Availability rule delegated to lib/availability.js helper for
+      // non-pool rooms. Pool-model still uses its cascade counter.
+      // multiUnitFree preserved for legacy fallback path (helper down).
       const multiUnitFree = (!poolDayMap && buQuantity > 1 && dayData)
         ? (buQuantity - (bookingsByDate[dateStr] || 0)) > 0
         : null;
       const dayUnavailable = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (multiUnitFree !== null
-            ? !multiUnitFree
-            : (!dayData || dayData.is_available === false || dayData.is_blocked === true));
+        : (helperMap[dateStr]
+            ? !helperMap[dateStr].available
+            : (multiUnitFree !== null
+                ? !multiUnitFree
+                : (!dayData || dayData.is_available === false || dayData.is_blocked === true)));
       if (dayUnavailable || !nightPrice) {
         allAvailable = false;
       }
@@ -112810,14 +112850,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
       accommodationTotal += adjustedNightPrice;
       occupancyAdjustmentTotal += nightOccupancyAdjustment;
       
-      // Same pool-aware / multi-unit overrides as above — legacy
-      // room_availability rows are not the source of truth for pool-model
-      // accounts or multi-unit legacy rooms.
+      // Same helper decision as above — kept as a second check because
+      // downstream tier/offer/voucher paths mutate accommodationTotal
+      // above this point and can't be trusted to short-circuit the loop.
       const dayBlocked = poolDayMap
         ? (poolDayMap[dateStr] || 0) <= 0
-        : (multiUnitFree !== null
-            ? !multiUnitFree
-            : (dayData && (!dayData.is_available || dayData.is_blocked)));
+        : (helperMap[dateStr]
+            ? !helperMap[dateStr].available
+            : (multiUnitFree !== null
+                ? !multiUnitFree
+                : (dayData && (!dayData.is_available || dayData.is_blocked))));
       if (dayBlocked) {
         allAvailable = false;
       }
@@ -114665,22 +114707,27 @@ app.post('/api/public/book', async (req, res) => {
           });
         }
       }
-      const blockedRow = await pool.query(
-        `SELECT date FROM room_availability
-          WHERE room_id = $1
-            AND date >= $2::date AND date < $3::date
-            AND (COALESCE(is_available, true) = false OR COALESCE(is_blocked, false) = true)
-          ORDER BY date LIMIT 1`,
-        [unit_id, check_in, check_out]
-      );
-      if (blockedRow.rows.length) {
-        const d = String(blockedRow.rows[0].date).slice(0, 10);
-        console.warn(`[avail-gas] REJECT — room_availability closed on ${d} (unit ${unit_id})`);
-        return res.json({
-          success: false,
-          error: 'Sorry, these dates are no longer available. Please select different dates.',
-          unavailable_date: d
-        });
+      // Availability helper (lib/availability.js) — SINGLE SOURCE OF TRUTH
+      // for the "is this date bookable?" decision on NON-POOL rooms.
+      // Pool-model rooms already had their per-night capacity check in
+      // the pool branch above (inventory_pool_dates cascade). Helper
+      // replaces the previous inline row check which wrongly rejected
+      // multi-unit rooms the moment Beds24/Channex flipped is_available=
+      // false on a single row — a quantity=3 room with 1 sold has
+      // is_available=false but 2 units still sellable. Helper honours
+      // quantity and operator-intent source.
+      // See project_availability_unification_20260911.md.
+      if (inventoryModel !== 'pool') {
+        const helperDays = await computeRoomAvailability(pool, unit_id, check_in, check_out);
+        const helperClosed = helperDays.find(d => !d.available);
+        if (helperClosed) {
+          console.warn(`[avail-gas] REJECT — helper says closed on ${helperClosed.date} (unit ${unit_id}, blocked_by=${helperClosed.blocked_by})`);
+          return res.json({
+            success: false,
+            error: 'Sorry, these dates are no longer available. Please select different dates.',
+            unavailable_date: helperClosed.date
+          });
+        }
       }
     }
     // ========== END GAS-NATIVE AVAILABILITY CHECK ==========
