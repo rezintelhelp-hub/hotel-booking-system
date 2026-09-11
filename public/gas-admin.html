@@ -61850,45 +61850,55 @@ const promo = await fetch('/api/v1/offers/validate', {
             const coStr = lastNight.getFullYear() + '-' + String(lastNight.getMonth()+1).padStart(2,'0') + '-' + String(lastNight.getDate()).padStart(2,'0');
             document.getElementById('booking-checkout').value = coStr;
 
-            // Pre-fill Total Price from /api/availability/:roomId — SAME
-            // endpoint the rate-edit modal uses (line 55713), so the price
-            // matches what Steve sees in that modal (standard_price → cm_price
-            // fallback). Public availability endpoint was returning null /
-            // wrong for this operator flow. This endpoint uses
-            // generate_series which is INCLUSIVE at both ends, so we pass
-            // `to = toDate` (the LAST NIGHT, not check-out morning) — for
-            // a 1-night stay from = to = fromDate = one row.
+            // Pre-fill Total Price via /api/public/calculate-price — the same
+            // endpoint the real /api/public/book gate uses. Returns the full
+            // stay total (grand_total = accommodation × nights + occupancy
+            // pricing + extras) so a 5-night drag gets the 5-night quote,
+            // not 1 night. Was previously summing /api/availability rows
+            // which broke on pool-model responses that omit effective_price
+            // (Steve 2026-09-12 — 5-night drag showed 1 night's price).
+            // Fallback: if calculate-price errors (blocked date etc.), sum
+            // availability rows as a safety net.
+            const adultsForQuote = Math.max(1, parseInt(document.getElementById('booking-guests')?.value, 10) || 1);
+            const childrenForQuote = Math.max(0, parseInt(document.getElementById('booking-children')?.value, 10) || 0);
+            const chkoutStr = coStr;
+            let filled = false;
             try {
-                const availResp = await fetch(`/api/availability/${rid}?from=${fromDate}&to=${toDate}`, { headers: authHeaders() });
-                const availData = await availResp.json().catch(() => null);
-                if (availData && availData.success && Array.isArray(availData.availability)) {
-                    let total = 0;
-                    let anyPriced = false;
-                    for (const d of availData.availability) {
-                        // effective_price is the SAME priority calculate-price
-                        // uses to quote the guest (server.js:73048). It's
-                        // exactly what a visitor would pay for that night on
-                        // the client site. Fall back through override → CM →
-                        // legacy in case the endpoint didn't compute it for
-                        // a legacy row.
-                        const p = (d.effective_price != null) ? d.effective_price
-                                : (d.standard_price_raw != null) ? d.standard_price_raw
-                                : (d.standard_price != null) ? d.standard_price
-                                : (d.cm_price != null) ? d.cm_price
-                                : (d.direct_price != null) ? d.direct_price
-                                : (d.price != null) ? d.price
-                                : null;
-                        if (p != null) { total += parseFloat(p); anyPriced = true; }
-                    }
-                    if (anyPriced && total > 0) {
-                        document.getElementById('booking-total').value = total.toFixed(2);
-                    } else {
-                        console.warn('[add-booking-from-cell] no priced rows in availability response', availData);
-                    }
-                } else {
-                    console.warn('[add-booking-from-cell] availability call failed or empty', availData);
+                const cpResp = await fetch('/api/public/calculate-price', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unit_id: rid, check_in: fromDate, check_out: chkoutStr, adults: adultsForQuote, children: childrenForQuote })
+                });
+                const cpData = await cpResp.json().catch(() => null);
+                const quotedTotal = parseFloat(cpData?.grand_total ?? cpData?.total_price ?? cpData?.accommodation_gross ?? cpData?.accommodation_total ?? 0);
+                if (Number.isFinite(quotedTotal) && quotedTotal > 0) {
+                    document.getElementById('booking-total').value = quotedTotal.toFixed(2);
+                    filled = true;
                 }
-            } catch (e) { console.warn('[add-booking-from-cell] price prefill failed:', e.message); }
+            } catch (e) { console.warn('[add-booking-from-cell] calculate-price failed, will fall back:', e.message); }
+            if (!filled) {
+                try {
+                    const availResp = await fetch(`/api/availability/${rid}?from=${fromDate}&to=${toDate}`, { headers: authHeaders() });
+                    const availData = await availResp.json().catch(() => null);
+                    if (availData && availData.success && Array.isArray(availData.availability)) {
+                        let total = 0;
+                        let anyPriced = false;
+                        for (const d of availData.availability) {
+                            const p = (d.effective_price != null) ? d.effective_price
+                                    : (d.standard_price_raw != null) ? d.standard_price_raw
+                                    : (d.standard_price != null) ? d.standard_price
+                                    : (d.cm_price != null) ? d.cm_price
+                                    : (d.direct_price != null) ? d.direct_price
+                                    : (d.price != null) ? d.price
+                                    : null;
+                            if (p != null) { total += parseFloat(p); anyPriced = true; }
+                        }
+                        if (anyPriced && total > 0) {
+                            document.getElementById('booking-total').value = total.toFixed(2);
+                        }
+                    }
+                } catch (e) { console.warn('[add-booking-from-cell] availability fallback failed:', e.message); }
+            }
 
             // Bring the inline availability calendar in sync with the pre-
             // filled room + dates — otherwise the calendar stays empty until
