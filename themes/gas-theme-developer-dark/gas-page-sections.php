@@ -330,6 +330,19 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                 </div>
                             <?php endforeach; ?>
                         </div>
+                        <?php
+                        // Section-level CTA button — sits below the grid.
+                        // The admin UI (gas-admin.html:42370) saves
+                        // button_text + button_link at the cards section
+                        // level; dark theme never emitted it. Steve
+                        // 2026-09-11.
+                        $section_btn_text = gas_ps_field($section, 'button_text', $lang);
+                        $section_btn_link = $section['button_link'] ?? '';
+                        if (!empty($section_btn_text) && !empty($section_btn_link)) : ?>
+                            <div style="text-align: center; margin-top: 32px;">
+                                <a href="<?php echo esc_url($section_btn_link); ?>" style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 1rem;"><?php echo esc_html($section_btn_text); ?></a>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </section>
                 <?php endif; break;
