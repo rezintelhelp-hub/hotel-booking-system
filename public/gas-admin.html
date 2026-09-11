@@ -29634,6 +29634,61 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
+    <!-- Record Payment (Cordelia Belmont 2026-09-12) — log a partial manual
+         payment (cash / phone / bank / cheque / card guarantee / other) so
+         the payment summary shows it and the booking's deposit_paid/balance
+         reconcile properly. Doesn't touch the guest's card. -->
+    <div id="addPaymentModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">
+                <h2 style="margin: 0; font-size: 1.25rem;">💵 Record Manual Payment</h2>
+                <button class="modal-close" onclick="closeModal('addPaymentModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p id="add-payment-balance-note" style="margin: 0 0 1.25rem; padding: 0.65rem 0.85rem; background: #f1f5f9; border-radius: 8px; font-size: 0.85rem; color: #475569;"></p>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-weight: 600; color: #374151; margin-bottom: 0.35rem; display: block;">Amount <span id="add-payment-currency-label" style="color: #94a3b8; font-weight: 400;">GBP</span></label>
+                    <input type="number" id="add-payment-amount" class="form-input" step="0.01" min="0" placeholder="0.00" style="padding: 0.7rem; border-radius: 8px;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.35rem; display: block;">Method</label>
+                        <select id="add-payment-method" class="form-input" style="padding: 0.7rem; border-radius: 8px;">
+                            <option value="cash">Cash</option>
+                            <option value="phone">Phone (over the phone)</option>
+                            <option value="bank_transfer">Bank transfer</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="card_guarantee">Card guarantee</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.35rem; display: block;">Type</label>
+                        <select id="add-payment-type" class="form-input" style="padding: 0.7rem; border-radius: 8px;">
+                            <option value="deposit">Deposit</option>
+                            <option value="balance">Balance</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin: 0.75rem 0 0;">
+                    <label style="font-weight: 600; color: #374151; margin-bottom: 0.35rem; display: block;">Note (optional)</label>
+                    <input type="text" id="add-payment-note" class="form-input" placeholder="e.g. Bank ref 1234, taken by Cordelia" maxlength="500" style="padding: 0.7rem; border-radius: 8px;">
+                </div>
+
+                <div id="add-payment-status" style="margin-top: 0.75rem; font-size: 0.9rem;"></div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addPaymentModal')">Cancel</button>
+                    <button type="button" id="add-payment-submit-btn" class="btn" onclick="submitAddPayment()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">Record payment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="depositRuleModal" class="modal">
         <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
@@ -30300,12 +30355,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+                    <!-- Deposit override + record-payment-now — Cordelia Belmont
+                         2026-09-12. Any admin can override the auto-computed
+                         deposit or log a cash/phone/bank payment taken at the
+                         moment of booking creation. On submit the payment
+                         posts to /api/admin/bookings/:id/add-payment right
+                         after the booking row is inserted. -->
+                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #065f46; margin-bottom: 0.75rem; display: block;">
+                            💵 Deposit &amp; Payment on Booking
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Deposit override <span style="color:#94a3b8; font-weight:400; font-size: 0.75rem;">(optional — blank = use rule)</span></label>
+                                <input type="number" id="booking-deposit-override" class="form-input" step="0.01" min="0" placeholder="e.g. 60.00" style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                            <div style="display: flex; align-items: end;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #065f46; cursor: pointer;">
+                                    <input type="checkbox" id="booking-record-payment-now" style="width: 18px; height: 18px;" onchange="document.getElementById('booking-manual-payment-detail').style.display = this.checked ? 'grid' : 'none';">
+                                    Record a payment now (cash / phone / bank)
+                                </label>
+                            </div>
+                        </div>
+                        <div id="booking-manual-payment-detail" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #a7f3d0;">
+                            <div>
+                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Amount</label>
+                                <input type="number" id="booking-manual-payment-amount" class="form-input" step="0.01" min="0" placeholder="0.00" style="padding: 0.55rem; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Method</label>
+                                <select id="booking-manual-payment-method" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
+                                    <option value="cash">Cash</option>
+                                    <option value="phone">Phone</option>
+                                    <option value="bank_transfer">Bank</option>
+                                    <option value="cheque">Cheque</option>
+                                    <option value="card_guarantee">Card guarantee</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
+                                <select id="booking-manual-payment-type" class="form-input" style="padding: 0.55rem; border-radius: 8px;">
+                                    <option value="deposit">Deposit</option>
+                                    <option value="balance">Balance</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Notes -->
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;"> Notes</label>
                         <textarea id="booking-notes" class="form-input" rows="3" style="padding: 0.75rem; border-radius: 8px;" placeholder="Special requests, notes..."></textarea>
                     </div>
-                    
+
                     <!-- 💳 Card Payment panel. Loads multi-provider config from
                          /api/admin/properties/:id/payment-config (single source
                          of truth: property's accepted_methods × configured
@@ -74659,6 +74763,69 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) { showNotification('⚠ ' + e.message, 'error'); }
         }
 
+        // Record-payment modal — Cordelia Belmont 2026-09-12. Logs a partial
+        // manual payment (cash on arrival, phone deposit, bank transfer, cheque)
+        // that shows on the payment summary, updates deposit_paid + balance,
+        // flips payment_status if the total is now covered. Doesn't touch the
+        // guest's card — that's a separate flow.
+        let __addPaymentBookingCtx = null;
+        function openAddPaymentModal(bookingId, currency, currentBalance) {
+            __addPaymentBookingCtx = { bookingId, currency: currency || 'GBP', balance: parseFloat(currentBalance || 0) || 0 };
+            const modal = document.getElementById('addPaymentModal');
+            if (!modal) return alert('Payment modal not found on this page');
+            document.getElementById('add-payment-currency-label').textContent = __addPaymentBookingCtx.currency;
+            document.getElementById('add-payment-balance-note').textContent =
+                __addPaymentBookingCtx.balance > 0
+                    ? `Outstanding balance: ${__addPaymentBookingCtx.currency} ${__addPaymentBookingCtx.balance.toFixed(2)}`
+                    : 'Balance is £0 — this will be recorded as an additional deposit.';
+            document.getElementById('add-payment-amount').value = __addPaymentBookingCtx.balance > 0 ? __addPaymentBookingCtx.balance.toFixed(2) : '';
+            document.getElementById('add-payment-method').value = 'cash';
+            document.getElementById('add-payment-type').value = 'deposit';
+            document.getElementById('add-payment-note').value = '';
+            document.getElementById('add-payment-status').textContent = '';
+            document.getElementById('add-payment-status').className = '';
+            openModal('addPaymentModal');
+        }
+
+        async function submitAddPayment() {
+            if (!__addPaymentBookingCtx) return;
+            const amount = parseFloat(document.getElementById('add-payment-amount').value);
+            if (!Number.isFinite(amount) || amount <= 0) {
+                const s = document.getElementById('add-payment-status');
+                s.textContent = '⚠️ Enter an amount greater than zero.';
+                s.className = 'status err';
+                return;
+            }
+            const method = document.getElementById('add-payment-method').value;
+            const type = document.getElementById('add-payment-type').value;
+            const note = document.getElementById('add-payment-note').value.trim();
+            const btn = document.getElementById('add-payment-submit-btn');
+            btn.disabled = true; btn.textContent = 'Recording…';
+            try {
+                const r = await fetch(`/api/admin/bookings/${__addPaymentBookingCtx.bookingId}/add-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ amount, method, type, note })
+                });
+                const d = await r.json();
+                if (!d.success) {
+                    const s = document.getElementById('add-payment-status');
+                    s.textContent = '❌ ' + (d.error || 'Failed');
+                    s.className = 'status err';
+                    return;
+                }
+                closeModal('addPaymentModal');
+                if (typeof showNotification === 'function') showNotification(`✅ Recorded ${__addPaymentBookingCtx.currency} ${amount.toFixed(2)} — balance now ${d.balance_amount.toFixed(2)}`, 'success');
+                if (typeof loadBookingsView === 'function') setTimeout(loadBookingsView, 500);
+            } catch (e) {
+                const s = document.getElementById('add-payment-status');
+                s.textContent = '❌ ' + e.message;
+                s.className = 'status err';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Record payment';
+            }
+        }
+
         async function markBookingPaidOffline(bookingId) {
             const method = prompt('Payment method (e.g. bank_transfer, cash, cheque):', 'bank_transfer');
             if (method === null) return;
@@ -75219,10 +75386,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                             applied_offer_id: appliedOfferId,
                             upsells: bookingUpsells,
                             voucher_code: bookingVoucherCode,
+                            // Cordelia Belmont 2026-09-12 — optional deposit override
+                            deposit_amount_override: (function () {
+                                const v = parseFloat(document.getElementById('booking-deposit-override')?.value);
+                                return Number.isFinite(v) && v > 0 ? v : null;
+                            })(),
                             allow_over_block: true
                         })
                     });
                 }
+
 
                 const data = await response.json();
                 // Group bookings — Steve 2026-07-12: the primary POST has taken
@@ -75275,6 +75448,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     }
                 }
+                // Cordelia Belmont 2026-09-12 — if the operator ticked
+                // "Record a payment now" on the booking modal, hit the
+                // add-payment endpoint against the new booking so the
+                // deposit shows up on the payment summary. Fire-and-log —
+                // failure here doesn't invalidate the booking itself.
+                if (data.success && document.getElementById('booking-record-payment-now')?.checked && data.booking_id) {
+                    try {
+                        const _amt = parseFloat(document.getElementById('booking-manual-payment-amount')?.value);
+                        if (Number.isFinite(_amt) && _amt > 0) {
+                            await fetch(`/api/admin/bookings/${data.booking_id}/add-payment`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify({
+                                    amount: _amt,
+                                    method: document.getElementById('booking-manual-payment-method')?.value || 'cash',
+                                    type: document.getElementById('booking-manual-payment-type')?.value || 'deposit',
+                                    note: 'Recorded at booking creation'
+                                })
+                            });
+                        }
+                    } catch (payErr) {
+                        console.error('[booking create → add-payment]', payErr);
+                    }
+                }
+
                 if (data.success && takeCard) {
                     // Payment-path success — message varies by provider:
                     // card_guarantee never charges, so say "secured" not "charged".
@@ -76261,6 +76459,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <button class="btn btn-small" onclick="openAttachCardModal(${b.id}, ${b.property_id})" style="background:#059669; color:white; font-size:0.8rem;">💳 Add card myself</button>
                                     <button class="btn btn-small" onclick="sendCardCaptureLink(${b.id})" style="background:#0ea5e9; color:white; font-size:0.8rem;">📧 Send capture link to guest${b.group_booking_id ? ' (Group)' : ''}</button>
                                     <button class="btn btn-small" onclick="sendUpsellLink(${b.id})" style="background:#f59e0b; color:white; font-size:0.8rem;">💰 Send upsell link</button>
+                                    <button class="btn btn-small" onclick="openAddPaymentModal(${b.id}, '${(b.currency || 'GBP').replace(/'/g, '')}', ${parseFloat(b.balance_amount || 0) || 0})" style="background:#7c3aed; color:white; font-size:0.8rem;" title="Log a manual payment — cash, phone, bank etc.">💵 Record payment</button>
                                     ${b.payment_chase_status === 'chasing' ? `
                                     <button class="btn btn-small" onclick="markBookingPaidOffline(${b.id})" style="background:#059669; color:white; font-size:0.8rem;">✅ Mark paid offline</button>
                                     <button class="btn btn-small" onclick="stopChasingBooking(${b.id})" style="background:#64748b; color:white; font-size:0.8rem;">🔕 Stop chasing</button>

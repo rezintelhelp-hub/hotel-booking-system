@@ -83406,6 +83406,110 @@ app.post('/api/admin/bookings/:id/mark-paid-offline', async (req, res) => {
   }
 });
 
+// POST /api/admin/bookings/:id/add-payment — record a partial manual payment
+// (cash / phone / bank / cheque / card guarantee / other). Steve/Cordelia
+// Belmont 2026-09-12 — the "took a deposit on the phone, will collect
+// balance in cash on arrival" flow that markPaidOffline didn't cover.
+//
+// Inserts a payment_transactions row (so the payment summary shows the
+// deposit). Then reconciles bookings.deposit_paid + balance_amount +
+// payment_status against the new total paid. If total_paid ≥ grand_total
+// the booking flips to 'paid'; if total_paid covers deposit_amount but not
+// balance, 'deposit_paid'; else 'pending' unless a card capture already
+// promoted it.
+//
+// Body:
+//   amount (number, required, > 0)
+//   method (string, required, one of cash|phone|bank_transfer|cheque|card_guarantee|other)
+//   type   (string, optional, default 'deposit'; deposit|balance|other)
+//   note   (string, optional, ≤ 500 chars)
+app.post('/api/admin/bookings/:id/add-payment', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Authentication required' });
+    const isMaster = decoded.role === 'master_admin';
+    const bookingId = parseInt(req.params.id, 10);
+    if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
+    const amount = parseFloat(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, error: 'amount must be > 0' });
+    }
+    const METHODS = new Set(['cash','phone','bank_transfer','cheque','card_guarantee','other']);
+    const method = String(req.body?.method || 'cash').toLowerCase();
+    if (!METHODS.has(method)) {
+      return res.status(400).json({ success: false, error: `method must be one of ${[...METHODS].join('|')}` });
+    }
+    const TYPES = new Set(['deposit','balance','other']);
+    const type = String(req.body?.type || 'deposit').toLowerCase();
+    if (!TYPES.has(type)) return res.status(400).json({ success: false, error: `type must be one of ${[...TYPES].join('|')}` });
+    const note = String(req.body?.note || '').slice(0, 500);
+
+    const bk = await pool.query(
+      `SELECT b.id, b.currency, b.grand_total, b.deposit_amount, b.deposit_paid, b.deposit_paid_at,
+              b.balance_amount, b.balance_paid_at, b.payment_status, p.account_id
+         FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
+        WHERE b.id = $1`, [bookingId]);
+    if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const row = bk.rows[0];
+    if (!isMaster && row.account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const currency = (row.currency || 'GBP').toUpperCase();
+    const grandTotal = parseFloat(row.grand_total || 0);
+    const depositAmount = parseFloat(row.deposit_amount || 0);
+    const prevPaid = parseFloat(row.deposit_paid || 0);
+    const newPaid = Math.round((prevPaid + amount) * 100) / 100;
+    const newBalance = Math.max(0, Math.round((grandTotal - newPaid) * 100) / 100);
+
+    // Payment status ladder — do NOT downgrade if the booking is already
+    // fully_paid / paid (a manual add-payment shouldn't un-mark a paid one).
+    let newStatus = row.payment_status || 'pending';
+    let setDepositAt = false;
+    let setBalanceAt = false;
+    if (newPaid >= grandTotal && grandTotal > 0) {
+      newStatus = 'paid';
+      setBalanceAt = !row.balance_paid_at;
+      setDepositAt = !row.deposit_paid_at;
+    } else if (depositAmount > 0 && newPaid >= depositAmount && !row.deposit_paid_at) {
+      newStatus = 'deposit_paid';
+      setDepositAt = true;
+    }
+
+    await pool.query(
+      `INSERT INTO payment_transactions (
+         booking_id, account_id, transaction_type, amount, currency,
+         payment_gateway, status, payment_method_type, completed_at, description
+       ) VALUES ($1, $2, $3, $4, $5, 'manual', 'completed', $6, NOW(), $7)`,
+      [bookingId, row.account_id, type, amount, currency, method,
+       `Manual ${type} (${method})${note ? ' — ' + note : ''}`]);
+
+    await pool.query(
+      `UPDATE bookings
+          SET deposit_paid = $2,
+              balance_amount = $3,
+              payment_status = $4,
+              deposit_paid_at = CASE WHEN $5::boolean THEN NOW() ELSE deposit_paid_at END,
+              balance_paid_at = CASE WHEN $6::boolean THEN NOW() ELSE balance_paid_at END,
+              payment_chase_status = CASE WHEN $3 = 0 THEN 'paid' ELSE payment_chase_status END,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [bookingId, newPaid, newBalance, newStatus, setDepositAt, setBalanceAt]);
+
+    res.json({
+      success: true,
+      booking_id: bookingId,
+      amount, currency, method, type,
+      deposit_paid: newPaid,
+      balance_amount: newBalance,
+      payment_status: newStatus
+    });
+  } catch (err) {
+    console.error('[add-payment] error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/admin/bookings/:id/stop-chasing — silence the reminder cron
 // without marking paid. For groups, applies to all sibling rows.
 app.post('/api/admin/bookings/:id/stop-chasing', async (req, res) => {
@@ -84097,7 +84201,12 @@ app.post('/api/admin/bookings', async (req, res) => {
       booking_group_id,
       applied_offer_id,
       // Optional: operator-selected upsells + voucher (mirrors public flow).
-      upsells, voucher_code
+      upsells, voucher_code,
+      // 2026-09-12 Steve/Cordelia — optional operator override for the
+      // deposit amount. Blank/null = use the resolved deposit rule (default).
+      // Number = pin the deposit to that value regardless of rule. Balance
+      // recomputes from grand_total - override so cash-on-arrival etc. work.
+      deposit_amount_override
     } = req.body;
 
     if (!property_id || !room_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
@@ -84172,6 +84281,15 @@ app.post('/api/admin/bookings', async (req, res) => {
         due.setDate(due.getDate() - balanceDaysBeforeArrival);
         balanceDueDate = due.toISOString().split('T')[0];
       }
+    }
+    // Operator override (Belmont Cordelia 2026-09-12) — if the modal sent
+    // a specific deposit_amount_override, pin the deposit to that value
+    // and recompute the balance. Zero / negative / non-numeric = ignored
+    // so a blank input keeps the rule-computed value above.
+    const overrideVal = parseFloat(deposit_amount_override);
+    if (Number.isFinite(overrideVal) && overrideVal > 0 && totalAmount > 0) {
+      depositAmount = Math.min(Math.round(overrideVal * 100) / 100, totalAmount);
+      balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
     }
 
     await client.query('BEGIN');
