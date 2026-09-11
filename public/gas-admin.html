@@ -59630,8 +59630,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const propFilter = document.getElementById('grid-property-filter');
                 if (propFilter && propsData.success) {
+                    // Hide inactive properties from the availability filter
+                    // (Steve 2026-09-12 — Hebden's orphan "Exclusive Hire"
+                    // property 1102 still shows after we consolidated its
+                    // wrapper into the main property). Falls back to showing
+                    // everything when status is missing (unset by legacy rows).
+                    const activeProps = (propsData.data || []).filter(p => {
+                        const s = String(p.status || 'active').toLowerCase();
+                        return s !== 'inactive' && s !== 'archived' && s !== 'deleted';
+                    });
                     propFilter.innerHTML = '<option value="">All Properties</option>' +
-                        propsData.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                        activeProps.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
