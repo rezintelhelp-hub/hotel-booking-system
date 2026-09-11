@@ -85086,6 +85086,200 @@ app.post('/api/admin/bookings/:id/resend-confirmation-fresh', async (req, res) =
   }
 });
 
+// Steve/Cordelia Belmont 2026-09-12 — three endpoints for the "preview,
+// tweak, then send" pattern the invoice modal already uses:
+//
+//   GET  /api/admin/bookings/:id/preview-confirmation
+//     Returns { success, html, subject, to } — HTML built the same way
+//     resend-confirmation-fresh above does (generateBookingConfirmationEmail
+//     with current DB values), so the operator sees exactly what the
+//     regenerated confirmation would look like BEFORE sending.
+//
+//   GET  /api/admin/bookings/:id/preview-receipt
+//     Returns { success, html, subject, to } — simple template rendered
+//     from booking + payment_transactions rows so a receipt actually
+//     ships. The pre-existing /api/bookings/:id/send-receipt was a TODO
+//     stub — nothing left the building. This replaces it in practice.
+//
+//   POST /api/admin/bookings/:id/send-edited-email
+//     Body: { to, cc?, subject, html, event_type }
+//     Ships whatever the operator confirms in the preview modal via the
+//     shared sendEmail (comms-log integrated). Powers Send Confirmation +
+//     Send Receipt + the new free-form Send Message button.
+async function _bookingForEmailContext(bookingId) {
+  const b = await pool.query('SELECT * FROM bookings WHERE id = $1', [bookingId]);
+  const booking = b.rows[0];
+  if (!booking) return null;
+  const propRows = await pool.query(`
+    SELECT p.*, a.email AS account_email, a.booking_cc_email AS account_cc_email
+      FROM properties p LEFT JOIN accounts a ON p.account_id = a.id
+     WHERE p.id = $1`, [booking.property_id]);
+  const property = propRows.rows[0] || {};
+  const roomRows = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [booking.bookable_unit_id]);
+  const room = roomRows.rows[0] || {};
+  return { booking, property, room };
+}
+
+app.get('/api/admin/bookings/:id/preview-confirmation', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(bookingId)) return res.status(400).json({ success: false, error: 'Bad booking id' });
+    const ctx = await _bookingForEmailContext(bookingId);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const { booking, property, room } = ctx;
+    if (!decoded.role || (decoded.role !== 'master_admin' && (decoded.accountId || decoded.id) !== property.account_id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    let emailPaymentSchedule = null;
+    try {
+      const s = await pool.query('SELECT * FROM booking_payment_schedule WHERE booking_id = $1 ORDER BY tier_order', [bookingId]);
+      if (s.rows.length > 0) emailPaymentSchedule = s.rows;
+    } catch (_) { /* table may not exist */ }
+    const emailBranding = await getEmailBranding(pool, property.account_id, property.id);
+    const bookingForEmail = {
+      id: booking.id,
+      invoice_number: booking.invoice_number || null,
+      arrival_date: booking.arrival_date,
+      departure_date: booking.departure_date,
+      num_adults: booking.num_adults, num_children: booking.num_children,
+      accommodation_price: parseFloat(booking.accommodation_price) || 0,
+      offer_label: null, offer_discount: parseFloat(booking.discount_amount) || 0,
+      voucher_label: null, voucher_discount: parseFloat(booking.voucher_discount) || 0,
+      extras: Array.isArray(booking.extras) ? booking.extras : [],
+      tax_amount: parseFloat(booking.tax_amount) || 0, tax_label: 'Tax',
+      grand_total: parseFloat(booking.grand_total) || 0,
+      deposit_amount: parseFloat(booking.deposit_amount) || 0,
+      balance_amount: parseFloat(booking.balance_amount) || 0,
+      currency: room.currency || booking.currency || '£',
+      guest_first_name: booking.guest_first_name, guest_last_name: booking.guest_last_name,
+      stripe_setup_intent_id: booking.stripe_setup_intent_id,
+      stripe_payment_method_id: booking.stripe_payment_method_id,
+      stripe_customer_id: booking.stripe_customer_id,
+      payment_method: booking.payment_method
+    };
+    const html = generateBookingConfirmationEmail(bookingForEmail, property, room, emailPaymentSchedule, emailBranding);
+    return res.json({
+      success: true,
+      to: booking.guest_email || '',
+      subject: `Updated Booking Confirmation - ${property.name || 'Your Reservation'} (Ref: ${booking.id})`,
+      html
+    });
+  } catch (e) {
+    console.error('[preview-confirmation]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.get('/api/admin/bookings/:id/preview-receipt', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(bookingId)) return res.status(400).json({ success: false, error: 'Bad booking id' });
+    const ctx = await _bookingForEmailContext(bookingId);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Booking not found' });
+    const { booking, property, room } = ctx;
+    if (!decoded.role || (decoded.role !== 'master_admin' && (decoded.accountId || decoded.id) !== property.account_id)) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const pxRows = await pool.query(
+      `SELECT transaction_type, amount, currency, payment_gateway, payment_method_type, status, description,
+              COALESCE(completed_at, created_at) AS at
+         FROM payment_transactions
+        WHERE booking_id = $1 AND status = 'completed'
+        ORDER BY COALESCE(completed_at, created_at) ASC`, [bookingId]);
+    const cur = room.currency || booking.currency || 'GBP';
+    const sym = ({ GBP: '£', EUR: '€', USD: '$' })[cur] || '';
+    const rowsHtml = pxRows.rows.map(r => `
+      <tr>
+        <td style="padding:6px 10px; border-bottom:1px solid #eee; font-size:0.9em;">${new Date(r.at).toLocaleDateString('en-GB')}</td>
+        <td style="padding:6px 10px; border-bottom:1px solid #eee; font-size:0.9em; text-transform:capitalize;">${(r.transaction_type || '').replace(/_/g, ' ')}</td>
+        <td style="padding:6px 10px; border-bottom:1px solid #eee; font-size:0.9em; text-transform:capitalize;">${((r.payment_method_type || r.payment_gateway) || '').replace(/_/g, ' ')}</td>
+        <td style="padding:6px 10px; border-bottom:1px solid #eee; font-size:0.9em; text-align:right;">${sym}${parseFloat(r.amount).toFixed(2)}</td>
+      </tr>`).join('');
+    const totalPaid = pxRows.rows.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+    const grandTotal = parseFloat(booking.grand_total || 0);
+    const outstanding = Math.max(0, Math.round((grandTotal - totalPaid) * 100) / 100);
+    const emailBranding = await getEmailBranding(pool, property.account_id, property.id);
+    const brandingHeader = emailBranding && emailBranding.header_html ? emailBranding.header_html : '';
+    const brandingFooter = emailBranding && emailBranding.footer_html ? emailBranding.footer_html : '';
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Receipt — Booking ${booking.id}</title></head>
+<body style="font-family: Arial, sans-serif; color:#1e293b; margin:0; padding:0; background:#f8fafc;">
+  <div style="max-width:640px; margin:0 auto; background:white;">
+    ${brandingHeader}
+    <div style="padding:24px 28px;">
+      <h1 style="margin:0 0 6px; font-size:22px;">Payment Receipt</h1>
+      <div style="color:#64748b; font-size:0.9em; margin-bottom:18px;">${property.name || ''} — Booking Ref: ${booking.id}</div>
+      <p style="margin:0 0 12px;">Hi ${booking.guest_first_name || 'there'},</p>
+      <p style="margin:0 0 12px;">Thank you — here's a summary of the payments received for your booking:</p>
+      <table style="width:100%; border-collapse:collapse; margin:12px 0; font-size:0.95em;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="padding:8px 10px; text-align:left; font-size:0.85em;">Date</th>
+            <th style="padding:8px 10px; text-align:left; font-size:0.85em;">Type</th>
+            <th style="padding:8px 10px; text-align:left; font-size:0.85em;">Method</th>
+            <th style="padding:8px 10px; text-align:right; font-size:0.85em;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml || `<tr><td colspan="4" style="padding:12px; text-align:center; color:#94a3b8;">No completed payments recorded.</td></tr>`}</tbody>
+        <tfoot>
+          <tr style="background:#f8fafc;"><td colspan="3" style="padding:8px 10px; text-align:right; font-weight:600;">Total paid</td><td style="padding:8px 10px; text-align:right; font-weight:600;">${sym}${totalPaid.toFixed(2)}</td></tr>
+          ${outstanding > 0 ? `<tr><td colspan="3" style="padding:8px 10px; text-align:right; color:#dc2626;">Balance outstanding</td><td style="padding:8px 10px; text-align:right; color:#dc2626;">${sym}${outstanding.toFixed(2)}</td></tr>` : ''}
+          <tr><td colspan="3" style="padding:8px 10px; text-align:right;">Booking total</td><td style="padding:8px 10px; text-align:right;">${sym}${grandTotal.toFixed(2)}</td></tr>
+        </tfoot>
+      </table>
+      <p style="margin:16px 0 0;">If anything looks wrong, just reply to this email and we'll sort it.</p>
+      <p style="margin:20px 0 0;">Best,<br>${property.name || 'The team'}</p>
+    </div>
+    ${brandingFooter}
+  </div>
+</body></html>`;
+    return res.json({
+      success: true,
+      to: booking.guest_email || '',
+      subject: `Payment Receipt — ${property.name || 'Your Booking'} (Ref: ${booking.id})`,
+      html
+    });
+  } catch (e) {
+    console.error('[preview-receipt]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/admin/bookings/:id/send-edited-email', async (req, res) => {
+  try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Auth required' });
+    const bookingId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(bookingId)) return res.status(400).json({ success: false, error: 'Bad booking id' });
+    const to = (req.body?.to || '').toString().trim();
+    const cc = (req.body?.cc || '').toString().trim();
+    const subject = (req.body?.subject || '').toString().trim();
+    const html = (req.body?.html || '').toString();
+    const eventType = String(req.body?.event_type || 'manual_message');
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ success: false, error: 'Recipient email required' });
+    if (!subject) return res.status(400).json({ success: false, error: 'Subject required' });
+    if (!html || html.length < 5) return res.status(400).json({ success: false, error: 'Body is empty' });
+    const ctx = await _bookingForEmailContext(bookingId);
+    if (!ctx) return res.status(404).json({ success: false, error: 'Booking not found' });
+    if (decoded.role !== 'master_admin' && (decoded.accountId || decoded.id) !== ctx.property.account_id) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+    const send = await sendEmail({
+      to, cc: cc || undefined, subject, html,
+      accountId: ctx.property.account_id, bookingId,
+      context: { accountId: ctx.property.account_id, guestId: ctx.booking.guest_id, bookingId, eventType }
+    });
+    if (!send.success) return res.status(500).json({ success: false, error: send.error || 'Send failed' });
+    return res.json({ success: true, message: 'Sent to ' + to });
+  } catch (e) {
+    console.error('[send-edited-email]', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/admin/bookings/:id/communications/:commId/resend', async (req, res) => {
   try {
     const decoded = await extractAccountFromToken(req);

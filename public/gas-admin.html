@@ -29483,6 +29483,47 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
+    <!-- Preview & Send Email — Steve/Cordelia Belmont 2026-09-12. Reusable
+         modal for Send Receipt / Send Fresh Confirmation / Send Message.
+         Mirrors the invoice preview pattern: server preview endpoint fills
+         the iframe (contentDocument.designMode='on' so operator can tweak),
+         Send button posts the edited HTML back via send-edited-email. The
+         message variant opens blank so operator types their own text. -->
+    <div id="emailPreviewModal" class="modal" style="z-index: 10050;">
+        <div class="modal-content" style="max-width: 900px; width: 95vw; border-radius: 16px; height: 92vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.25rem 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;" id="email-preview-title">✉️ Preview & Send</h3>
+                    <p style="margin: 0.35rem 0 0 0; opacity: 0.9; font-size: 0.85rem;">Click inside the preview to edit — text, prices, notes. Then send.</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('emailPreviewModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 1.5rem; overflow:hidden; display:flex; flex-direction:column; flex:1 1 0; min-height: 0;">
+                <input type="hidden" id="email-preview-booking-id">
+                <input type="hidden" id="email-preview-kind">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding-bottom:0.75rem; border-bottom:1px solid #e5e7eb;">
+                    <div>
+                        <label class="form-label">Send to</label>
+                        <input type="email" class="form-input" id="email-preview-to" placeholder="guest@example.com">
+                    </div>
+                    <div>
+                        <label class="form-label">Subject</label>
+                        <input type="text" class="form-input" id="email-preview-subject">
+                    </div>
+                </div>
+                <div id="email-preview-loading" style="padding:2rem; text-align:center; color:#94a3b8; display:none;">Loading preview…</div>
+                <iframe id="email-preview-iframe" style="flex:1 1 0; min-height:400px; width:100%; border:1px solid #e5e7eb; border-radius:8px; margin-top:0.75rem; background: white;"></iframe>
+            </div>
+            <div style="padding: 0.75rem 1.5rem 1.25rem; border-top:1px solid #e5e7eb; display:flex; gap:0.75rem; justify-content:space-between; align-items:center;">
+                <div id="email-preview-status" style="font-size:0.85rem; color:#64748b;"></div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="closeModal('emailPreviewModal')">Cancel</button>
+                    <button class="btn" style="background:#10b981; color:white;" id="email-preview-send-btn" onclick="sendEditedEmailFromPreview()">Send →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Guest Info image picker — Steve 2026-08-03. Reads the account's
          existing property/room images from /api/admin/media-library and
          lets the operator click one to add to the current field. -->
@@ -31582,8 +31623,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- Other actions -->
                 <div style="padding: 1rem 1.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0; display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button onclick="openInvoicePreview(currentViewingBookingId)" class="btn" style="background: #0ea5e9; font-size: 0.85rem;">🧾 Preview & Send Invoice</button>
-                    <button onclick="sendPaymentReceipt(currentViewingBookingId)" class="btn" style="background: #8b5cf6; font-size: 0.85rem;">Send Receipt</button>
-                    <button onclick="resendFreshConfirmation(currentViewingBookingId)" class="btn" style="background: #10b981; font-size: 0.85rem;" title="Regenerates the confirmation email from the current dates/room/total and sends it to the guest. Use after changing a booking.">🔁 Send Fresh Confirmation</button>
+                    <button onclick="openEmailPreview(currentViewingBookingId, 'receipt')" class="btn" style="background: #8b5cf6; font-size: 0.85rem;" title="Regenerates a payment receipt from the current booking + payment history. Preview and edit before it's sent.">🧾 Preview & Send Receipt</button>
+                    <button onclick="openEmailPreview(currentViewingBookingId, 'confirmation')" class="btn" style="background: #10b981; font-size: 0.85rem;" title="Regenerates the confirmation email from the current dates/room/total. Preview and edit before it's sent.">🔁 Preview & Send Confirmation</button>
+                    <button onclick="openEmailPreview(currentViewingBookingId, 'message')" class="btn" style="background: #7c3aed; font-size: 0.85rem;" title="Write and send a one-off message to the guest. Recorded in the messages section.">💬 Send Message</button>
                     <button onclick="openContractPreview(currentViewingBookingId)" class="btn" style="background: #0f766e; font-size: 0.85rem;">📄 Send Contract</button>
                     <button onclick="cancelBooking(currentViewingBookingId)" class="btn" style="background: #ef4444; font-size: 0.85rem;">Cancel Booking</button>
                     <!-- Delete = hard-remove. Cancel = mark cancelled + free
@@ -76818,6 +76860,121 @@ const promo = await fetch('/api/v1/offers/validate', {
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Send to guest →';
+            }
+        }
+
+        // Reusable Preview & Send Email modal — Steve/Cordelia Belmont
+        // 2026-09-12. Handles the three "send an email about this booking"
+        // flows: 'confirmation' (regenerated), 'receipt' (payment summary),
+        // 'message' (blank — operator writes their own). All three go
+        // through /api/admin/bookings/:id/send-edited-email which logs
+        // into guest_communications so the Messages section picks them up.
+        async function openEmailPreview(bookingId, kind) {
+            if (!bookingId) return;
+            document.getElementById('email-preview-booking-id').value = bookingId;
+            document.getElementById('email-preview-kind').value = kind;
+            document.getElementById('email-preview-to').value = '';
+            document.getElementById('email-preview-subject').value = '';
+            document.getElementById('email-preview-status').textContent = '';
+            document.getElementById('email-preview-status').className = '';
+            const titles = {
+                confirmation: '🔁 Preview & Send Confirmation',
+                receipt: '🧾 Preview & Send Receipt',
+                message: '💬 Send Message to Guest'
+            };
+            document.getElementById('email-preview-title').textContent = titles[kind] || '✉️ Preview & Send';
+            const iframe = document.getElementById('email-preview-iframe');
+            const loader = document.getElementById('email-preview-loading');
+            iframe.style.display = 'none';
+            loader.style.display = 'block';
+            openModal('emailPreviewModal');
+            const previewUrl = kind === 'confirmation'
+                ? `/api/admin/bookings/${bookingId}/preview-confirmation`
+                : (kind === 'receipt'
+                    ? `/api/admin/bookings/${bookingId}/preview-receipt`
+                    : null);
+            let html = '';
+            let to = '';
+            let subject = '';
+            if (previewUrl) {
+                try {
+                    const r = await fetch(previewUrl, { headers: authHeaders() });
+                    const d = await r.json();
+                    if (!d.success) {
+                        loader.textContent = '❌ ' + (d.error || 'Preview failed');
+                        return;
+                    }
+                    html = d.html || '';
+                    to = d.to || '';
+                    subject = d.subject || '';
+                } catch (e) {
+                    loader.textContent = '❌ ' + e.message;
+                    return;
+                }
+            } else {
+                // Message mode — fetch just the guest email for the To field.
+                try {
+                    const r = await fetch(`/api/bookings/${bookingId}`, { headers: authHeaders() });
+                    const d = await r.json();
+                    const b = d && (d.booking || d.data || d);
+                    to = (b && b.guest_email) || '';
+                    subject = 'A note about your booking';
+                } catch (_) {}
+                html = `<!DOCTYPE html><html><body style="font-family: Arial, sans-serif; color:#1e293b; padding:24px;">
+                        <p>Hi ${document.querySelector('#view-guest-firstname')?.textContent || 'there'},</p>
+                        <p>&nbsp;</p>
+                        <p><em>[Type your message here — click anywhere to edit.]</em></p>
+                        <p>&nbsp;</p>
+                        <p>Best,<br>The team</p></body></html>`;
+            }
+            document.getElementById('email-preview-to').value = to;
+            document.getElementById('email-preview-subject').value = subject;
+            iframe.srcdoc = html;
+            iframe.style.display = 'block';
+            loader.style.display = 'none';
+            iframe.onload = () => {
+                try { iframe.contentDocument.designMode = 'on'; } catch (_) {}
+            };
+        }
+
+        async function sendEditedEmailFromPreview() {
+            const bookingId = parseInt(document.getElementById('email-preview-booking-id').value, 10);
+            const kind = document.getElementById('email-preview-kind').value;
+            const to = document.getElementById('email-preview-to').value.trim();
+            const subject = document.getElementById('email-preview-subject').value.trim();
+            const iframe = document.getElementById('email-preview-iframe');
+            const html = iframe.contentDocument ? iframe.contentDocument.documentElement.outerHTML : (iframe.srcdoc || '');
+            const status = document.getElementById('email-preview-status');
+            status.textContent = '';
+            status.className = '';
+            if (!to || !subject) {
+                status.textContent = '⚠️ Recipient email and subject are required.';
+                status.className = 'status err';
+                return;
+            }
+            const btn = document.getElementById('email-preview-send-btn');
+            btn.disabled = true; btn.textContent = 'Sending…';
+            const eventType = ({ confirmation: 'confirmation_edit_send', receipt: 'payment_receipt_edit_send', message: 'manual_message' })[kind] || 'manual_message';
+            try {
+                const r = await fetch(`/api/admin/bookings/${bookingId}/send-edited-email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ to, subject, html, event_type: eventType })
+                });
+                const d = await r.json();
+                if (!d.success) {
+                    status.textContent = '❌ ' + (d.error || 'Send failed');
+                    status.className = 'status err';
+                    return;
+                }
+                closeModal('emailPreviewModal');
+                if (typeof showNotification === 'function') showNotification(`✅ Sent to ${to}`, 'success');
+                if (typeof viewBooking === 'function') viewBooking(bookingId);
+            } catch (e) {
+                status.textContent = '❌ ' + e.message;
+                status.className = 'status err';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Send →';
             }
         }
 
