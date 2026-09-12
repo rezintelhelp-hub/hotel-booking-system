@@ -70736,7 +70736,17 @@ async function syncBeds24PaymentItem(bookingId) {
       `SELECT id, amount::numeric AS amount, gateway_transaction_id, payment_gateway, transaction_type
          FROM payment_transactions
         WHERE booking_id = $1
-          AND transaction_type IN ('deposit','balance','charge','capture','payment')
+          -- Payment-schedule tier charges (tier_1/2/3/...) were missing from
+          -- this filter, so multi-tier bookings only pushed their deposit and
+          -- the balance tiers silently stayed off Beds24. Host Havana / Pedro
+          -- 2026-09-12 — Atlantis Realty was the only tiered client so the
+          -- gap only surfaced for 4 bookings, but any future payment-schedule
+          -- client would have inherited it. LIKE 'tier_%' catches any future
+          -- tier_N naming without another schema-widening edit.
+          AND (
+              transaction_type IN ('deposit','balance','charge','capture','payment')
+              OR transaction_type LIKE 'tier_%'
+          )
           AND status IN ('completed','succeeded')
           AND amount::numeric > 0.005
           -- Never push Beds24- or Channex-originated payments BACK to Beds24
