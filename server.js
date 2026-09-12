@@ -3069,6 +3069,16 @@ async function runMigrations() {
       // Default TRUE preserves existing behaviour for every current account.
       await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS notify_main_email BOOLEAN DEFAULT TRUE`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT NULL`);
+      // Next-day cutoff — Barbara (Charles House) 2026-09-12. Separate from
+      // same_day_cutoff_time (arrival = today) and min_advance_hours (rolling
+      // window). Semantic: "once clock passes HH:MM in property TZ, block
+      // arrivals for TOMORROW". Barbara's need: 6pm on the current day
+      // stops next-day check-ins, but earlier in the day tomorrow is still
+      // bookable. Neither existing knob expresses this — hence the third.
+      // enabled bool so operators can toggle off temporarily (e.g. big
+      // weekend they want last-minute bookings) without losing the HH:MM.
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_enabled BOOLEAN DEFAULT FALSE`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_time TIME DEFAULT '18:00'::time`);
       // Moved here from /api/public/client/:clientId/blog handler
       // (Steve 2026-08-19 speed pass) — was firing on every public blog
       // page load, small but 100% wasted after the first invocation
@@ -8029,6 +8039,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     // checkBookingCutoffs() alongside same_day_cutoff_time. Barbara /
     // Charles House 2026-07-12.
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT NULL');
+    // Next-day cutoff — Barbara (Charles House) 2026-09-12. Mirror of the
+    // runMigrations block above.
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_enabled BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_time TIME DEFAULT '18:00'::time`);
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
@@ -62191,6 +62205,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
       standard_rate_name, standard_rate_description, standard_rate_features,
       standard_rate_refund_policy,
       same_day_cutoff_time, min_advance_hours,
+      next_day_cutoff_enabled, next_day_cutoff_time,
       // 2026-08-04 — property-level phone + timezone. Needed by the
       // GAS→Channex content push so Google Hotel Search accepts the
       // property (both are required Channex fields for that channel).
@@ -62267,6 +62282,8 @@ app.put('/api/db/properties/:id', async (req, res) => {
           house_rules     = COALESCE($30::jsonb, house_rules),
           facilities      = COALESCE($31::jsonb, facilities),
           standard_rate_refund_policy = COALESCE($32, standard_rate_refund_policy),
+          next_day_cutoff_enabled = CASE WHEN $35::bool THEN $33::boolean ELSE next_day_cutoff_enabled END,
+          next_day_cutoff_time    = CASE WHEN $36::bool THEN $34::time    ELSE next_day_cutoff_time    END,
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
@@ -62292,7 +62309,14 @@ app.put('/api/db/properties/:id', async (req, res) => {
          check_out_time !== undefined ? (check_out_time || null) : null,
          houseRulesJson,
          facilities !== undefined ? JSON.stringify(Array.isArray(facilities) ? facilities : []) : null,
-         standard_rate_refund_policy !== undefined ? (standard_rate_refund_policy || null) : null]
+         standard_rate_refund_policy !== undefined ? (standard_rate_refund_policy || null) : null,
+         // Next-day cutoff (Barbara 2026-09-12). Same CASE-flag pattern
+         // so callers that don't send the fields leave existing values
+         // alone; sends of either enabled or time write the column.
+         next_day_cutoff_enabled === true || next_day_cutoff_enabled === 'true' || next_day_cutoff_enabled === 1 ? true : false,
+         (next_day_cutoff_time && String(next_day_cutoff_time).trim()) || null,
+         req.body.hasOwnProperty('next_day_cutoff_enabled'),
+         req.body.hasOwnProperty('next_day_cutoff_time')]
       );
     } catch (queryErr) {
       // Fallback if new columns don't exist yet (pre-migration)
@@ -62332,7 +62356,10 @@ app.put('/api/db/properties/:id', async (req, res) => {
     // scheduled sweep. Same helper as the hourly cron, just scoped to one
     // property so it's cheap. Fire-and-forget: the response goes back
     // straight away, close-out runs in the background.
-    if (req.body.hasOwnProperty('same_day_cutoff_time') || req.body.hasOwnProperty('min_advance_hours')) {
+    if (req.body.hasOwnProperty('same_day_cutoff_time')
+        || req.body.hasOwnProperty('min_advance_hours')
+        || req.body.hasOwnProperty('next_day_cutoff_enabled')
+        || req.body.hasOwnProperty('next_day_cutoff_time')) {
       runBookingCutoffCloseOutForProperty(id).catch(err => {
         console.warn(`[property-cutoff-save] close-out for property ${id} failed:`, err && err.message);
       });
@@ -71526,11 +71553,17 @@ async function pushBookingRulesToChannex(propertyId) {
 // so callers pass "now" implicitly by calling at the moment they need the
 // answer. Consumers cache with short TTLs where they need consistency.
 // ==========================================================================
-function computeCutoffBlockedDates(minHours, cutoffTime, tz, fromIso, toIso) {
+function computeCutoffBlockedDates(minHours, cutoffTime, tz, fromIso, toIso, nextDayCfg) {
   const blocked = new Set();
   const mh = parseInt(minHours, 10) || 0;
   const ct = cutoffTime ? String(cutoffTime).slice(0, 5) : null;
-  if (!mh && !ct) return blocked;
+  // Next-day cutoff — Barbara (Charles House) 2026-09-12. Only enforced
+  // when the operator has ticked the toggle; HH:MM persists across toggles.
+  const ndEnabled = !!(nextDayCfg && nextDayCfg.enabled);
+  const ndTime = ndEnabled && nextDayCfg.time
+    ? String(nextDayCfg.time).slice(0, 5)
+    : null;
+  if (!mh && !ct && !ndTime) return blocked;
   const safeTz = tz || 'UTC';
   const now = new Date();
   let todayInTz, nowHHMM;
@@ -71570,6 +71603,7 @@ function computeCutoffBlockedDates(minHours, cutoffTime, tz, fromIso, toIso) {
   const startMs = parseIso(fromIso);
   const endMs = parseIso(toIso);
   const minMs = mh * 3600000;
+  const tomorrowInTz = new Date(todayMs + 86400000).toISOString().slice(0, 10);
   for (let ms = startMs; ms <= endMs; ms += 86400000) {
     const iso = new Date(ms).toISOString().slice(0, 10);
     let isBlocked = false;
@@ -71579,6 +71613,12 @@ function computeCutoffBlockedDates(minHours, cutoffTime, tz, fromIso, toIso) {
     if (mh > 0 && (ms - nowMs) < minMs) isBlocked = true;
     // Same-day cutoff — arrival today after HH:MM in the property's tz.
     if (!isBlocked && ct && iso === todayInTz && nowHHMM > ct) {
+      isBlocked = true;
+    }
+    // Next-day cutoff — arrival tomorrow, blocked once now > HH:MM today
+    // in the property's tz. Barbara's want: 6pm on the day-of stops next-
+    // day check-ins; earlier in the day tomorrow is still bookable.
+    if (!isBlocked && ndTime && iso === tomorrowInTz && nowHHMM > ndTime) {
       isBlocked = true;
     }
     if (isBlocked) blocked.add(iso);
@@ -71593,24 +71633,27 @@ async function loadPropertyCutoffs(pool, propertyId) {
   try {
     const r = await pool.query(
       `SELECT same_day_cutoff_time, min_advance_hours,
+              next_day_cutoff_enabled, next_day_cutoff_time,
               COALESCE(NULLIF(timezone, ''), 'UTC') AS tz
          FROM properties WHERE id = $1`,
       [propertyId]
     );
     return r.rows[0] || null;
   } catch (e) {
-    if (String(e && e.message || '').includes('min_advance_hours')) {
-      try {
-        const r2 = await pool.query(
-          `SELECT same_day_cutoff_time, NULL::int AS min_advance_hours,
-                  COALESCE(NULLIF(timezone, ''), 'UTC') AS tz
-             FROM properties WHERE id = $1`,
-          [propertyId]
-        );
-        return r2.rows[0] || null;
-      } catch (_) { return null; }
-    }
-    return null;
+    // Fresh-deploy race: if any of the newer cutoff columns don't exist
+    // yet, fall back to the base set so the check still runs.
+    try {
+      const r2 = await pool.query(
+        `SELECT same_day_cutoff_time,
+                NULL::int AS min_advance_hours,
+                FALSE AS next_day_cutoff_enabled,
+                NULL::time AS next_day_cutoff_time,
+                COALESCE(NULLIF(timezone, ''), 'UTC') AS tz
+           FROM properties WHERE id = $1`,
+        [propertyId]
+      );
+      return r2.rows[0] || null;
+    } catch (_) { return null; }
   }
 }
 
@@ -71623,21 +71666,32 @@ async function checkBookingCutoffs(pool, propertyId, checkinDateStr) {
   if (!cfg) return null;
   const blocked = computeCutoffBlockedDates(
     cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz,
-    checkinDateStr, checkinDateStr
+    checkinDateStr, checkinDateStr,
+    { enabled: cfg.next_day_cutoff_enabled, time: cfg.next_day_cutoff_time }
   );
   if (!blocked.has(checkinDateStr)) return null;
-  // Craft an operator-friendly error. Same-day gets a specific message so
-  // the guest knows to pick tomorrow; otherwise it's the generic lead-time
-  // message which reads correctly at 24 / 48 / 72 hours.
-  const cutoffHHMM = cfg.same_day_cutoff_time ? String(cfg.same_day_cutoff_time).slice(0, 5) : null;
+  // Craft an operator-friendly error. Same-day / next-day get specific
+  // messages so the guest knows what to do; otherwise it's the generic
+  // lead-time message which reads correctly at 24 / 48 / 72 hours.
   const now = new Date();
   const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: cfg.tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });
   const todayInTz = dateFmt.format(now);
+  const tomorrowInTz = new Date(new Date(todayInTz + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
+  const cutoffHHMM = cfg.same_day_cutoff_time ? String(cfg.same_day_cutoff_time).slice(0, 5) : null;
   if (cutoffHHMM && checkinDateStr === todayInTz) {
     return {
       error_code: 'SAME_DAY_CUTOFF',
       error: `Same-day bookings for this property closed at ${cutoffHHMM}. Please choose a different arrival date.`,
       cutoff_time: cutoffHHMM
+    };
+  }
+  const ndHHMM = (cfg.next_day_cutoff_enabled && cfg.next_day_cutoff_time)
+    ? String(cfg.next_day_cutoff_time).slice(0, 5) : null;
+  if (ndHHMM && checkinDateStr === tomorrowInTz) {
+    return {
+      error_code: 'NEXT_DAY_CUTOFF',
+      error: `Bookings for tomorrow at this property closed at ${ndHHMM}. Please choose a later arrival date.`,
+      cutoff_time: ndHHMM
     };
   }
   const mh = parseInt(cfg.min_advance_hours, 10) || 0;
@@ -89375,7 +89429,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
       const _cfg = await loadPropertyCutoffs(pool, _propId);
       if (_cfg) {
         _cutoffBlocked = computeCutoffBlockedDates(
-          _cfg.min_advance_hours, _cfg.same_day_cutoff_time, _cfg.tz, from, to
+          _cfg.min_advance_hours, _cfg.same_day_cutoff_time, _cfg.tz, from, to,
+          { enabled: _cfg.next_day_cutoff_enabled, time: _cfg.next_day_cutoff_time }
         );
       }
     }
@@ -140310,7 +140365,8 @@ async function runBookingCutoffCloseOutForProperty(propertyId) {
   const toIso = new Date(todayMs + 5 * 86400000).toISOString().slice(0, 10);
 
   const blocked = computeCutoffBlockedDates(
-    cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, fromIso, toIso
+    cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, fromIso, toIso,
+    { enabled: cfg.next_day_cutoff_enabled, time: cfg.next_day_cutoff_time }
   );
   diag.blocked_dates = Array.from(blocked).sort();
 
@@ -140593,7 +140649,8 @@ async function runAvailabilityHealForProperty(propertyId) {
     const cutoffFrom = new Date(todayMs).toISOString().slice(0, 10);
     const cutoffTo = new Date(todayMs + AVAIL_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
     const cutoffBlocked = computeCutoffBlockedDates(
-      cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, cutoffFrom, cutoffTo
+      cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, cutoffFrom, cutoffTo,
+      { enabled: cfg.next_day_cutoff_enabled, time: cfg.next_day_cutoff_time }
     );
     // Apply to every room in the property — cutoffs are per-property.
     for (const iso of cutoffBlocked) {
@@ -140807,7 +140864,8 @@ async function runAvailabilityBackfillHeal() {
         const cutoffFrom = new Date(todayMs).toISOString().slice(0, 10);
         const cutoffTo = new Date(todayMs + AVAIL_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
         const cutoffBlocked = computeCutoffBlockedDates(
-          cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, cutoffFrom, cutoffTo
+          cfg.min_advance_hours, cfg.same_day_cutoff_time, cfg.tz, cutoffFrom, cutoffTo,
+          { enabled: cfg.next_day_cutoff_enabled, time: cfg.next_day_cutoff_time }
         );
         for (const iso of cutoffBlocked) {
           for (const rid of roomIds) blockedByRoomDate.set(`${rid}|${iso}`, true);

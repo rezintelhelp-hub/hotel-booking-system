@@ -32391,7 +32391,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <input type="time" class="form-input" id="edit-property-same-day-cutoff-time" placeholder="e.g. 18:00">
                         </div>
                     </div>
-                    <p style="font-size: 0.72rem; color: #94a3b8; margin: 0.5rem 0 0;"><strong>Tip:</strong> If you set Min lead time to 24 hours or more it already blocks all same-day bookings — leave the cutoff time blank. The cutoff is only useful if you accept same-day bookings but want a curfew (e.g. no bookings for today after 18:00). Times use this property's local timezone. Applies to direct + OTA bookings — OTA availability is closed automatically (Channex/Beds24 push on save + hourly).</p>
+                    <!-- Next-day cutoff — Barbara (Charles House) 2026-09-12.
+                         Third, independent knob. Toggle on = "once clock
+                         passes HH:MM today (property TZ), block arrivals for
+                         tomorrow". Time value persists across toggles so
+                         operators can flick it off for busy weekends without
+                         losing their 18:00 setting. -->
+                    <div style="margin-top:0.75rem; padding:0.6rem 0.75rem; background:#f8fafc; border-radius:6px; display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; margin:0;">
+                            <input type="checkbox" id="edit-property-next-day-cutoff-enabled" style="width:16px; height:16px;">
+                            <span><strong>Enforce next-day cutoff</strong> — after this time today, tomorrow can't be booked</span>
+                        </label>
+                        <span style="font-size:0.85rem; color:#64748b;">at</span>
+                        <input type="time" class="form-input" id="edit-property-next-day-cutoff-time" value="18:00" style="width:8rem;">
+                    </div>
+                    <p style="font-size: 0.72rem; color: #94a3b8; margin: 0.5rem 0 0;"><strong>Tip:</strong> If you set Min lead time to 24 hours or more it already blocks all same-day bookings — leave the cutoff time blank. The cutoff is only useful if you accept same-day bookings but want a curfew (e.g. no bookings for today after 18:00). Next-day cutoff is separate: use it when you'll accept tomorrow arrivals right up to a certain hour today (e.g. 18:00) but not after. Times use this property's local timezone. Applies to direct + OTA bookings — OTA availability is closed automatically (Channex/Beds24 push on save + hourly).</p>
                 </div>
 
                 <!-- Force Reconcile — Steve 2026-07-12. Diagnostic button for
@@ -84226,6 +84240,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const _sdc = prop.same_day_cutoff_time || '';
                     document.getElementById('edit-property-same-day-cutoff-time').value = _sdc ? String(_sdc).slice(0, 5) : '';
                     document.getElementById('edit-property-min-advance-hours').value = (prop.min_advance_hours != null ? prop.min_advance_hours : '');
+                    // Next-day cutoff (Barbara 2026-09-12)
+                    document.getElementById('edit-property-next-day-cutoff-enabled').checked = !!prop.next_day_cutoff_enabled;
+                    const _ndc = prop.next_day_cutoff_time || '18:00';
+                    document.getElementById('edit-property-next-day-cutoff-time').value = String(_ndc).slice(0, 5);
                     
                     // Wire the "Enable Stripe Connect" button — needs prop.id
                     // in scope. Opens the OAuth flow in a new tab so the
@@ -84953,7 +84971,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 min_advance_hours: (() => {
                     const v = document.getElementById('edit-property-min-advance-hours').value;
                     return v === '' ? null : (parseInt(v, 10) || null);
-                })()
+                })(),
+                // Next-day cutoff (Barbara 2026-09-12). Time saves even
+                // when toggle is off so operators don't lose their 18:00.
+                next_day_cutoff_enabled: !!document.getElementById('edit-property-next-day-cutoff-enabled').checked,
+                next_day_cutoff_time: (document.getElementById('edit-property-next-day-cutoff-time').value || null)
             };
             
             // Only include secret key if it was changed (not the placeholder)
