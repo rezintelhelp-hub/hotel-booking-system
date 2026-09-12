@@ -164160,77 +164160,48 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
       });
     }
 
-    // Update booking — flip payment_status to paid, stamp balance_paid_at.
-    // Adds to deposit_amount if that was 0 so downstream reports still match.
+    // Phase 4 migration 2026-09-12 — was raw INSERT + branching UPDATE +
+    // fire-and-forget Beds24 sync. Central primitive handles ledger row
+    // + idempotency + race-safe sum-recompute + awaited Beds24 push.
+    // `wasBalanceCharge` is preserved as an input to the response so the
+    // UI can differentiate "cleared the balance" vs "took a partial".
     const wasBalanceCharge = parseFloat(booking.balance_amount) > 0
       && Math.abs(chargeAmount - parseFloat(booking.balance_amount)) < 0.01;
+    const rec = await recordBookingPayment(pool, bookingId, {
+      amount: chargeAmount,
+      currency: booking.currency,
+      transaction_type: wasBalanceCharge ? 'balance' : 'payment',
+      gateway: 'stripe',
+      gateway_transaction_id: pi.id,
+      method: 'card',
+      description: 'Manual charge via admin',
+      account_id: booking.account_id,
+      syncBeds24PaymentItem
+    });
+
+    // Stamp the intent id on the booking if not already there. Primitive
+    // doesn't touch stripe_payment_intent_id because that column is
+    // Stripe-specific (Square/Worldpay bookings have their own column).
+    // Also zero balance_amount + stamp balance_paid_at when this charge
+    // cleared the outstanding balance — same behaviour as pre-migration.
     if (wasBalanceCharge) {
       await pool.query(
         `UPDATE bookings
             SET balance_amount = 0,
-                balance_paid_at = NOW(),
-                payment_status = 'paid',
+                balance_paid_at = COALESCE(balance_paid_at, NOW()),
                 stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $1),
                 updated_at = NOW()
           WHERE id = $2`,
         [pi.id, bookingId]
       );
     } else {
-      // Partial or full grand-total charge — mark as paid but don't zero
-      // balance in case operator intends a follow-up.
       await pool.query(
         `UPDATE bookings
-            SET payment_status = CASE WHEN deposit_amount + $3 >= grand_total THEN 'paid' ELSE 'partial_paid' END,
-                deposit_amount = COALESCE(deposit_amount, 0) + $3,
-                stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $1),
+            SET stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $1),
                 updated_at = NOW()
           WHERE id = $2`,
-        [pi.id, bookingId, chargeAmount]
+        [pi.id, bookingId]
       );
-    }
-
-    // Log the transaction so it appears on Booking Detail history AND
-    // gets counted by the Payment Ops "Failures" panel.
-    // 2026-07-23 — was silently failing because the column names below
-    // didn't match the real payment_transactions schema (used `provider`
-    // / `provider_payment_id` / `notes` which don't exist; real columns
-    // are `payment_gateway` / `gateway_transaction_id` / `description`).
-    // The wrapping catch(_) swallowed the error, so Barbara's manual
-    // charges ran through Stripe successfully but never wrote a pt row
-    // → guests still showed as balance-outstanding on the Failures
-    // dashboard. (Lisa Scudieri GAS-439833 was the visible symptom.)
-    // Fixed column names + no longer silently swallow; unexpected DB
-    // errors log so future drift gets caught, but do NOT fail the
-    // response since the money is already captured at Stripe.
-    try {
-      await pool.query(
-        `INSERT INTO payment_transactions (
-           booking_id, account_id, transaction_type, amount, currency,
-           payment_gateway, gateway_transaction_id, status,
-           payment_method_type, description,
-           initiated_at, completed_at, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, 'stripe', $6, 'completed',
-                   'card', 'Manual charge via admin', NOW(), NOW(), NOW(), NOW())`,
-        [
-          bookingId,
-          booking.account_id,
-          wasBalanceCharge ? 'balance' : 'payment',
-          chargeAmount,
-          booking.currency,
-          pi.id,
-        ]
-      );
-    } catch (logErr) {
-      console.error('[charge-stripe-card] payment_transactions INSERT failed (charge already captured at Stripe):', logErr.message, { booking_id: bookingId, pi: pi.id });
-    }
-
-    // Push the payment back to Beds24 so its invoice matches GAS. Same
-    // gap as the auto-charge cron — operator's "Charge card" button
-    // was leaving Beds24 with an outstanding balance forever. Fire-and-
-    // forget so a Beds24 API blip doesn't fail the response for a
-    // charge that already succeeded at Stripe.
-    if (typeof syncBeds24PaymentItem === 'function') {
-      setImmediate(() => syncBeds24PaymentItem(bookingId).catch(e => console.warn(`[charge-stripe-card beds24 sync] booking ${bookingId}: ${e.message}`)));
     }
 
     res.json({
@@ -164238,7 +164209,10 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
       charged_amount: chargeAmount,
       currency: booking.currency,
       payment_intent_id: pi.id,
-      status: pi.status
+      status: pi.status,
+      transaction_id: rec.transaction_id,
+      already_recorded: !!rec.already_recorded,
+      beds24_sync: rec.sync_result ? (rec.sync_result.success === false ? 'deferred' : 'ok') : 'skipped'
     });
   } catch (e) {
     console.error('[charge-stripe-card]', e);
