@@ -26233,9 +26233,9 @@ app.post('/api/admin/migrate-shadow-room-bookings', async (req, res) => {
 // server.js:729), so this correctly reduces units_available without
 // touching the wrapper. No Channex push — GAS state only.
 app.post('/api/admin/close-iu-for-dates', async (req, res) => {
-  const admin = await requireMasterAdmin(req, res);
-  if (!admin) return;
   try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
     const propertyId = parseInt(req.body?.property_id, 10);
     const iuName = String(req.body?.iu_name || '').trim();
     const fromDate = String(req.body?.from || '').trim();
@@ -26243,6 +26243,11 @@ app.post('/api/admin/close-iu-for-dates', async (req, res) => {
     const reason = String(req.body?.reason || 'operator block').trim();
     if (!propertyId || !iuName || !fromDate || !toDate) {
       return res.status(400).json({ success: false, error: 'property_id + iu_name + from + to required' });
+    }
+    const propOwn = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propOwn.rows[0]) return res.status(404).json({ success: false, error: 'property not found' });
+    if (decoded.role !== 'master_admin' && propOwn.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
     }
     const iuRow = await pool.query(
       `SELECT iu.id AS iu_id, iu.unit_name, iu.bookable_unit_id, bu.name AS wrapper_name
@@ -26324,15 +26329,20 @@ app.post('/api/admin/swap-two-bookings', async (req, res) => {
 // blocked booking(s) on this iu overlapping the range. Safe: only touches
 // status='blocked' rows, never real guest bookings.
 app.post('/api/admin/open-iu-for-dates', async (req, res) => {
-  const admin = await requireMasterAdmin(req, res);
-  if (!admin) return;
   try {
+    const decoded = await extractAccountFromToken(req);
+    if (!decoded) return res.status(401).json({ success: false, error: 'auth required' });
     const propertyId = parseInt(req.body?.property_id, 10);
     const iuName = String(req.body?.iu_name || '').trim();
     const fromDate = String(req.body?.from || '').trim();
     const toDate = String(req.body?.to || '').trim();
     if (!propertyId || !iuName || !fromDate || !toDate) {
       return res.status(400).json({ success: false, error: 'property_id + iu_name + from + to required' });
+    }
+    const propOwn = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propOwn.rows[0]) return res.status(404).json({ success: false, error: 'property not found' });
+    if (decoded.role !== 'master_admin' && propOwn.rows[0].account_id !== (decoded.accountId || decoded.id)) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
     }
     const iuRow = await pool.query(
       `SELECT iu.id AS iu_id FROM individual_units iu
@@ -79574,7 +79584,7 @@ app.post('/api/admin/units/:unitId/bulk-apply', async (req, res) => {
     if (!unitId) return res.status(400).json({ success: false, error: 'unit id required' });
     const own = await pool.query(`SELECT p.account_id FROM bookable_units bu LEFT JOIN properties p ON p.id = bu.property_id WHERE bu.id = $1`, [unitId]);
     if (!own.rows[0]) return res.status(404).json({ success: false, error: 'unit not found' });
-    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== decoded.id) {
+    if (decoded.role !== 'master_admin' && own.rows[0].account_id !== (decoded.accountId || decoded.id)) {
       return res.status(403).json({ success: false, error: 'forbidden' });
     }
     const { from, to, weekdays, block, hide_otas } = req.body || {};
