@@ -144,6 +144,7 @@ const { formatChannelDescription } = require('./lib/description-formatter');
 const { signGuestToken, verifyGuestToken, peekGuestToken, PURPOSES: GUEST_TOKEN_PURPOSES } = require('./lib/guest-tokens');
 const depositGateway = require('./lib/payment-gateways');
 const { computeRoomAvailability, getBuyoutDates } = require('./lib/availability');
+const { recordBookingPayment } = require('./lib/payments');
 
 // Recursively flatten Beds24 V2 featureCodes / features into a clean
 // deduped array of code strings. Beds24 returns this field in many shapes:
@@ -171877,25 +171878,27 @@ async function processScheduledTierPayments() {
                     WHERE id = $2
                 `, [paymentIntent.id, tier.tier_id]);
 
-                // Log transaction
-                await pool.query(`
-                    INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway)
-                    VALUES ($1, $2, $3, $4, 'completed', $5, 'stripe')
-                `, [tier.booking_id, `tier_${tier.tier_order}`, tier.amount, chargeCurrency, paymentIntent.id]);
-
-                // Check if all tiers now charged
-                const remaining = await pool.query(`
-                    SELECT COUNT(*) as cnt FROM booking_payment_schedule
-                    WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
-                `, [tier.booking_id]);
-
-                if (parseInt(remaining.rows[0].cnt) === 0) {
-                    await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [tier.booking_id]);
-                } else {
-                    await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [tier.booking_id]);
+                // Record payment via the central primitive — idempotent
+                // (gateway_transaction_id gate), updates booking state,
+                // AWAITS syncBeds24PaymentItem so the Beds24 side gets the
+                // paid line same tick. Was the exact gap that hid Pedro's
+                // tier_2/tier_3 charges from Beds24 (server.js:171881
+                // pre-fix — INSERT + booking-status update, no sync call).
+                const rec = await recordBookingPayment(pool, tier.booking_id, {
+                    amount: tier.amount,
+                    currency: chargeCurrency,
+                    transaction_type: `tier_${tier.tier_order}`,
+                    gateway: 'stripe',
+                    gateway_transaction_id: paymentIntent.id,
+                    description: `Scheduled payment tier ${tier.tier_order} (${tier.percentage}%)`,
+                    account_id: tier.account_id,
+                    syncBeds24PaymentItem
+                });
+                if (rec.sync_result && rec.sync_result.success === false) {
+                    console.warn(`[TIER-CHARGE] booking ${tier.booking_id} tier ${tier.tier_order} — payment recorded, Beds24 sync deferred: ${rec.sync_result.error || 'unknown'}. Marker on bookings.sync_errors for operator retry.`);
                 }
 
-                console.log(`[TIER-CHARGE] ✓ Charged tier ${tier.tier_order} (${tier.percentage}% = ${tier.amount}) for booking ${tier.booking_id}`);
+                console.log(`[TIER-CHARGE] ✓ Charged tier ${tier.tier_order} (${tier.percentage}% = ${tier.amount}) for booking ${tier.booking_id}${rec.already_recorded ? ' (already-recorded via idempotency gate)' : ''}`);
 
             } catch (chargeErr) {
                 console.error(`[TIER-CHARGE] ✗ Failed tier ${tier.tier_order} for booking ${tier.booking_id}:`, chargeErr.message);
