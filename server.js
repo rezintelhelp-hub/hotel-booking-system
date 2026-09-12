@@ -83503,9 +83503,10 @@ app.post('/api/admin/bookings/:id/add-payment', async (req, res) => {
     if (!TYPES.has(type)) return res.status(400).json({ success: false, error: `type must be one of ${[...TYPES].join('|')}` });
     const note = String(req.body?.note || '').slice(0, 500);
 
+    // Scope check — booking must belong to the operator's account
+    // (master unrestricted). Cheap lookup before we hit the primitive.
     const bk = await pool.query(
-      `SELECT b.id, b.currency, b.grand_total, b.deposit_amount, b.deposit_paid, b.deposit_paid_at,
-              b.balance_amount, b.balance_paid_at, b.payment_status, p.account_id
+      `SELECT b.id, b.currency, p.account_id
          FROM bookings b LEFT JOIN properties p ON p.id = b.property_id
         WHERE b.id = $1`, [bookingId]);
     if (!bk.rows[0]) return res.status(404).json({ success: false, error: 'Booking not found' });
@@ -83513,55 +83514,37 @@ app.post('/api/admin/bookings/:id/add-payment', async (req, res) => {
     if (!isMaster && row.account_id !== (decoded.accountId || decoded.id)) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
-
     const currency = (row.currency || 'GBP').toUpperCase();
-    const grandTotal = parseFloat(row.grand_total || 0);
-    const depositAmount = parseFloat(row.deposit_amount || 0);
-    const prevPaid = parseFloat(row.deposit_paid || 0);
-    const newPaid = Math.round((prevPaid + amount) * 100) / 100;
-    const newBalance = Math.max(0, Math.round((grandTotal - newPaid) * 100) / 100);
 
-    // Payment status ladder — do NOT downgrade if the booking is already
-    // fully_paid / paid (a manual add-payment shouldn't un-mark a paid one).
-    let newStatus = row.payment_status || 'pending';
-    let setDepositAt = false;
-    let setBalanceAt = false;
-    if (newPaid >= grandTotal && grandTotal > 0) {
-      newStatus = 'paid';
-      setBalanceAt = !row.balance_paid_at;
-      setDepositAt = !row.deposit_paid_at;
-    } else if (depositAmount > 0 && newPaid >= depositAmount && !row.deposit_paid_at) {
-      newStatus = 'deposit_paid';
-      setDepositAt = true;
-    }
+    // Phase 3 migration 2026-09-12 — was raw INSERT + separate booking
+    // UPDATE + no Beds24 sync. Central primitive handles all three
+    // atomically. Manual payments have no gateway_transaction_id (cash
+    // etc.) so idempotency is by operator discipline, not the primitive.
+    const rec = await recordBookingPayment(pool, bookingId, {
+      amount,
+      currency,
+      transaction_type: type,
+      gateway: 'manual',
+      method,
+      description: `Manual ${type} (${method})${note ? ' — ' + note : ''}`,
+      account_id: row.account_id,
+      syncBeds24PaymentItem
+    });
 
-    await pool.query(
-      `INSERT INTO payment_transactions (
-         booking_id, account_id, transaction_type, amount, currency,
-         payment_gateway, status, payment_method_type, completed_at, description
-       ) VALUES ($1, $2, $3, $4, $5, 'manual', 'completed', $6, NOW(), $7)`,
-      [bookingId, row.account_id, type, amount, currency, method,
-       `Manual ${type} (${method})${note ? ' — ' + note : ''}`]);
-
-    await pool.query(
-      `UPDATE bookings
-          SET deposit_paid = $2,
-              balance_amount = $3,
-              payment_status = $4,
-              deposit_paid_at = CASE WHEN $5::boolean THEN NOW() ELSE deposit_paid_at END,
-              balance_paid_at = CASE WHEN $6::boolean THEN NOW() ELSE balance_paid_at END,
-              payment_chase_status = CASE WHEN $3 = 0 THEN 'paid' ELSE payment_chase_status END,
-              updated_at = NOW()
-        WHERE id = $1`,
-      [bookingId, newPaid, newBalance, newStatus, setDepositAt, setBalanceAt]);
-
+    // Re-read booking to return current state (primitive updated it in-tx).
+    const after = await pool.query(
+      `SELECT deposit_paid, balance_amount, payment_status FROM bookings WHERE id = $1`,
+      [bookingId]);
+    const s = after.rows[0] || {};
     res.json({
       success: true,
       booking_id: bookingId,
       amount, currency, method, type,
-      deposit_paid: newPaid,
-      balance_amount: newBalance,
-      payment_status: newStatus
+      transaction_id: rec.transaction_id,
+      deposit_paid: parseFloat(s.deposit_paid || 0),
+      balance_amount: parseFloat(s.balance_amount || 0),
+      payment_status: s.payment_status,
+      beds24_sync: rec.sync_result ? (rec.sync_result.success === false ? 'deferred' : 'ok') : 'skipped'
     });
   } catch (err) {
     console.error('[add-payment] error:', err);
