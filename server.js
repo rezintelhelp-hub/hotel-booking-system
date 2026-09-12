@@ -3079,6 +3079,13 @@ async function runMigrations() {
       // weekend they want last-minute bookings) without losing the HH:MM.
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_enabled BOOLEAN DEFAULT FALSE`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_time TIME DEFAULT '18:00'::time`);
+      // Moved here from /api/setup-accounts on 2026-09-12 — the diag
+      // endpoint's ALTER never ran on Railway, so the column was missing.
+      // /api/db/properties/:id references it, so the main UPDATE was
+      // silently falling back to a legacy branch that didn't ::jsonb
+      // cast description → every property save 500'd with "invalid input
+      // syntax for type json". Barbara's save tonight surfaced it.
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_refund_policy VARCHAR(40)`);
       // Moved here from /api/public/client/:clientId/blog handler
       // (Steve 2026-08-19 speed pass) — was firing on every public blog
       // page load, small but 100% wasted after the first invocation
