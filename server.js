@@ -115896,17 +115896,22 @@ app.post('/api/public/book', async (req, res) => {
         newBooking.square_customer_id = square_customer_id || newBooking.square_customer_id;
         newBooking.square_card_id = square_card_id_captured || newBooking.square_card_id;
         newBooking.square_location_id = square_location_id_used || newBooking.square_location_id;
-        // Ledger row (Steve 2026-07-30). Stripe writes one at ~103328 but the
-        // Square block was missing it — Casa Magnolia B499860 had a real
-        // completed payment yet zero payment_transactions rows, so every
-        // report/reconciliation showed the booking as unpaid.
+        // Ledger row via central primitive (Phase 2 migration 2026-09-12).
+        // Was a raw INSERT — now idempotent (Square payment id gate),
+        // recomputes booking state race-safely, awaits Beds24 sync so
+        // Beds24 sees the payment same tick.
         try {
-          await pool.query(`
-            INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, completed_at, created_at)
-            VALUES ($1, 'deposit', $2, $3, 'completed', $4, 'square', NOW(), NOW())
-          `, [newBooking.id, deposit_amount, newBooking.currency || currency, square_payment_id]);
+          await recordBookingPayment(pool, newBooking.id, {
+            amount: deposit_amount,
+            currency: newBooking.currency || currency,
+            transaction_type: 'deposit',
+            gateway: 'square',
+            gateway_transaction_id: square_payment_id,
+            description: 'Deposit via Square (booking commit)',
+            syncBeds24PaymentItem
+          });
         } catch (txErr) {
-          console.error('[Square Server] payment_transactions insert failed:', txErr.message);
+          console.error('[Square Server] recordBookingPayment failed:', txErr.message);
         }
       } catch (sqUpdateErr) {
         console.error(`[Square Server] Failed to persist payment ${square_payment_id} on booking ${newBooking.id}, refunding:`, sqUpdateErr.message);
@@ -116354,18 +116359,24 @@ app.post('/api/public/book', async (req, res) => {
       console.warn('[mirror-channex public/book]', newBooking.id, e.message)
     );
 
-    // If card payment was made, record the transaction. Currency MUST come
-    // from the booking we just inserted (which itself comes from the room's
-    // currency) — hardcoding 'USD' was the cause of "deposit 386.00 USD"
-    // appearing on EUR bookings.
+    // If card payment was made, record via the central primitive.
+    // Idempotency gate on stripe_payment_intent_id catches the case where
+    // a webhook fires the same pi before we get here (double-post pattern
+    // from Aug 2 dupe incident). Awaits Beds24 sync so Beds24 sees the
+    // payment same tick as the booking commit.
     if (stripe_payment_intent_id && deposit_amount) {
       try {
-        await pool.query(`
-          INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway, created_at)
-          VALUES ($1, 'deposit', $2, $4, 'completed', $3, 'stripe', NOW())
-        `, [newBooking.id, deposit_amount, stripe_payment_intent_id, newBooking.currency || 'EUR']);
+        await recordBookingPayment(pool, newBooking.id, {
+          amount: deposit_amount,
+          currency: newBooking.currency || 'EUR',
+          transaction_type: 'deposit',
+          gateway: 'stripe',
+          gateway_transaction_id: stripe_payment_intent_id,
+          description: 'Deposit via Stripe (booking commit)',
+          syncBeds24PaymentItem
+        });
       } catch (txError) {
-        console.log('Could not record payment transaction (table may not exist yet):', txError.message);
+        console.log('recordBookingPayment (public/book stripe path) failed:', txError.message);
       }
 
       // Save Stripe Customer + PaymentMethod ids to the booking row so future
