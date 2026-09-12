@@ -139868,8 +139868,18 @@ async function runBeds24InventorySync() {
   }
 }
 
-// Schedule Beds24 bookings sync every 15 minutes (master key accounts)
-setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
+// Legacy 15-min Beds24 bookings sync — RETIRED 2026-09-12 (Steve/Cotswold).
+// runBeds24BookingsSync uses getBeds24AccessToken(pool) which reads ONE
+// arbitrary channel_connections row (LIMIT 1 ORDER BY updated_at DESC) so
+// it only pulls bookings for whichever account that token authorises — most
+// of the estate was invisible to it. Cotswold Charlies Retreat bookings
+// entered mid-day in Beds24 UI silently waited for someone to notice.
+// Every OAuth-connected account is now covered by runBeds24OAuthBookingsSyncAll
+// (per-connection refresh token, iterates every gas_sync_connections row).
+// Marketplace clients covered by syncBeds24MarketplaceBookings (6h). The
+// function definition above is kept in case a diag needs to fire it manually
+// via the retry helper, but no longer runs on a timer.
+// setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
@@ -142511,8 +142521,15 @@ async function runBeds24OAuthBookingsSyncAll() {
   }
 }
 
-// Schedule daily Beds24 OAuth bookings reconciliation (every 24h from boot)
-setInterval(runBeds24OAuthBookingsSyncAll, 24 * 60 * 60 * 1000);
+// Schedule Beds24 OAuth bookings reconciliation every 6 hours (Steve
+// 2026-09-12). Was 24h — direct-Beds24 operators (39 connections) had
+// bookings entered in Beds24 UI wait up to a day before appearing in GAS.
+// Matches the marketplace cron cadence (syncBeds24MarketplaceBookings, 6h)
+// so all Beds24-connected clients see mid-day bookings within 6 hours.
+// Per-connection API load: 39 connections × 4 runs/day = 156 pulls/day,
+// each on its OWN account's refresh token so credit usage is spread
+// across per-account pools not a single master bucket.
+setInterval(runBeds24OAuthBookingsSyncAll, 6 * 60 * 60 * 1000);
 
 // =========================================================
 // Beds24 room discovery — auto-import any rooms that exist in
@@ -142892,9 +142909,11 @@ async function runGasSyncAvailabilitySync() {
 setInterval(runGasSyncAvailabilitySync, 15 * 60 * 1000);
 */
 
-// Run initial Beds24 sync 60 seconds after startup
+// Run initial Beds24 sync 60 seconds after startup. Legacy single-token
+// runBeds24BookingsSync retired 2026-09-12; kick the per-connection OAuth
+// sweep on boot so a fresh deploy doesn't wait 6h for its first pull.
 setTimeout(() => {
-  runBeds24BookingsSync();
+  runBeds24OAuthBookingsSyncAll().catch(e => console.error('[boot beds24 oauth sync]', e.message));
   runBeds24InventorySync();
 }, 60 * 1000);
 
