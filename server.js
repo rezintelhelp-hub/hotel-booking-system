@@ -62034,14 +62034,18 @@ app.get('/api/admin/properties/:id/room-leaves', async (req, res) => {
                 (SELECT COUNT(*) FROM individual_units WHERE bookable_unit_id = bu.id) AS iu_count
            FROM bookable_units bu
           WHERE bu.property_id = $1 AND COALESCE(bu.is_hidden, false) = false
+       ),
+       leaves AS (
+         SELECT 'wrapper'::text AS type, w.id, w.name, NULL::text AS wrapper_name, w.display_order
+           FROM wraps w WHERE w.iu_count = 0
+         UNION ALL
+         SELECT 'iu'::text AS type, iu.id, iu.unit_name AS name, w.name AS wrapper_name, iu.display_order
+           FROM individual_units iu JOIN wraps w ON w.id = iu.bookable_unit_id
+          WHERE w.iu_count > 0
        )
-       SELECT 'wrapper' AS type, w.id, w.name, NULL::text AS wrapper_name, w.display_order
-         FROM wraps w WHERE w.iu_count = 0
-       UNION ALL
-       SELECT 'iu' AS type, iu.id, iu.unit_name AS name, w.name AS wrapper_name, iu.display_order
-         FROM individual_units iu JOIN wraps w ON w.id = iu.bookable_unit_id
-        WHERE w.iu_count > 0
-       ORDER BY COALESCE(display_order, 999999), name`,
+       SELECT type, id, name, wrapper_name, display_order
+         FROM leaves
+        ORDER BY COALESCE(display_order, 999999), name`,
       [propertyId]);
     return res.json({ success: true, property_id: propertyId, leaves: rows.rows });
   } catch (e) {
