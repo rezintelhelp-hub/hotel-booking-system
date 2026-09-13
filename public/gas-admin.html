@@ -40461,7 +40461,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (el.tagName === 'TEXTAREA' && el.dataset.wysiwygInit === 'true') {
                             const w = el.previousElementSibling;
                             if (w && w._gasEditor) {
-                                value = w._gasEditor.innerHTML;
+                                // Strip browser-inserted empty-line stubs BEFORE they
+                                // land in `value`. This bypass reads raw innerHTML;
+                                // without the strip here it re-populates value with
+                                // the `<div><br></div>` filler that the pre-flush
+                                // pass just cleaned. Steve/Invest Jet 2026-09-13.
+                                value = _stripWysiwygStubs(w._gasEditor.innerHTML);
                                 el.value = value; // keep textarea in sync too
                             }
                         }
