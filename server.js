@@ -36478,14 +36478,17 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     // Structure: propContent.roomIds[roomId].images.external[] / .hosted[].
     // Each image has { url, caption, map[]:[{roomId, position}] }.
     const roomIdsBucket = propContent?.roomIds || {};
+    console.log(`[Beds24 Marketplace Sync] per-room images pass: roomIds keys=${Object.keys(roomIdsBucket).length}, beds24RoomToGasRoom keys=${Object.keys(beds24RoomToGasRoom).length}`);
     for (const [roomIdKey, roomObj] of Object.entries(roomIdsBucket)) {
       const gasRoomId = beds24RoomToGasRoom[String(roomIdKey)];
+      console.log(`[Beds24 Marketplace Sync] per-room roomIdKey=${roomIdKey} gasRoomId=${gasRoomId||'(unmapped)'} imagesKeys=${Object.keys(roomObj?.images||{}).join(',')}`);
       if (!gasRoomId) continue;
       const rImages = roomObj?.images || {};
       const rBuckets = ['hosted', 'external'];
       for (const bucketName of rBuckets) {
         const arr = rImages[bucketName];
-        if (!arr) continue;
+        if (!arr) { console.log(`[Beds24 Marketplace Sync]   bucket ${bucketName} empty`); continue; }
+        console.log(`[Beds24 Marketplace Sync]   bucket ${bucketName} items=${Array.isArray(arr)?arr.length:Object.keys(arr).length}`);
         const items = Array.isArray(arr) ? arr : Object.values(arr);
         let seq = 0;
         for (const img of items) {
