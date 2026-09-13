@@ -36937,6 +36937,51 @@ app.post('/api/admin/beds24/probe-accounts', async (req, res) => {
     }
 });
 
+// Diagnostic: dump raw getPropertyContent images shape for one connection.
+// Used to figure out why room 2041 (Bookin Riga) got no images from the
+// sync-marketplace path even though Beds24 admin shows one. Master-admin
+// only. Returns just the images bit (not the full content payload).
+app.get('/api/admin/beds24/connection/:connectionId/probe-content-images', async (req, res) => {
+    const decoded = await requireMasterAdmin(req, res);
+    if (!decoded) return;
+    try {
+        const conn = await pool.query('SELECT credentials, adapter_code FROM gas_sync_connections WHERE id = $1', [req.params.connectionId]);
+        if (!conn.rows[0]) return res.json({ success: false, error: 'connection not found' });
+        const creds = typeof conn.rows[0].credentials === 'string' ? JSON.parse(conn.rows[0].credentials) : (conn.rows[0].credentials || {});
+        const propKey = creds.propKey || null;
+        const propId = creds.propId || null;
+        if (!propKey) return res.json({ success: false, error: 'no propKey on connection credentials', creds_keys: Object.keys(creds) });
+        const contentData = await beds24MarketplaceRequest('getPropertyContent', {
+            texts: ['EN'], roomIds: true, images: true, bookingData: false, featureCodes: false
+        }, { propKey });
+        const propContent = contentData?.getPropertyContent || contentData;
+        const images = propContent?.images || {};
+        const hostedKeys = images.hosted ? Object.keys(images.hosted).length : 0;
+        const externalKeys = images.external ? Object.keys(images.external).length : 0;
+        const roomTypes = propContent?.roomTypes || {};
+        // Show first 5 images from each bucket
+        const sampleHosted = images.hosted ? Object.values(images.hosted).slice(0, 5) : [];
+        const sampleExternal = images.external ? Object.values(images.external).slice(0, 5) : [];
+        res.json({
+            success: true, propId, propKey,
+            image_shape: {
+                top_level_keys: Object.keys(images),
+                hosted_count: hostedKeys,
+                external_count: externalKeys,
+                sample_hosted: sampleHosted,
+                sample_external: sampleExternal
+            },
+            room_types: Object.entries(roomTypes).map(([rid, rt]) => ({
+                roomId: rid, roomName: rt?.name || null,
+                room_level_pictures: rt?.pictures ? (Array.isArray(rt.pictures) ? rt.pictures.length : Object.keys(rt.pictures).length) : 0,
+                sample_room_pictures: rt?.pictures ? (Array.isArray(rt.pictures) ? rt.pictures.slice(0, 3) : Object.values(rt.pictures).slice(0, 3)) : []
+            }))
+        });
+    } catch (e) {
+        res.json({ success: false, error: e.message });
+    }
+});
+
 // Recompute a booking's grand_total + balance from its actual parts:
 // accommodation_price + extras_total - voucher_discount. Used when a
 // Beds24 refresh has overwritten grand_total back to a stale value
