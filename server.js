@@ -36686,17 +36686,21 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace-pricing', asy
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl, extraHeaders) {
     try {
-        // Single generic URL for the entire estate — no per-property params.
-        // The handler uses beds24_booking_id from the payload body to route,
-        // not the URL, so nothing needs customising per property. This lets
-        // operators paste ONE string into every Beds24 property they add,
-        // instead of hand-typing propertyId query params (which Nicola @
-        // Cotswolds was doing manually and getting wrong on ~15 properties,
-        // 2026-09-13 — Charlies Retreat's webhook said propertyId=229862
-        // which is actually The Waterfront's id, etc). Cosmetic-only today
-        // because handler ignores the query string, but a dangerous
-        // foot-gun if anyone ever refactors to trust it.
-        const gasWebhookUrl = 'https://admin.gas.travel/api/webhooks/beds24';
+        // Single string every operator (or our own script) pastes into every
+        // Beds24 property in the estate. Beds24 substitutes [PROPERTYID]
+        // with the actual property's numeric id at fire time — always
+        // correct, no manual typing risk. The handler still doesn't NEED
+        // the query param (it routes by beds24_booking_id in the payload
+        // body), but having the correct real id in every fire is useful
+        // for logging + a safety net if we ever refactor.
+        //
+        // CRITICAL rule for manual paste: paste this string LITERALLY,
+        // including the [PROPERTYID] brackets. Do NOT substitute a number
+        // by hand — Nicola @ Cotswolds 2026-09-13 had done that on ~15
+        // properties and every hand-substituted number was wrong (Charlies
+        // Retreat's URL said propertyId=229862 which is actually The
+        // Waterfront's id, etc).
+        const gasWebhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
         const currentUrl = existingWebhookUrl || '';
 
         // Already has GAS webhook — nothing to do
