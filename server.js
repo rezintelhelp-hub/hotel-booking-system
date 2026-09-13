@@ -36478,17 +36478,25 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     // Structure: propContent.roomIds[roomId].images.external[] / .hosted[].
     // Each image has { url, caption, map[]:[{roomId, position}] }.
     const roomIdsBucket = propContent?.roomIds || {};
+    const perRoomDebug = {
+      roomIds_keys_count: Object.keys(roomIdsBucket).length,
+      roomIds_keys_sample: Object.keys(roomIdsBucket).slice(0, 10),
+      beds24RoomToGasRoom_count: Object.keys(beds24RoomToGasRoom).length,
+      beds24RoomToGasRoom_sample: Object.entries(beds24RoomToGasRoom).slice(0, 10),
+      per_room_details: []
+    };
     console.log(`[Beds24 Marketplace Sync] per-room images pass: roomIds keys=${Object.keys(roomIdsBucket).length}, beds24RoomToGasRoom keys=${Object.keys(beds24RoomToGasRoom).length}`);
     for (const [roomIdKey, roomObj] of Object.entries(roomIdsBucket)) {
       const gasRoomId = beds24RoomToGasRoom[String(roomIdKey)];
-      console.log(`[Beds24 Marketplace Sync] per-room roomIdKey=${roomIdKey} gasRoomId=${gasRoomId||'(unmapped)'} imagesKeys=${Object.keys(roomObj?.images||{}).join(',')}`);
+      const roomDbg = { roomIdKey, gasRoomId: gasRoomId || null, imagesKeys: Object.keys(roomObj?.images || {}), external_count: 0, hosted_count: 0, inserted: 0 };
+      perRoomDebug.per_room_details.push(roomDbg);
       if (!gasRoomId) continue;
       const rImages = roomObj?.images || {};
       const rBuckets = ['hosted', 'external'];
       for (const bucketName of rBuckets) {
         const arr = rImages[bucketName];
-        if (!arr) { console.log(`[Beds24 Marketplace Sync]   bucket ${bucketName} empty`); continue; }
-        console.log(`[Beds24 Marketplace Sync]   bucket ${bucketName} items=${Array.isArray(arr)?arr.length:Object.keys(arr).length}`);
+        if (!arr) continue;
+        roomDbg[bucketName + '_count'] = Array.isArray(arr) ? arr.length : Object.keys(arr).length;
         const items = Array.isArray(arr) ? arr : Object.values(arr);
         let seq = 0;
         for (const img of items) {
@@ -36510,8 +36518,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
                 ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO NOTHING`,
                 [gasRoomId, `beds24-room-${roomIdKey}-${bucketName}-${pos}`, cleanImageUrl(img.url), caption, pos]);
               roomImagesImported++;
+              roomDbg.inserted++;
             } catch (e) {
               console.warn(`[Beds24 Marketplace Sync] per-room image insert failed room ${roomIdKey}: ${e.message}`);
+              roomDbg.insert_error = e.message;
             }
           }
         }
@@ -36530,7 +36540,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
     };
     console.log(`[Beds24 Marketplace Sync] Done:`, stats);
     res.json({ success: true, ...stats,
-      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${roomImagesImported + propImagesImported} images imported`
+      message: `Synced "${propName}" — ${roomsCreated} rooms created, ${roomsUpdated} updated, ${roomImagesImported + propImagesImported} images imported`,
+      per_room_debug: perRoomDebug
     });
   } catch (error) {
     console.error('[Beds24 Marketplace Sync] Error:', error.message);
