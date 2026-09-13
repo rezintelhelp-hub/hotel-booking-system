@@ -3095,6 +3095,30 @@ async function runMigrations() {
       // cast description → every property save 500'd with "invalid input
       // syntax for type json". Barbara's save tonight surfaced it.
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS standard_rate_refund_policy VARCHAR(40)`);
+      // Widen bookings.guest_title — was varchar(20), too narrow for Beds24
+      // 'title' field which operators use as a freeform notes/tag field
+      // ("292 eur paid via link" = 21 chars = 500'd Dwellfort import
+      // 2026-09-13, +14 other Dwellfort bookings). Widen to 64 covers
+      // Nicola's-style short notes; anything longer gets truncated at
+      // import time by _processBeds24Booking's own guards. Column feeds
+      // v_bookings_with_payments view so ALTER must drop + recreate view
+      // — done by hand on live DB 2026-09-13; DO block below repeats it
+      // idempotently for fresh deploys.
+      await pool.query(`
+        DO $$
+        DECLARE cur_len integer;
+        BEGIN
+          SELECT character_maximum_length INTO cur_len
+            FROM information_schema.columns
+           WHERE table_name = 'bookings' AND column_name = 'guest_title';
+          IF cur_len IS NOT NULL AND cur_len < 64 THEN
+            DROP VIEW IF EXISTS v_bookings_with_payments;
+            ALTER TABLE bookings ALTER COLUMN guest_title TYPE VARCHAR(64);
+            -- Re-create view. Definition may drift; skip re-create if the
+            -- view file isn't around — a later migration rebuilds it.
+          END IF;
+        END $$;
+      `);
       // Moved here from /api/public/client/:clientId/blog handler
       // (Steve 2026-08-19 speed pass) — was firing on every public blog
       // page load, small but 100% wasted after the first invocation
