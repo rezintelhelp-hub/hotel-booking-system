@@ -5794,6 +5794,7 @@
                             <select id="grid-mode-select" title="View density" onchange="setGridMode(this.value)" style="padding:0.5rem 0.75rem; border:1px solid #d1d5db; border-radius:4px; font-size:0.85rem; cursor:pointer; background:#ffffff;">
                                 <option value="simple">Simple</option>
                                 <option value="detailed">Detailed</option>
+                                <option value="bespoke">Bespoke</option>
                             </select>
                             <button class="btn btn-secondary" id="mobile-cal-toggle-btn" onclick="_mobCalToggle()" title="Mobile month view — one room per screen" style="padding: 0.5rem 0.75rem;">📱</button>
                             <button class="btn btn-secondary" id="grid-refresh-btn" onclick="refreshGrid(this)" title="Reload the calendar without changing the date" style="padding: 0.5rem 0.75rem;">🔄</button>
@@ -32408,27 +32409,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p style="font-size: 0.72rem; color: #94a3b8; margin: 0.5rem 0 0;"><strong>Tip:</strong> If you set Min lead time to 24 hours or more it already blocks all same-day bookings — leave the cutoff time blank. The cutoff is only useful if you accept same-day bookings but want a curfew (e.g. no bookings for today after 18:00). Next-day cutoff is separate: use it when you'll accept tomorrow arrivals right up to a certain hour today (e.g. 18:00) but not after. Times use this property's local timezone. Applies to direct + OTA bookings — OTA availability is closed automatically (Channex/Beds24 push on save + hourly).</p>
                 </div>
 
-                <!-- Room display — Belmont 2026-09-13. Opt-in flat leaf
-                     order for operators who think in physical rooms rather
-                     than wrapper types. Grouped (default) preserves the
-                     existing calendar view unchanged for everyone. -->
+                <!-- Custom room order — Belmont 2026-09-13. Configures the
+                     leaf order used by the calendar's "Bespoke" view mode
+                     (picked from the toolbar dropdown). Simple + Details
+                     views are always available regardless. -->
                 <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🪟 Room display</h4>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">How rooms are ordered in your Availability calendar and Booking modal.</p>
-                    <div style="display:flex; flex-direction:column; gap:0.4rem;">
-                        <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.9rem;">
-                            <input type="radio" name="edit-property-room-order-mode" value="grouped" checked style="margin-top:3px;">
-                            <span><strong>Grouped by room type (default)</strong> <span style="color:#64748b; font-size:0.85rem;">— wrappers first, sub-rooms nested underneath. Same as everyone else.</span></span>
-                        </label>
-                        <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.9rem;">
-                            <input type="radio" name="edit-property-room-order-mode" value="flat" style="margin-top:3px;">
-                            <span><strong>Flat — my custom order</strong> <span style="color:#64748b; font-size:0.85rem;">— all physical rooms in one drag-orderable list (Room 1, Room 3, Room 5…).</span></span>
-                        </label>
-                    </div>
-                    <div id="edit-property-room-order-editor-row" style="margin-top:0.75rem; display:none;">
-                        <button type="button" class="btn btn-secondary btn-small" onclick="openRoomOrderEditor()">✎ Edit room order</button>
-                        <span style="font-size:0.75rem; color:#94a3b8; margin-left:0.5rem;">Drag rooms up/down to set your preferred order.</span>
-                    </div>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🪟 Custom room order</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">Set the order rooms appear in when the calendar's <strong>Bespoke</strong> view is selected. Drag rooms up/down to your preferred sequence (e.g. Room 1, Room 3, Room 5…). Simple + Details views ignore this and use the built-in layout.</p>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="openRoomOrderEditor()">✎ Configure custom order</button>
                 </div>
 
                 <!-- Force Reconcile — Steve 2026-07-12. Diagnostic button for
@@ -59292,7 +59280,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // (Type / Rate / Override / Booking rows). Toggle persists in
         // localStorage.
         const _GRID_MODE_KEY = 'gasCalendarGridMode';
-        const _GRID_MODE_ALLOWED = new Set(['simple', 'detailed']);
+        const _GRID_MODE_ALLOWED = new Set(['simple', 'detailed', 'bespoke']);
         let GRID_MODE = (() => {
             try {
                 const v = localStorage.getItem(_GRID_MODE_KEY);
@@ -59305,6 +59293,27 @@ const promo = await fetch('/api/v1/offers/validate', {
             try { localStorage.setItem(_GRID_MODE_KEY, v); } catch (_) {}
             const sel = document.getElementById('grid-mode-select');
             if (sel) sel.value = v;
+            // Bespoke needs the property's saved leaf order — fetch it on
+            // mode change, then re-render. Requires exactly one property
+            // selected; if all-properties view is active, bespoke falls
+            // through to simple in renderGridBespoke.
+            if (v === 'bespoke') {
+                const propId = document.getElementById('grid-property-filter')?.value;
+                if (propId) {
+                    fetch(`/api/admin/properties/${propId}/room-leaves`, { headers: authHeaders() })
+                        .then(r => r.json())
+                        .then(d => {
+                            window._bespokeLeaves = d.success ? (d.leaves || []) : [];
+                            window._bespokeLeavesPropId = propId;
+                            if (typeof renderGrid === 'function') renderGrid();
+                        })
+                        .catch(() => {
+                            window._bespokeLeaves = [];
+                            if (typeof renderGrid === 'function') renderGrid();
+                        });
+                    return;
+                }
+            }
             // Re-render from cached gridData — no fetch needed.
             if (typeof renderGrid === 'function') renderGrid();
         }
@@ -59844,7 +59853,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Make sure we preserve the dropdown selection
             propFilter.value = propertyId;
-            
+
+            // Bespoke mode is per-property — if the operator is in bespoke
+            // view and just picked a different property, invalidate the
+            // cached leaves so the next render fetches fresh. Simple/
+            // Detailed views are unaffected. Belmont 2026-09-13.
+            if (GRID_MODE === 'bespoke' && String(window._bespokeLeavesPropId || '') !== String(propertyId || '')) {
+                window._bespokeLeaves = null;
+                window._bespokeLeavesPropId = null;
+                // Kick a re-fetch after loadGridData completes so the render
+                // has both gridData and leaves ready.
+                loadGridData().then(() => setGridMode('bespoke'));
+                return;
+            }
             loadGridData();
         }
         
@@ -61030,10 +61051,114 @@ const promo = await fetch('/api/v1/offers/validate', {
             table.innerHTML = html;
         }
 
+        // ── Bespoke renderer (Belmont 2026-09-13) ─────────────────────
+        // Iterates window._bespokeLeaves (fetched from the property's
+        // saved leaf order via /api/admin/properties/:id/room-leaves).
+        // Each leaf becomes one row: wrapper leaves use gridData[wrapperId]
+        // directly; IU leaves pull the parent wrapper's data and filter to
+        // just the IU's bookings via _bedDayFromParent. Same table skeleton
+        // + cell renderer as simple, just a different iteration source. If
+        // no leaves loaded (all-properties view or fetch pending), falls
+        // through to renderGridSimple so the view never blanks.
+        function renderGridBespoke() {
+            const leaves = Array.isArray(window._bespokeLeaves) ? window._bespokeLeaves : null;
+            if (!leaves || leaves.length === 0) {
+                renderGridSimple();
+                return;
+            }
+            const table = document.getElementById('availability-grid');
+            _calDragBindOnce();
+            _calCtxMenuBindOnce();
+
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const todayStr = dateToYMD(today);
+            const dates = [];
+            for (let i = 0; i < GRID_DAYS; i++) {
+                const d = new Date(gridStartDate); d.setDate(d.getDate() + i);
+                dates.push(d);
+            }
+            const monthGroups = [];
+            for (const d of dates) {
+                const key = d.getFullYear() * 12 + d.getMonth();
+                if (monthGroups.length && monthGroups[monthGroups.length - 1].key === key) {
+                    monthGroups[monthGroups.length - 1].count++;
+                } else {
+                    monthGroups.push({ key, label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), count: 1 });
+                }
+            }
+            let html = '<thead><tr>';
+            html += '<th style="position:sticky; left:0; background:#e0e7ff; z-index:10; min-width:220px;"></th>';
+            for (const m of monthGroups) {
+                html += `<th colspan="${m.count}" style="background:#e0e7ff; padding:4px 8px; font-weight:600; color:#3730a3; border-left:1px solid #c7d2fe;">${m.label}</th>`;
+            }
+            html += '</tr><tr>';
+            html += '<th style="position:sticky; left:0; background:#f1f5f9; z-index:10; padding:6px 10px; text-align:left; font-weight:600;">Room</th>';
+            for (const d of dates) {
+                const dateStr = dateToYMD(d);
+                const isToday = dateStr === todayStr;
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const bg = isToday ? '#fef3c7' : (isWeekend ? '#f8fafc' : '#ffffff');
+                const dayLetter = ['S','M','T','W','T','F','S'][d.getDay()];
+                html += `<th style="background:${bg}; padding:4px; text-align:center; font-weight:500; min-width:40px; border-left:1px solid #e2e8f0;"><div style="font-size:0.65rem; color:#64748b;">${dayLetter}</div><div style="font-size:0.8rem;">${d.getDate()}</div></th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            // Reuse _bedDayFromParent — defined inside renderGridSimple's
+            // closure, so redeclare here since it's not global. Same logic:
+            // filter parent day's bookings to just this IU's id + cascade
+            // the parent's is_blocked / is_available onto the sub-row.
+            function bedDayFromParent(parentDay, bedId) {
+                if (!parentDay) return undefined;
+                const own = Array.isArray(parentDay._bookings)
+                    ? parentDay._bookings.filter(b => String(b.individual_unit_id) === String(bedId))
+                    : [];
+                const inherit = { _bookings: own };
+                if (parentDay.is_blocked === true) {
+                    inherit.is_blocked = true; inherit.is_available = false;
+                }
+                return Object.assign({}, parentDay, inherit);
+            }
+
+            for (const leaf of leaves) {
+                const safeName = String(leaf.name || '(unnamed)').replace(/</g, '&lt;');
+                const wrapperLabel = leaf.wrapper_name
+                    ? `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;">${String(leaf.wrapper_name).replace(/</g, '&lt;')}</div>`
+                    : '';
+                if (leaf.type === 'wrapper') {
+                    const roomData = (gridData && gridData[leaf.id]) || {};
+                    html += `<tr data-room-id="${leaf.id}">`;
+                    html += `<td style="position:sticky; left:0; background:#fff; z-index:5; padding:8px 10px; border-right:1px solid #e2e8f0; font-size:0.8rem; line-height:1.2;"><div style="font-weight:600; color:#0f172a;">${safeName}</div>${wrapperLabel}</td>`;
+                    for (const d of dates) {
+                        const ds = dateToYMD(d);
+                        html += _simpleCellHtml(leaf.id, ds, roomData[ds], { todayStr });
+                    }
+                    html += '</tr>';
+                } else if (leaf.type === 'iu') {
+                    const parentId = leaf.wrapper_id;
+                    const parentData = (gridData && gridData[parentId]) || {};
+                    html += `<tr data-room-id="${parentId}" data-iu-id="${leaf.id}">`;
+                    html += `<td style="position:sticky; left:0; background:#fff; z-index:5; padding:8px 10px; border-right:1px solid #e2e8f0; font-size:0.8rem; line-height:1.2;"><div style="font-weight:600; color:#0f172a;">${safeName}</div>${wrapperLabel}</td>`;
+                    for (const d of dates) {
+                        const ds = dateToYMD(d);
+                        const bedDay = bedDayFromParent(parentData[ds], leaf.id);
+                        html += _simpleCellHtml(parentId, ds, bedDay, { todayStr });
+                    }
+                    html += '</tr>';
+                }
+            }
+            html += '</tbody>';
+            table.innerHTML = html;
+        }
+
         function renderGrid() {
             // Branch on view density. Simple mode uses the sibling renderer
             // above; both consume the same gridRooms + gridData. Detailed
             // path (the legacy multi-row layout) follows below, unchanged.
+            // Bespoke uses the property's operator-drag-ordered leaves list.
+            if (GRID_MODE === 'bespoke') {
+                renderGridBespoke();
+                return;
+            }
             if (GRID_MODE === 'simple') {
                 renderGridSimple();
                 return;
@@ -84365,20 +84490,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const _ndc = prop.next_day_cutoff_time || '18:00';
                     document.getElementById('edit-property-next-day-cutoff-time').value = String(_ndc).slice(0, 5);
 
-                    // Room display mode (Belmont 2026-09-13)
-                    const _mode = (prop.room_order_mode === 'flat') ? 'flat' : 'grouped';
-                    document.querySelectorAll('input[name="edit-property-room-order-mode"]').forEach(r => {
-                        r.checked = (r.value === _mode);
-                        r.onchange = () => {
-                            const flat = document.querySelector('input[name="edit-property-room-order-mode"]:checked')?.value === 'flat';
-                            const row = document.getElementById('edit-property-room-order-editor-row');
-                            if (row) row.style.display = flat ? 'block' : 'none';
-                        };
-                    });
-                    // Trigger the initial visibility set for the editor button
-                    const _editorRow = document.getElementById('edit-property-room-order-editor-row');
-                    if (_editorRow) _editorRow.style.display = (_mode === 'flat') ? 'block' : 'none';
-                    // Cache prop id for the drag-editor modal
+                    // Cache prop id for the drag-editor modal (Belmont 2026-09-13)
                     window._roomOrderEditorPropId = prop.id;
                     
                     // Wire the "Enable Stripe Connect" button — needs prop.id
@@ -85111,9 +85223,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Next-day cutoff (Barbara 2026-09-12). Time saves even
                 // when toggle is off so operators don't lose their 18:00.
                 next_day_cutoff_enabled: !!document.getElementById('edit-property-next-day-cutoff-enabled').checked,
-                next_day_cutoff_time: (document.getElementById('edit-property-next-day-cutoff-time').value || null),
-                // Room display mode (Belmont 2026-09-13)
-                room_order_mode: (document.querySelector('input[name="edit-property-room-order-mode"]:checked')?.value === 'flat' ? 'flat' : 'grouped')
+                next_day_cutoff_time: (document.getElementById('edit-property-next-day-cutoff-time').value || null)
             };
             
             // Only include secret key if it was changed (not the placeholder)

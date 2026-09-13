@@ -61978,13 +61978,10 @@ app.post('/api/admin/properties/:id/room-order-flat', async (req, res) => {
     }
 
     await client.query('BEGIN');
-    // Bump the property's mode to 'flat' so the calendar starts honouring
-    // the leaf order the moment she saves. She can toggle back to 'grouped'
-    // via the property save endpoint if she wants the old view again.
-    await client.query(
-      `UPDATE properties SET room_order_mode = 'flat', updated_at = NOW() WHERE id = $1`,
-      [propertyId]
-    );
+    // Note (2026-09-13): don't flip room_order_mode here — Steve reshaped
+    // the design so view mode is UI state (calendar toolbar dropdown +
+    // localStorage), not a property setting. This endpoint just stores
+    // the leaf order that the Bespoke view will honour when picked.
     for (let i = 0; i < leaves.length; i++) {
       const leaf = leaves[i];
       const id = parseInt(leaf.id, 10);
@@ -62036,14 +62033,14 @@ app.get('/api/admin/properties/:id/room-leaves', async (req, res) => {
           WHERE bu.property_id = $1 AND COALESCE(bu.is_hidden, false) = false
        ),
        leaves AS (
-         SELECT 'wrapper'::text AS type, w.id, w.name, NULL::text AS wrapper_name, w.display_order
+         SELECT 'wrapper'::text AS type, w.id, w.name, NULL::text AS wrapper_name, NULL::int AS wrapper_id, w.display_order
            FROM wraps w WHERE w.iu_count = 0
          UNION ALL
-         SELECT 'iu'::text AS type, iu.id, iu.unit_name AS name, w.name AS wrapper_name, iu.display_order
+         SELECT 'iu'::text AS type, iu.id, iu.unit_name AS name, w.name AS wrapper_name, w.id AS wrapper_id, iu.display_order
            FROM individual_units iu JOIN wraps w ON w.id = iu.bookable_unit_id
           WHERE w.iu_count > 0
        )
-       SELECT type, id, name, wrapper_name, display_order
+       SELECT type, id, name, wrapper_name, wrapper_id, display_order
          FROM leaves
         ORDER BY COALESCE(display_order, 999999), name`,
       [propertyId]);
