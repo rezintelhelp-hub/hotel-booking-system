@@ -34884,30 +34884,35 @@ app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
         if (stripeCustomerId) piParams.customer = stripeCustomerId;
         const paymentIntent = await stripe.paymentIntents.create(piParams);
 
-        // Update tier status
+        // Update tier status (tier-specific bookkeeping stays here; the
+        // primitive handles payment_transactions + booking-level roll-up).
         await pool.query(`
             UPDATE booking_payment_schedule
             SET status = 'charged', stripe_payment_intent_id = $1, charged_at = NOW(), error_message = NULL
             WHERE id = $2
         `, [paymentIntent.id, tierId]);
 
-        // Log transaction
-        await pool.query(`
-            INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, gateway_transaction_id, payment_gateway)
-            VALUES ($1, $2, $3, $4, 'completed', $5, 'stripe')
-        `, [bookingId, `tier_${tier.tier_order}`, tier.amount, tier.currency || 'gbp', paymentIntent.id]);
+        // Phase 4b migration 2026-09-13 — central primitive replaces raw
+        // INSERT + booking-status branching. Idempotent by pi_id, race-safe
+        // sum-recompute, awaits Beds24 push. Same shape as Phase 1 auto-
+        // charge cron migration.
+        const rec = await recordBookingPayment(pool, parseInt(bookingId, 10), {
+            amount: tier.amount,
+            currency: (tier.currency || 'GBP').toUpperCase(),
+            transaction_type: `tier_${tier.tier_order}`,
+            gateway: 'stripe',
+            gateway_transaction_id: paymentIntent.id,
+            description: `Payment tier ${tier.tier_order} (admin-triggered)`,
+            account_id: tier.account_id,
+            syncBeds24PaymentItem
+        });
 
-        // Check if all tiers are now charged
-        const remaining = await pool.query(`
-            SELECT COUNT(*) as cnt FROM booking_payment_schedule
-            WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
-        `, [bookingId]);
-
-        if (parseInt(remaining.rows[0].cnt) === 0) {
-            await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [bookingId]);
-            // WhatsApp payment_receipt — fire-and-forget. No-op when the
-            // account hasn't enabled whatsapp_lifecycle_enabled or set up
-            // the template name. amount = this tier's charge.
+        // Fire WhatsApp payment_receipt when the primitive flipped the
+        // booking to 'paid' (i.e. this was the final tier). Primitive
+        // handles the state ladder atomically so we read the post-write
+        // status here rather than counting remaining tiers.
+        const after = await pool.query(`SELECT payment_status FROM bookings WHERE id = $1`, [bookingId]);
+        if (after.rows[0]?.payment_status === 'paid') {
             try {
                 const bRow = await pool.query(`SELECT b.*, p.account_id, p.name AS property_name FROM bookings b JOIN properties p ON b.property_id = p.id WHERE b.id = $1`, [bookingId]);
                 if (bRow.rows[0]) {
@@ -34916,11 +34921,15 @@ app.post('/api/bookings/:bookingId/charge-tier/:tierId', async (req, res) => {
                         .catch(e => console.error(`[whatsapp] payment_receipt threw for booking ${bookingId}:`, e.message));
                 }
             } catch (waErr) { console.error(`[whatsapp] payment_receipt wiring failure for booking ${bookingId}:`, waErr.message); }
-        } else {
-            await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [bookingId]);
         }
 
-        res.json({ success: true, message: 'Tier charged successfully', payment_intent_id: paymentIntent.id });
+        res.json({
+            success: true,
+            message: 'Tier charged successfully',
+            payment_intent_id: paymentIntent.id,
+            transaction_id: rec.transaction_id,
+            beds24_sync: rec.sync_result ? (rec.sync_result.success === false ? 'deferred' : 'ok') : 'skipped'
+        });
     } catch (error) {
         console.error('Error charging tier:', error);
 
@@ -34953,29 +34962,49 @@ app.post('/api/bookings/:bookingId/mark-tier-paid/:tierId', async (req, res) => 
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, error: 'Payment tier not found' });
         }
+        const tierRow = result.rows[0];
 
-        // Check if all tiers charged
-        const remaining = await pool.query(`
-            SELECT COUNT(*) as cnt FROM booking_payment_schedule
-            WHERE booking_id = $1 AND status NOT IN ('charged', 'rolled_up')
-        `, [bookingId]);
+        // Phase 4b 2026-09-13 — previously flipped the tier row + booking
+        // status but never wrote payment_transactions. Ledger drift =
+        // Beds24 sync helper never pushed manually-marked tiers, reports
+        // undercounted, deposit_paid never grew. Route through primitive.
+        // gateway='manual' + no gateway_transaction_id — operator discipline
+        // handles double-tap protection (button disables while in flight).
+        let rec;
+        try {
+            rec = await recordBookingPayment(pool, parseInt(bookingId, 10), {
+                amount: tierRow.amount,
+                currency: 'GBP',
+                transaction_type: `tier_${tierRow.tier_order}`,
+                gateway: 'manual',
+                method: 'bank_transfer',
+                description: `Payment tier ${tierRow.tier_order} manually marked paid${notes ? ' — ' + notes : ''}`,
+                syncBeds24PaymentItem
+            });
+        } catch (recErr) {
+            console.error('[mark-tier-paid] recordBookingPayment failed:', recErr.message);
+        }
 
-        if (parseInt(remaining.rows[0].cnt) === 0) {
-            await pool.query(`UPDATE bookings SET payment_status = 'paid', balance_amount = 0, balance_paid_at = NOW() WHERE id = $1`, [bookingId]);
-            // WhatsApp payment_receipt — same as the Stripe-charge path above.
+        // Fire WhatsApp payment_receipt when primitive flipped booking to
+        // 'paid' (final tier).
+        const after = await pool.query(`SELECT payment_status FROM bookings WHERE id = $1`, [bookingId]);
+        if (after.rows[0]?.payment_status === 'paid') {
             try {
                 const bRow = await pool.query(`SELECT b.*, p.account_id, p.name AS property_name FROM bookings b JOIN properties p ON b.property_id = p.id WHERE b.id = $1`, [bookingId]);
                 if (bRow.rows[0]) {
-                    sendBookingLifecycleWhatsApp(bRow.rows[0], 'payment_receipt', { amount: String(result.rows[0]?.amount || '') })
+                    sendBookingLifecycleWhatsApp(bRow.rows[0], 'payment_receipt', { amount: String(tierRow.amount || '') })
                         .then(r => { if (r?.success) console.log(`[whatsapp] payment_receipt sent for booking ${bookingId}: ${r.messageId}`); })
                         .catch(e => console.error(`[whatsapp] payment_receipt threw for booking ${bookingId}:`, e.message));
                 }
             } catch (waErr) { console.error(`[whatsapp] payment_receipt wiring failure for booking ${bookingId}:`, waErr.message); }
-        } else {
-            await pool.query(`UPDATE bookings SET payment_status = 'partial_paid' WHERE id = $1`, [bookingId]);
         }
 
-        res.json({ success: true, message: 'Tier marked as paid' });
+        res.json({
+            success: true,
+            message: 'Tier marked as paid',
+            transaction_id: rec?.transaction_id || null,
+            beds24_sync: rec?.sync_result ? (rec.sync_result.success === false ? 'deferred' : 'ok') : 'skipped'
+        });
     } catch (error) {
         console.error('Error marking tier paid:', error);
         res.status(500).json({ success: false, error: error.message });
