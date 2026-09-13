@@ -36471,6 +36471,50 @@ app.post('/api/gas-sync/connections/:connectionId/sync-marketplace', async (req,
       }
     }
 
+    // ── PER-ROOM images bucket — where muscache / Airbnb per-room URLs live.
+    // Rezintel's function.beds24.php:1432 walked this. GAS previously only
+    // walked property-level images and missed the ~20 per-room external
+    // pictures (Bookin Riga room 2041 was the flagged case 2026-09-13).
+    // Structure: propContent.roomIds[roomId].images.external[] / .hosted[].
+    // Each image has { url, caption, map[]:[{roomId, position}] }.
+    const roomIdsBucket = propContent?.roomIds || {};
+    for (const [roomIdKey, roomObj] of Object.entries(roomIdsBucket)) {
+      const gasRoomId = beds24RoomToGasRoom[String(roomIdKey)];
+      if (!gasRoomId) continue;
+      const rImages = roomObj?.images || {};
+      const rBuckets = ['hosted', 'external'];
+      for (const bucketName of rBuckets) {
+        const arr = rImages[bucketName];
+        if (!arr) continue;
+        const items = Array.isArray(arr) ? arr : Object.values(arr);
+        let seq = 0;
+        for (const img of items) {
+          seq++;
+          if (!img?.url) continue;
+          // If map[] has explicit position use it; else use sequence.
+          const mapping = Array.isArray(img.map) ? img.map.find(m => String(m.roomId) === String(roomIdKey)) : null;
+          const pos = parseInt(mapping?.position) || seq;
+          const caption = typeof img.caption === 'object' ? (img.caption?.EN || '') : (img.caption || '');
+          const existing = await pool.query(
+            'SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2',
+            [gasRoomId, img.url]
+          );
+          if (existing.rows.length === 0) {
+            try {
+              await pool.query(`
+                INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, created_at)
+                VALUES ($1, $2, $3, $4, $5, 'beds24-marketplace', NOW())
+                ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO NOTHING`,
+                [gasRoomId, `beds24-room-${roomIdKey}-${bucketName}-${pos}`, cleanImageUrl(img.url), caption, pos]);
+              roomImagesImported++;
+            } catch (e) {
+              console.warn(`[Beds24 Marketplace Sync] per-room image insert failed room ${roomIdKey}: ${e.message}`);
+            }
+          }
+        }
+      }
+    }
+
     // Update connection sync time
     await pool.query(`
       UPDATE gas_sync_connections SET last_sync_at = NOW(), status = 'connected', updated_at = NOW() WHERE id = $1
