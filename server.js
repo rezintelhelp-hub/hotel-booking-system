@@ -168090,6 +168090,9 @@ app.get('/api/public/booking-cutoffs', async (req, res) => {
       const r = await pool.query(
         `SELECT COALESCE(MAX(min_advance_hours), 0)::int      AS min_hours,
                 MIN(same_day_cutoff_time)                     AS cutoff_time,
+                BOOL_OR(next_day_cutoff_enabled)              AS next_day_enabled,
+                MIN(next_day_cutoff_time) FILTER (WHERE next_day_cutoff_enabled = TRUE)
+                                                              AS next_day_time,
                 MIN(NULLIF(timezone, ''))                     AS tz
          FROM properties
          WHERE account_id = $1 AND (deleted_at IS NULL)`,
@@ -168107,10 +168110,17 @@ app.get('/api/public/booking-cutoffs', async (req, res) => {
     // Compute the blocked-arrival set over the next 60 days using the
     // shared helper. min_arrival_date is derived from the same set — the
     // first non-blocked day forward from today.
+    // Next-day cutoff — Barbara/Charles House 2026-09-12. Read from
+    // BOOL_OR(next_day_cutoff_enabled) + MIN(next_day_cutoff_time filtered)
+    // so mixed-property accounts still get the tighter-cutoff behaviour
+    // when at least one property has it enabled.
+    const nextDayCfg = row.next_day_enabled
+      ? { enabled: true, time: row.next_day_time }
+      : null;
     const now = new Date();
     const todayIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
     const endIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + 60 * 86400000).toISOString().slice(0, 10);
-    const blockedSet = computeCutoffBlockedDates(minHours, cutoffTime, tz, todayIso, endIso);
+    const blockedSet = computeCutoffBlockedDates(minHours, cutoffTime, tz, todayIso, endIso, nextDayCfg);
     let minArrivalIso = todayIso;
     for (let ms = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
          ms <= Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + 60 * 86400000;
@@ -168123,6 +168133,8 @@ app.get('/api/public/booking-cutoffs', async (req, res) => {
       success: true,
       min_advance_hours: minHours,
       same_day_cutoff_time: cutoffTime,
+      next_day_cutoff_enabled: !!row.next_day_enabled,
+      next_day_cutoff_time: row.next_day_time ? String(row.next_day_time).slice(0, 5) : null,
       timezone: tz,
       min_arrival_date: minArrivalIso,
       blocked_dates: Array.from(blockedSet).sort()
