@@ -3079,6 +3079,15 @@ async function runMigrations() {
       // weekend they want last-minute bookings) without losing the HH:MM.
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_enabled BOOLEAN DEFAULT FALSE`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_time TIME DEFAULT '18:00'::time`);
+      // Room display mode — Belmont / Barbara-style operators think in
+      // physical rooms (Room 1, Room 3, Room 5…) not in wrapper types,
+      // so let per-property opt-in to a flat leaf-ordered calendar view.
+      // 'grouped' (default) = current behaviour, wrappers with sub-rows.
+      // 'flat' = each leaf (IU where present, wrapper otherwise) shown
+      // in an operator-defined order via individual_units.display_order
+      // + bookable_units.display_order.
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS room_order_mode VARCHAR(16) DEFAULT 'grouped'`);
+      await pool.query(`ALTER TABLE individual_units ADD COLUMN IF NOT EXISTS display_order INTEGER`);
       // Moved here from /api/setup-accounts on 2026-09-12 — the diag
       // endpoint's ALTER never ran on Railway, so the column was missing.
       // /api/db/properties/:id references it, so the main UPDATE was
@@ -8050,6 +8059,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     // runMigrations block above.
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_enabled BOOLEAN DEFAULT FALSE`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS next_day_cutoff_time TIME DEFAULT '18:00'::time`);
+    // Room display mode — mirror of runMigrations block above (Belmont
+    // flat-leaf-order view, 2026-09-13).
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS room_order_mode VARCHAR(16) DEFAULT 'grouped'`);
+    await pool.query(`ALTER TABLE individual_units ADD COLUMN IF NOT EXISTS display_order INTEGER`);
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
@@ -61912,6 +61925,131 @@ app.post('/api/admin/bookable-units/reorder', async (req, res) => {
   }
 });
 
+// ── Flat leaf-order save (Belmont / room_order_mode='flat') ────────────
+// Accepts an ordered list of leaves: [{type:'wrapper'|'iu', id:N}, ...].
+// Wrapper leaves have their bookable_units.display_order stamped, IU
+// leaves have their individual_units.display_order stamped. Both share
+// a single monotonically-increasing sequence so the calendar can ORDER BY
+// a single sort key when it renders the flat view. Scope-checked to the
+// property + account owner (or master admin). Idempotent.
+app.post('/api/admin/properties/:id/room-order-flat', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user) { client.release(); return; }
+    const propertyId = parseInt(req.params.id, 10);
+    const leaves = Array.isArray(req.body?.leaves) ? req.body.leaves : null;
+    if (!propertyId || !leaves || leaves.length === 0) {
+      client.release();
+      return res.status(400).json({ success: false, error: 'property id + leaves (non-empty array) required' });
+    }
+
+    // Property ownership check
+    const propOwn = await client.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propOwn.rows[0]) { client.release(); return res.status(404).json({ success: false, error: 'Property not found' }); }
+    if (user.role !== 'master_admin' && propOwn.rows[0].account_id !== (user.accountId || user.id)) {
+      client.release();
+      return res.status(403).json({ success: false, error: 'Not your property' });
+    }
+
+    // Scope check: every wrapper leaf must belong to this property; every
+    // IU leaf must belong to a wrapper on this property.
+    const wrapperIds = leaves.filter(l => l.type === 'wrapper').map(l => parseInt(l.id, 10)).filter(Number.isFinite);
+    const iuIds = leaves.filter(l => l.type === 'iu').map(l => parseInt(l.id, 10)).filter(Number.isFinite);
+    if (wrapperIds.length) {
+      const wCheck = await client.query(
+        `SELECT id FROM bookable_units WHERE id = ANY($1::int[]) AND property_id = $2`,
+        [wrapperIds, propertyId]);
+      if (wCheck.rows.length !== wrapperIds.length) {
+        client.release();
+        return res.status(400).json({ success: false, error: 'wrapper leaf(s) do not belong to this property' });
+      }
+    }
+    if (iuIds.length) {
+      const iuCheck = await client.query(
+        `SELECT iu.id FROM individual_units iu
+           JOIN bookable_units bu ON bu.id = iu.bookable_unit_id
+          WHERE iu.id = ANY($1::int[]) AND bu.property_id = $2`,
+        [iuIds, propertyId]);
+      if (iuCheck.rows.length !== iuIds.length) {
+        client.release();
+        return res.status(400).json({ success: false, error: 'IU leaf(s) do not belong to this property' });
+      }
+    }
+
+    await client.query('BEGIN');
+    // Bump the property's mode to 'flat' so the calendar starts honouring
+    // the leaf order the moment she saves. She can toggle back to 'grouped'
+    // via the property save endpoint if she wants the old view again.
+    await client.query(
+      `UPDATE properties SET room_order_mode = 'flat', updated_at = NOW() WHERE id = $1`,
+      [propertyId]
+    );
+    for (let i = 0; i < leaves.length; i++) {
+      const leaf = leaves[i];
+      const id = parseInt(leaf.id, 10);
+      if (!id) continue;
+      if (leaf.type === 'wrapper') {
+        await client.query(
+          `UPDATE bookable_units SET display_order = $1, updated_at = NOW() WHERE id = $2 AND property_id = $3`,
+          [i, id, propertyId]);
+      } else if (leaf.type === 'iu') {
+        await client.query(
+          `UPDATE individual_units SET display_order = $1, updated_at = NOW() WHERE id = $2`,
+          [i, id]);
+      }
+    }
+    await client.query('COMMIT');
+    return res.json({ success: true, property_id: propertyId, leaves_written: leaves.length });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[room-order-flat]', e.message);
+    return res.status(500).json({ success: false, error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET the flat leaves list for a property — used by the drag editor UI.
+// Returns [{type, id, name, wrapper_name?, current_order}] in current order
+// (falls back to alpha when display_order is null so operator gets a
+// deterministic first-open state to reorder from).
+app.get('/api/admin/properties/:id/room-leaves', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user) return;
+    const propertyId = parseInt(req.params.id, 10);
+    if (!propertyId) return res.status(400).json({ success: false, error: 'property id required' });
+    const propOwn = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propOwn.rows[0]) return res.status(404).json({ success: false, error: 'Property not found' });
+    if (user.role !== 'master_admin' && propOwn.rows[0].account_id !== (user.accountId || user.id)) {
+      return res.status(403).json({ success: false, error: 'Not your property' });
+    }
+    // Wrappers with zero IUs = the wrapper IS the leaf. Wrappers with IUs
+    // contribute each IU as a leaf, and the wrapper itself is not shown
+    // (would be redundant — Belmont thinks in physical rooms).
+    const rows = await pool.query(
+      `WITH wraps AS (
+         SELECT bu.id, bu.name, bu.display_order,
+                (SELECT COUNT(*) FROM individual_units WHERE bookable_unit_id = bu.id) AS iu_count
+           FROM bookable_units bu
+          WHERE bu.property_id = $1 AND COALESCE(bu.is_hidden, false) = false
+       )
+       SELECT 'wrapper' AS type, w.id, w.name, NULL::text AS wrapper_name, w.display_order
+         FROM wraps w WHERE w.iu_count = 0
+       UNION ALL
+       SELECT 'iu' AS type, iu.id, iu.unit_name AS name, w.name AS wrapper_name, iu.display_order
+         FROM individual_units iu JOIN wraps w ON w.id = iu.bookable_unit_id
+        WHERE w.iu_count > 0
+       ORDER BY COALESCE(display_order, 999999), name`,
+      [propertyId]);
+    return res.json({ success: true, property_id: propertyId, leaves: rows.rows });
+  } catch (e) {
+    console.error('[room-leaves]', e.message);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Toggle marketplace availability for a single unit
 app.put('/api/admin/bookable-units/:id/marketplace', async (req, res) => {
   try {
@@ -62256,6 +62394,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
       standard_rate_refund_policy,
       same_day_cutoff_time, min_advance_hours,
       next_day_cutoff_enabled, next_day_cutoff_time,
+      room_order_mode,
       // 2026-08-04 — property-level phone + timezone. Needed by the
       // GAS→Channex content push so Google Hotel Search accepts the
       // property (both are required Channex fields for that channel).
@@ -62334,6 +62473,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
           standard_rate_refund_policy = COALESCE($32, standard_rate_refund_policy),
           next_day_cutoff_enabled = CASE WHEN $35::bool THEN $33::boolean ELSE next_day_cutoff_enabled END,
           next_day_cutoff_time    = CASE WHEN $36::bool THEN $34::time    ELSE next_day_cutoff_time    END,
+          room_order_mode         = CASE WHEN $38::bool THEN $37::varchar ELSE room_order_mode END,
           updated_at = NOW()
         WHERE id = $21
         RETURNING *`,
@@ -62366,7 +62506,12 @@ app.put('/api/db/properties/:id', async (req, res) => {
          next_day_cutoff_enabled === true || next_day_cutoff_enabled === 'true' || next_day_cutoff_enabled === 1 ? true : false,
          (next_day_cutoff_time && String(next_day_cutoff_time).trim()) || null,
          req.body.hasOwnProperty('next_day_cutoff_enabled'),
-         req.body.hasOwnProperty('next_day_cutoff_time')]
+         req.body.hasOwnProperty('next_day_cutoff_time'),
+         // Room order mode — Belmont 2026-09-13. 'grouped' | 'flat'.
+         // CASE flag pattern so callers who don't send the field leave
+         // existing DB value alone. Whitelisted to the two valid values.
+         (['grouped','flat'].includes(String(room_order_mode || ''))) ? String(room_order_mode) : 'grouped',
+         req.body.hasOwnProperty('room_order_mode')]
       );
     } catch (queryErr) {
       // Fallback if new columns don't exist yet (pre-migration)
