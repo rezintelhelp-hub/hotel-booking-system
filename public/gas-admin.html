@@ -40290,10 +40290,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // since the last input/MutationObserver tick can be lost (race
                 // observed on Pro Builder custom pages where content-en/fr/es/nl
                 // saved as empty strings — gîte ussat-les-bains--cure incident).
+                // Strip browser-inserted empty-line stubs before flush.
+                // Steve/Invest Jet 2026-09-13 — WYSIWYG contenteditable divs
+                // auto-insert `<div style="text-align:left;"><br></div>` (or
+                // just `<br>`) when the field is emptied or Enter is pressed
+                // on an empty line. Those tags then land in the DB and render
+                // as literal markup on the site. Cleanup collapses fully-
+                // empty content to '' and strips trailing stubs from real
+                // content. Preserves user text + real formatting.
+                const _stripWysiwygStubs = (html) => {
+                    if (!html) return '';
+                    let s = String(html);
+                    // Fully-empty patterns → empty string
+                    const emptyPatterns = /^(?:\s*|(?:<div[^>]*>\s*(?:<br\s*\/?>|&nbsp;|\s)*<\/div>\s*)+|(?:<br\s*\/?>\s*|&nbsp;\s*)+)$/i;
+                    if (emptyPatterns.test(s.trim())) return '';
+                    // Trailing empty <div><br></div> stubs after real content
+                    s = s.replace(/(?:\s*<div[^>]*>\s*<br\s*\/?>\s*<\/div>\s*)+$/gi, '');
+                    // Trailing lone <br> / &nbsp; sequences
+                    s = s.replace(/(?:\s*<br\s*\/?>\s*|\s*&nbsp;\s*)+$/gi, '');
+                    return s;
+                };
                 // Belt: flush wrapped WYSIWYG editors → their hidden textareas.
                 document.querySelectorAll('.gas-wysiwyg-wrap').forEach(wrap => {
                     if (wrap._gasEditor && wrap._gasOriginal && wrap._gasOriginal.tagName === 'TEXTAREA') {
-                        wrap._gasOriginal.value = wrap._gasEditor.innerHTML;
+                        wrap._gasOriginal.value = _stripWysiwygStubs(wrap._gasEditor.innerHTML);
                     }
                 });
                 // Braces: any data-wysiwyg textarea that wasn't wrapped (because
@@ -40303,7 +40323,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (typeof gasWysiwygInit === 'function') gasWysiwygInit();
                     document.querySelectorAll('.gas-wysiwyg-wrap').forEach(wrap => {
                         if (wrap._gasEditor && wrap._gasOriginal && wrap._gasOriginal.tagName === 'TEXTAREA') {
-                            wrap._gasOriginal.value = wrap._gasEditor.innerHTML;
+                            wrap._gasOriginal.value = _stripWysiwygStubs(wrap._gasEditor.innerHTML);
                         }
                     });
                 }
