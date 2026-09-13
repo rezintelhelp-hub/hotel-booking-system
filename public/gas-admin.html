@@ -32408,6 +32408,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p style="font-size: 0.72rem; color: #94a3b8; margin: 0.5rem 0 0;"><strong>Tip:</strong> If you set Min lead time to 24 hours or more it already blocks all same-day bookings — leave the cutoff time blank. The cutoff is only useful if you accept same-day bookings but want a curfew (e.g. no bookings for today after 18:00). Next-day cutoff is separate: use it when you'll accept tomorrow arrivals right up to a certain hour today (e.g. 18:00) but not after. Times use this property's local timezone. Applies to direct + OTA bookings — OTA availability is closed automatically (Channex/Beds24 push on save + hourly).</p>
                 </div>
 
+                <!-- Room display — Belmont 2026-09-13. Opt-in flat leaf
+                     order for operators who think in physical rooms rather
+                     than wrapper types. Grouped (default) preserves the
+                     existing calendar view unchanged for everyone. -->
+                <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">🪟 Room display</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem;">How rooms are ordered in your Availability calendar and Booking modal.</p>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                        <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.9rem;">
+                            <input type="radio" name="edit-property-room-order-mode" value="grouped" checked style="margin-top:3px;">
+                            <span><strong>Grouped by room type (default)</strong> <span style="color:#64748b; font-size:0.85rem;">— wrappers first, sub-rooms nested underneath. Same as everyone else.</span></span>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer; font-size:0.9rem;">
+                            <input type="radio" name="edit-property-room-order-mode" value="flat" style="margin-top:3px;">
+                            <span><strong>Flat — my custom order</strong> <span style="color:#64748b; font-size:0.85rem;">— all physical rooms in one drag-orderable list (Room 1, Room 3, Room 5…).</span></span>
+                        </label>
+                    </div>
+                    <div id="edit-property-room-order-editor-row" style="margin-top:0.75rem; display:none;">
+                        <button type="button" class="btn btn-secondary btn-small" onclick="openRoomOrderEditor()">✎ Edit room order</button>
+                        <span style="font-size:0.75rem; color:#94a3b8; margin-left:0.5rem;">Drag rooms up/down to set your preferred order.</span>
+                    </div>
+                </div>
+
                 <!-- Force Reconcile — Steve 2026-07-12. Diagnostic button for
                      when a client's OTA calendar (Airbnb/BDC) drifts from GAS.
                      Fires the same reconciliation the every-6h cron runs, but
@@ -59915,6 +59938,103 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // ── Room order editor (Belmont 2026-09-13) ────────────────────
+        // Fetches the flat leaves list for the current property (IUs
+        // where wrappers have them, wrappers where 1-qty), renders a
+        // drag-orderable list via SortableJS, saves the new order via
+        // /api/admin/properties/:id/room-order-flat. Auto-flips the
+        // property's mode to 'flat' on save. Only reachable when the
+        // "Flat — my custom order" radio is selected.
+        async function openRoomOrderEditor() {
+            const propId = window._roomOrderEditorPropId;
+            if (!propId) { showNotification('Property id missing — reopen the modal', 'error'); return; }
+            let modal = document.getElementById('roomOrderModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'roomOrderModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 520px;">
+                        <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#0f172a; color:white; border-radius:8px 8px 0 0;">
+                            <h3 style="margin:0; font-size:1.05rem;">🪟 Room order</h3>
+                            <button onclick="closeModal('roomOrderModal')" style="background:none; border:none; color:white; font-size:1.4rem; cursor:pointer;">&times;</button>
+                        </div>
+                        <div style="padding:16px;">
+                            <p style="font-size:0.8rem; color:#64748b; margin:0 0 12px;">Drag rooms up or down to set your preferred order. Applies to the Availability calendar + Booking modal.</p>
+                            <div id="room-order-list" style="border:1px solid #e2e8f0; border-radius:6px; padding:4px; min-height:120px; max-height:60vh; overflow-y:auto;"></div>
+                            <div id="room-order-status" style="font-size:0.8rem; color:#64748b; margin-top:10px;"></div>
+                        </div>
+                        <div class="modal-footer" style="padding:12px 16px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:8px;">
+                            <button class="btn btn-secondary" onclick="closeModal('roomOrderModal')">Cancel</button>
+                            <button class="btn btn-primary" onclick="saveRoomOrder(this)">Save order</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+            }
+            openModal('roomOrderModal');
+            const listEl = document.getElementById('room-order-list');
+            listEl.innerHTML = '<p style="padding:12px; color:#94a3b8;">Loading rooms…</p>';
+            try {
+                const r = await fetch(`/api/admin/properties/${propId}/room-leaves`, { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) { listEl.innerHTML = `<p style="padding:12px; color:#dc2626;">${d.error || 'Load failed'}</p>`; return; }
+                if (!d.leaves.length) { listEl.innerHTML = '<p style="padding:12px; color:#94a3b8;">No rooms found on this property.</p>'; return; }
+                listEl.innerHTML = d.leaves.map(leaf => `
+                    <div class="room-order-item" data-type="${leaf.type}" data-id="${leaf.id}"
+                         style="display:flex; align-items:center; gap:10px; padding:9px 10px; margin:3px 0; background:#f8fafc; border:1px solid #e2e8f0; border-radius:5px; cursor:move; font-size:0.9rem;">
+                        <span style="color:#94a3b8;">⋮⋮</span>
+                        <span>${leaf.name || '(unnamed)'}${leaf.wrapper_name ? ` <span style="color:#94a3b8; font-size:0.8rem;">— ${leaf.wrapper_name}</span>` : ''}</span>
+                    </div>`).join('');
+                if (typeof Sortable !== 'undefined') {
+                    Sortable.create(listEl, {
+                        animation: 150,
+                        ghostClass: 'rooms-drag-ghost'
+                    });
+                }
+            } catch (e) {
+                listEl.innerHTML = `<p style="padding:12px; color:#dc2626;">Network error: ${e.message}</p>`;
+            }
+        }
+
+        async function saveRoomOrder(btn) {
+            const propId = window._roomOrderEditorPropId;
+            const statusEl = document.getElementById('room-order-status');
+            if (!propId) return;
+            const leaves = Array.from(document.querySelectorAll('#room-order-list .room-order-item')).map(el => ({
+                type: el.dataset.type,
+                id: parseInt(el.dataset.id, 10)
+            }));
+            if (!leaves.length) { statusEl.textContent = 'Nothing to save.'; return; }
+            const orig = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = 'Saving…';
+            try {
+                const r = await fetch(`/api/admin/properties/${propId}/room-order-flat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ leaves })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showNotification(`Room order saved (${d.leaves_written} rooms)`, 'success');
+                    closeModal('roomOrderModal');
+                    // Ensure the radio still reads flat + the underlying prop
+                    // reflects the auto-flip the endpoint just did.
+                    const flatRadio = document.querySelector('input[name="edit-property-room-order-mode"][value="flat"]');
+                    if (flatRadio) flatRadio.checked = true;
+                    const row = document.getElementById('edit-property-room-order-editor-row');
+                    if (row) row.style.display = 'block';
+                } else {
+                    statusEl.style.color = '#dc2626';
+                    statusEl.textContent = 'Save failed: ' + (d.error || 'unknown');
+                }
+            } catch (e) {
+                statusEl.style.color = '#dc2626';
+                statusEl.textContent = 'Network error: ' + e.message;
+            } finally {
+                btn.disabled = false; btn.innerHTML = orig;
+            }
+        }
+
         // ── Block / Unblock modal (Steve 2026-07-07) ───────────────────
         // Simple, always-visible way to block or unblock any room × date
         // range. Bypasses all the cell-click routing. Hits the same
@@ -84244,6 +84364,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-next-day-cutoff-enabled').checked = !!prop.next_day_cutoff_enabled;
                     const _ndc = prop.next_day_cutoff_time || '18:00';
                     document.getElementById('edit-property-next-day-cutoff-time').value = String(_ndc).slice(0, 5);
+
+                    // Room display mode (Belmont 2026-09-13)
+                    const _mode = (prop.room_order_mode === 'flat') ? 'flat' : 'grouped';
+                    document.querySelectorAll('input[name="edit-property-room-order-mode"]').forEach(r => {
+                        r.checked = (r.value === _mode);
+                        r.onchange = () => {
+                            const flat = document.querySelector('input[name="edit-property-room-order-mode"]:checked')?.value === 'flat';
+                            const row = document.getElementById('edit-property-room-order-editor-row');
+                            if (row) row.style.display = flat ? 'block' : 'none';
+                        };
+                    });
+                    // Trigger the initial visibility set for the editor button
+                    const _editorRow = document.getElementById('edit-property-room-order-editor-row');
+                    if (_editorRow) _editorRow.style.display = (_mode === 'flat') ? 'block' : 'none';
+                    // Cache prop id for the drag-editor modal
+                    window._roomOrderEditorPropId = prop.id;
                     
                     // Wire the "Enable Stripe Connect" button — needs prop.id
                     // in scope. Opens the OAuth flow in a new tab so the
@@ -84975,7 +85111,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Next-day cutoff (Barbara 2026-09-12). Time saves even
                 // when toggle is off so operators don't lose their 18:00.
                 next_day_cutoff_enabled: !!document.getElementById('edit-property-next-day-cutoff-enabled').checked,
-                next_day_cutoff_time: (document.getElementById('edit-property-next-day-cutoff-time').value || null)
+                next_day_cutoff_time: (document.getElementById('edit-property-next-day-cutoff-time').value || null),
+                // Room display mode (Belmont 2026-09-13)
+                room_order_mode: (document.querySelector('input[name="edit-property-room-order-mode"]:checked')?.value === 'flat' ? 'flat' : 'grouped')
             };
             
             // Only include secret key if it was changed (not the placeholder)
