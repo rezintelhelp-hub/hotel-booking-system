@@ -36954,16 +36954,23 @@ app.get('/api/admin/beds24/connection/:connectionId/probe-content-images', async
         const contentData = await beds24MarketplaceRequest('getPropertyContent', {
             texts: ['EN'], roomIds: true, images: true, bookingData: false, featureCodes: false
         }, { propKey });
-        const propContent = contentData?.getPropertyContent || contentData;
+        // First unwrap 'getPropertyContent' — Beds24 wraps as either an array
+        // (Rezintel PHP saw [0] shape) or the top-level object.
+        let propContent = contentData?.getPropertyContent || contentData;
+        if (Array.isArray(propContent)) propContent = propContent[0] || {};
         const images = propContent?.images || {};
         const hostedKeys = images.hosted ? Object.keys(images.hosted).length : 0;
         const externalKeys = images.external ? Object.keys(images.external).length : 0;
+        // Rezintel proves Beds24 marketplace uses `roomIds` key (not `roomTypes`)
+        // and each room can have its OWN images.external / images.hosted arrays
+        // — that's where muscache / Airbnb per-room URLs live.
+        const roomIds = propContent?.roomIds || {};
         const roomTypes = propContent?.roomTypes || {};
-        // Show first 5 images from each bucket
         const sampleHosted = images.hosted ? Object.values(images.hosted).slice(0, 5) : [];
         const sampleExternal = images.external ? Object.values(images.external).slice(0, 5) : [];
         res.json({
             success: true, propId, propKey,
+            top_level_keys: Object.keys(propContent),
             image_shape: {
                 top_level_keys: Object.keys(images),
                 hosted_count: hostedKeys,
@@ -36971,10 +36978,18 @@ app.get('/api/admin/beds24/connection/:connectionId/probe-content-images', async
                 sample_hosted: sampleHosted,
                 sample_external: sampleExternal
             },
-            room_types: Object.entries(roomTypes).map(([rid, rt]) => ({
+            room_ids_bucket: Object.entries(roomIds).map(([rid, r]) => ({
+                roomId: rid,
+                keys: Object.keys(r || {}),
+                room_images_keys: Object.keys(r?.images || {}),
+                room_hosted_count: r?.images?.hosted ? (Array.isArray(r.images.hosted) ? r.images.hosted.length : Object.keys(r.images.hosted).length) : 0,
+                room_external_count: r?.images?.external ? (Array.isArray(r.images.external) ? r.images.external.length : Object.keys(r.images.external).length) : 0,
+                sample_hosted: r?.images?.hosted ? (Array.isArray(r.images.hosted) ? r.images.hosted.slice(0,3) : Object.values(r.images.hosted).slice(0,3)) : [],
+                sample_external: r?.images?.external ? (Array.isArray(r.images.external) ? r.images.external.slice(0,3) : Object.values(r.images.external).slice(0,3)) : []
+            })),
+            room_types_bucket: Object.entries(roomTypes).map(([rid, rt]) => ({
                 roomId: rid, roomName: rt?.name || null,
-                room_level_pictures: rt?.pictures ? (Array.isArray(rt.pictures) ? rt.pictures.length : Object.keys(rt.pictures).length) : 0,
-                sample_room_pictures: rt?.pictures ? (Array.isArray(rt.pictures) ? rt.pictures.slice(0, 3) : Object.values(rt.pictures).slice(0, 3)) : []
+                room_level_pictures: rt?.pictures ? (Array.isArray(rt.pictures) ? rt.pictures.length : Object.keys(rt.pictures).length) : 0
             }))
         });
     } catch (e) {
