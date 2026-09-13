@@ -168095,12 +168095,17 @@ app.get('/api/public/booking-cutoffs', async (req, res) => {
                                                               AS next_day_time,
                 MIN(NULLIF(timezone, ''))                     AS tz
          FROM properties
-         WHERE account_id = $1 AND (deleted_at IS NULL)`,
+         WHERE account_id = $1`,
         [accountId]
       );
       row = r.rows[0] || {};
     } catch (e) {
-      console.warn('[/api/public/booking-cutoffs] query failed, defaulting to no cutoff:', e && e.message);
+      // Was silently defaulting to no-cutoff for every account when the
+      // aggregate query threw — hid a `deleted_at IS NULL` column-not-
+      // exist bug for months (widget served no cutoffs, admin calendar
+      // showed correct blocks — Steve caught it 2026-09-13 with Charles
+      // House next-day cutoff). Log loudly so future drift surfaces.
+      console.error('[/api/public/booking-cutoffs] cutoff query failed — widget will show NO blocks for account', accountId, ':', e && e.message);
     }
 
     const minHours = parseInt(row.min_hours, 10) || 0;
