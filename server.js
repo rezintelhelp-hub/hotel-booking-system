@@ -1383,7 +1383,7 @@ async function resolveNotificationRecipients(accountId, siteId) {
 async function resolveOwnerBcc({ accountId, siteId, bookingId, to, cc }) {
   if (!accountId) return [];
   try {
-    const acct = await pool.query('SELECT email, notify_main_email, settings FROM accounts WHERE id = $1', [accountId]);
+    const acct = await pool.query('SELECT email, notify_main_email, booking_cc_email, settings FROM accounts WHERE id = $1', [accountId]);
     const row = acct.rows[0];
     if (!row) return [];
     const mode = row.settings?.owner_copy_mode;
@@ -1410,6 +1410,21 @@ async function resolveOwnerBcc({ accountId, siteId, bookingId, to, cc }) {
     // site-level notification-email (via resolveNotificationRecipients above)
     // is the intentional replacement.
     if (candidates.length === 0 && row.email && row.notify_main_email !== false) candidates = [row.email];
+
+    // ALWAYS add the account's booking_cc_email (independent of the
+    // notify_main_email opt-out). It's a distinct "extra address that gets
+    // a copy of every booking" — Sarah / Hebden 2026-09-14 pattern:
+    // sarah@ (owner login) unticked notify_main_email; bookings@ was set
+    // as booking_cc_email; without this line, bookings@ was invisible to
+    // every email path except /api/public/book's inline recipient builder.
+    // Now every guest-facing email (card_capture_link, chase, refund,
+    // workflows, everything that calls sendEmail with a bookingId/accountId)
+    // BCCs the operator's booking_cc_email.
+    if (row.booking_cc_email) {
+      for (const addr of String(row.booking_cc_email).split(/[,;]+/).map(s => s.trim()).filter(Boolean)) {
+        if (!candidates.includes(addr)) candidates.push(addr);
+      }
+    }
 
     const flatten = v => Array.isArray(v) ? v : String(v || '').split(/[,;]+/);
     const already = new Set();
@@ -46296,7 +46311,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         try {
             // Get property info for email
             const propertyResult = await pool.query(`
-                SELECT p.id, p.name, p.email, p.account_id, a.email as account_email
+                SELECT p.id, p.name, p.email, p.account_id,
+                       a.email as account_email,
+                       a.notify_main_email as account_notify_main_email,
+                       a.booking_cc_email as account_cc_email
                 FROM properties p
                 LEFT JOIN accounts a ON p.account_id = a.id
                 WHERE p.id = $1
@@ -46359,12 +46377,23 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 }
             });
             
-            // Also send to property owner if different email
-            if (property?.account_email && property.account_email !== guest_email) {
+            // Also send to property owner IF they haven't opted out via
+            // notify_main_email. When opted out, route to the account's
+            // booking_cc_email instead so bookings still land in the ops
+            // inbox. Passing accountId + bookingId lets resolveOwnerBcc
+            // auto-add booking_cc_email as BCC too (dedupe covers overlap).
+            // Sarah / Hebden 2026-09-14 — owner login stays on sarah@ but
+            // notifications route to bookings@.
+            const _flagOk = property?.account_notify_main_email !== false;
+            const _bookingCc = (property?.account_cc_email || '').trim();
+            const _ownerTo = _flagOk ? property?.account_email : (_bookingCc || null);
+            if (_ownerTo && _ownerTo !== guest_email) {
                 await sendEmail({
-                    to: property.account_email,
+                    to: _ownerTo,
                     subject: `New Group Booking - ${guest_first_name} ${guest_last_name} (Ref: ${groupBookingId})`,
-                    html: emailHtml
+                    html: emailHtml,
+                    accountId: property?.account_id,
+                    bookingId: createdBookings[0]?.id
                 });
             }
             
