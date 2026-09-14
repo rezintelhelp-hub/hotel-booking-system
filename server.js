@@ -133881,6 +133881,78 @@ app.post('/api/public/form-submit', (req, res, next) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// Onboarding signups admin — list + status update for BA / GAS Onboard.
+// UI panel lives at /gas-admin.html → "Owner Signups". Rows are created
+// by the form-submit hook when form_name='gas-onboard-signup' fires.
+// Steve 2026-09-14.
+// ═══════════════════════════════════════════════════════════════════
+app.get('/api/admin/onboarding-signups', async (req, res) => {
+    try {
+        await ensureOnboardingSignupsTable();
+        const agencyId = req.query.agency_account_id ? parseInt(req.query.agency_account_id, 10) : null;
+        const status = req.query.status;
+        const where = [];
+        const params = [];
+        if (agencyId) { params.push(agencyId); where.push(`agency_account_id = $${params.length}`); }
+        if (status) { params.push(status); where.push(`status = $${params.length}`); }
+        const sql = `
+            SELECT os.*, a.name AS agency_name
+            FROM onboarding_signups os
+            LEFT JOIN accounts a ON a.id = os.agency_account_id
+            ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+            ORDER BY os.created_at DESC
+            LIMIT 200
+        `;
+        const r = await pool.query(sql, params);
+        res.json({ success: true, signups: r.rows });
+    } catch (error) {
+        console.error('onboarding-signups GET error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.patch('/api/admin/onboarding-signups/:id', async (req, res) => {
+    try {
+        await ensureOnboardingSignupsTable();
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: 'Invalid id' });
+        const allowedStatus = ['pending', 'contacted', 'provisioned', 'live', 'declined'];
+        const { status, notes, owner_account_id, beds24_account_id } = req.body || {};
+        const sets = ['updated_at = NOW()'];
+        const vals = [];
+        if (status !== undefined) {
+            if (!allowedStatus.includes(status)) return res.status(400).json({ success: false, error: `status must be one of ${allowedStatus.join(', ')}` });
+            vals.push(status); sets.push(`status = $${vals.length}`);
+            if (status === 'provisioned') sets.push('beds24_provisioned_at = COALESCE(beds24_provisioned_at, NOW())');
+        }
+        if (notes !== undefined) { vals.push(String(notes || '').slice(0, 2000)); sets.push(`notes = $${vals.length}`); }
+        if (owner_account_id !== undefined) { vals.push(owner_account_id || null); sets.push(`owner_account_id = $${vals.length}`); }
+        if (beds24_account_id !== undefined) { vals.push(beds24_account_id || null); sets.push(`beds24_account_id = $${vals.length}`); }
+        vals.push(id);
+        const r = await pool.query(`UPDATE onboarding_signups SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING *`, vals);
+        if (!r.rows.length) return res.status(404).json({ success: false, error: 'Signup not found' });
+        res.json({ success: true, signup: r.rows[0] });
+    } catch (error) {
+        console.error('onboarding-signups PATCH error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.delete('/api/admin/onboarding-signups/:id', async (req, res) => {
+    try {
+        await ensureOnboardingSignupsTable();
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: 'Invalid id' });
+        const r = await pool.query('DELETE FROM onboarding_signups WHERE id = $1 RETURNING id', [id]);
+        if (!r.rows.length) return res.status(404).json({ success: false, error: 'Signup not found' });
+        res.json({ success: true, deleted: r.rows[0].id });
+    } catch (error) {
+        console.error('onboarding-signups DELETE error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 /**
  * Top bouncing pages — drill-down from the headline bounce-rate stat.
  *
