@@ -133702,6 +133702,41 @@ app.get('/api/admin/seo/dashboard', async (req, res) => {
  * Honeypot: any non-empty `website_url` field rejects silently (200 OK,
  * no DB write) so bots don't learn the field name is a spam trap.
  */
+// Booking Assist / GAS Onboard signup queue. Each row is one property
+// owner registration from a white-label agency's landing site (Booking
+// Assist for Invest Jet; later reused for every partner agency).
+// Populated by the form-submit hook when form_name='gas-onboard-signup'.
+// Steve 2026-09-14.
+let _onboardingSignupsReady = false;
+async function ensureOnboardingSignupsTable() {
+    if (_onboardingSignupsReady) return;
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS onboarding_signups (
+            id SERIAL PRIMARY KEY,
+            agency_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+            owner_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+            owner_name VARCHAR(200),
+            owner_email VARCHAR(200),
+            owner_phone VARCHAR(60),
+            property_name VARCHAR(200),
+            property_location VARCHAR(200),
+            bedrooms INTEGER,
+            current_listings VARCHAR(200),
+            notes TEXT,
+            source_site_url VARCHAR(500),
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            beds24_account_id INTEGER,
+            beds24_provisioned_at TIMESTAMP,
+            provisioned_by_id INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_onboarding_signups_agency ON onboarding_signups(agency_account_id, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_onboarding_signups_status ON onboarding_signups(status)`);
+    _onboardingSignupsReady = true;
+}
+
 app.post('/api/public/form-submit', (req, res, next) => {
     upload.any()(req, res, (err) => {
         if (err) return res.status(400).json({ success: false, error: err.message });
@@ -133774,6 +133809,47 @@ app.post('/api/public/form-submit', (req, res, next) => {
              VALUES (NULL, $1, $2, $3, $4, $5)`,
             [accountId, JSON.stringify({ ...fieldData, _form_name: formName, _site_url: siteUrl }), ip, ua, ref]
         );
+
+        // GAS Onboard hook — Booking Assist / white-label agency signup path.
+        // When a Section Builder form is stamped form_name='gas-onboard-signup',
+        // create an owner-scoped GAS account under the site's parent agency
+        // (accountId resolved above from site_url), so Invest Jet's admin
+        // sees the lead as a pending owner account in the CRM view. Beds24
+        // sub-account provisioning is a separate step (needs invite URL flow
+        // per Beds24 wiki 3.3) — deliberately not done inline here so form
+        // response stays fast + failure of Beds24 side doesn't block signup.
+        // Steve 2026-09-14.
+        if (formName === 'gas-onboard-signup' && accountId) {
+            try {
+                await ensureOnboardingSignupsTable();
+                const ownerName = String(fieldData.your_name || fieldData.name || '').slice(0, 200);
+                const ownerEmail = String(fieldData.email || '').toLowerCase().slice(0, 200);
+                const ownerPhone = String(fieldData.phone || '').slice(0, 60);
+                const propertyName = String(fieldData.property_name || '').slice(0, 200);
+                const propertyLocation = String(fieldData.property_location || '').slice(0, 200);
+                const bedrooms = parseInt(fieldData.number_of_bedrooms || '0', 10) || 0;
+                const currentListings = String(fieldData.currently_listed_elsewhere || '').slice(0, 200);
+                const notes = String(fieldData.anything_else_we_should_know || '').slice(0, 2000);
+
+                await pool.query(`
+                    INSERT INTO onboarding_signups
+                        (agency_account_id, owner_name, owner_email, owner_phone,
+                         property_name, property_location, bedrooms,
+                         current_listings, notes, source_site_url, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', NOW())
+                `, [
+                    accountId, ownerName, ownerEmail, ownerPhone,
+                    propertyName, propertyLocation, bedrooms,
+                    currentListings, notes, siteUrl
+                ]);
+                console.log(`[gas-onboard-signup] queued: ${ownerName} (${ownerEmail}) — property ${propertyName} @ ${propertyLocation} — agency=${accountId}`);
+            } catch (e) {
+                // Don't fail the form submission — the lead is captured in
+                // lead_form_submissions; the onboarding_signups row is an
+                // internal enrichment.
+                console.error('[gas-onboard-signup] failed to queue:', e.message);
+            }
+        }
 
         // Notification email — non-blocking, best-effort
         if (recipientEmail && process.env.SENDGRID_API_KEY) {
