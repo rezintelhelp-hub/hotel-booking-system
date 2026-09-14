@@ -62320,6 +62320,10 @@ app.get('/api/admin/availability/find', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Not your account' });
     }
     // Candidate rooms — mirror the calendar's visibility rules.
+    // Match the calendar's own filter rules: hidden out, bike-storage +
+    // companion out. Don't filter on bu.status — production values are
+    // 'available' (1266) vs 'active' (63) with no consistent meaning;
+    // the calendar itself doesn't check it.
     const candidates = await pool.query(
       `SELECT bu.id, bu.name AS room_name, COALESCE(bu.max_guests, 99) AS max_guests,
               COALESCE(bu.base_price, 0) AS base_price,
@@ -62331,7 +62335,6 @@ app.get('/api/admin/availability/find', async (req, res) => {
           ${propertyId ? 'AND p.id = $3' : ''}
           AND COALESCE(bu.is_hidden, false) = false
           AND COALESCE(bu.unit_role, 'room') NOT IN ('bike_storage','companion')
-          AND COALESCE(bu.status, 'active') = 'active'
           AND COALESCE(bu.max_guests, 99) >= $2
         ORDER BY p.name, bu.name`,
       propertyId ? [accountId, guests, propertyId] : [accountId, guests]
