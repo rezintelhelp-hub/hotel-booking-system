@@ -73314,15 +73314,34 @@ const promo = await fetch('/api/v1/offers/validate', {
             modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;';
             const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             modal.innerHTML = `
-                <div style="background:#fff;border-radius:12px;padding:28px;max-width:520px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:640px;width:94%;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
                     <h2 style="margin:0 0 6px;font-size:1.4rem;color:#1e293b;">Group Invoice</h2>
-                    <div style="color:#64748b;font-size:0.9rem;margin-bottom:18px;">${pref.booking_count || ids.length} bookings &middot; ${sym}${parseFloat(pref.grand_total || 0).toFixed(2)} total</div>
-                    <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:4px;">Bill to (name)</label>
-                    <input id="gi-billto-name" class="form-input" value="${esc(pref.bill_to_name)}" style="width:100%;margin-bottom:12px;">
-                    <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:4px;">Email <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
-                    <input id="gi-billto-email" class="form-input" type="email" value="${esc(pref.bill_to_email)}" style="width:100%;margin-bottom:12px;">
-                    <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:4px;">Address <span style="color:#94a3b8;font-weight:400;">(from guest CRM — edit as needed)</span></label>
-                    <textarea id="gi-billto-address" class="form-input" rows="3" style="width:100%;margin-bottom:18px;font-family:inherit;">${esc(pref.bill_to_address)}</textarea>
+                    <div style="color:#64748b;font-size:0.9rem;margin-bottom:16px;">${pref.booking_count || ids.length} bookings &middot; ${sym}${parseFloat(pref.grand_total || 0).toFixed(2)} total</div>
+
+                    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:14px;">
+                        <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;margin-bottom:10px;">From (your business)</div>
+                        <label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Business name</label>
+                        <input id="gi-from-name" class="form-input" value="${esc(pref.from_name)}" style="width:100%;margin-bottom:8px;">
+                        <label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Address</label>
+                        <textarea id="gi-from-address" class="form-input" rows="2" style="width:100%;margin-bottom:8px;font-family:inherit;">${esc(pref.from_address)}</textarea>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                            <div><label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Phone</label><input id="gi-from-phone" class="form-input" value="${esc(pref.from_phone)}" style="width:100%;"></div>
+                            <div><label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Email</label><input id="gi-from-email" class="form-input" type="email" value="${esc(pref.from_email)}" style="width:100%;"></div>
+                            <div><label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">VAT number</label><input id="gi-from-vat" class="form-input" value="${esc(pref.from_vat)}" style="width:100%;"></div>
+                            <div><label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Company reg</label><input id="gi-from-company-reg" class="form-input" value="${esc(pref.from_company_reg)}" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+                        <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:600;margin-bottom:10px;">Bill to (client)</div>
+                        <label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Name</label>
+                        <input id="gi-billto-name" class="form-input" value="${esc(pref.bill_to_name)}" style="width:100%;margin-bottom:8px;">
+                        <label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Email</label>
+                        <input id="gi-billto-email" class="form-input" type="email" value="${esc(pref.bill_to_email)}" style="width:100%;margin-bottom:8px;">
+                        <label style="display:block;font-size:0.8rem;color:#475569;margin-bottom:3px;">Address</label>
+                        <textarea id="gi-billto-address" class="form-input" rows="3" style="width:100%;font-family:inherit;">${esc(pref.bill_to_address)}</textarea>
+                    </div>
+
                     <div style="display:flex;gap:10px;justify-content:flex-end;">
                         <button class="btn" style="background:#e2e8f0;color:#334155;padding:10px 18px;border:0;border-radius:6px;font-weight:600;cursor:pointer;" onclick="document.getElementById('group-invoice-modal').remove()">Cancel</button>
                         <button class="btn" style="background:#4f46e5;color:#fff;padding:10px 20px;border:0;border-radius:6px;font-weight:600;cursor:pointer;" onclick="submitGroupInvoice()">Generate</button>
@@ -73335,13 +73354,20 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function submitGroupInvoice() {
             const ids = [..._groupInvoiceSelected].sort((a, b) => a - b);
-            const name = (document.getElementById('gi-billto-name').value || '').trim();
-            const email = (document.getElementById('gi-billto-email').value || '').trim();
-            const address = (document.getElementById('gi-billto-address').value || '').trim();
+            const val = (id) => (document.getElementById(id)?.value || '').trim();
             const params = new URLSearchParams({ ids: ids.join(',') });
-            if (name) params.set('bill_to_name', name);
-            if (email) params.set('bill_to_email', email);
-            if (address) params.set('bill_to_address', address);
+            const fields = [
+                ['gi-billto-name', 'bill_to_name'],
+                ['gi-billto-email', 'bill_to_email'],
+                ['gi-billto-address', 'bill_to_address'],
+                ['gi-from-name', 'from_name'],
+                ['gi-from-address', 'from_address'],
+                ['gi-from-phone', 'from_phone'],
+                ['gi-from-email', 'from_email'],
+                ['gi-from-vat', 'from_vat'],
+                ['gi-from-company-reg', 'from_company_reg']
+            ];
+            fields.forEach(([id, key]) => { const v = val(id); if (v) params.set(key, v); });
             window.open('/api/admin/bookings-group-invoice?' + params.toString(), '_blank');
             const modal = document.getElementById('group-invoice-modal');
             if (modal) modal.remove();

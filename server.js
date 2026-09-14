@@ -86810,7 +86810,17 @@ app.all('/api/admin/bookings-group-invoice', async (req, res) => {
              p.country as property_country,
              p.account_id as property_account_id,
              a.name as account_name,
+             a.business_name as account_business_name,
              a.email as account_email,
+             a.phone as account_phone,
+             a.address_line1 as account_address_line1,
+             a.address_line2 as account_address_line2,
+             a.city as account_city,
+             a.region as account_region,
+             a.postcode as account_postcode,
+             a.country as account_country,
+             a.vat_number as account_vat_number,
+             a.company_reg as account_company_reg,
              g.address as crm_address,
              g.city as crm_city,
              g.country as crm_country,
@@ -86847,10 +86857,11 @@ app.all('/api/admin/bookings-group-invoice', async (req, res) => {
     // first booking's guest so an un-customised group invoice still makes
     // sense.
     const first = result.rows[0];
-    const billToName = (req.query.bill_to_name || req.body?.bill_to_name || '').toString().trim()
+    const q = (k) => (req.query[k] || req.body?.[k] || '').toString();
+    const billToName = q('bill_to_name').trim()
       || [first.guest_first_name, first.guest_last_name].filter(Boolean).join(' ')
       || '';
-    const billToEmail = (req.query.bill_to_email || req.body?.bill_to_email || '').toString().trim()
+    const billToEmail = q('bill_to_email').trim()
       || first.guest_email || '';
     // Address fallback chain: operator override → booking's guest_address →
     // CRM guests.address → composed from CRM city/postcode/country. Real
@@ -86860,20 +86871,46 @@ app.all('/api/admin/bookings-group-invoice', async (req, res) => {
       .map(s => (s || '').toString().trim())
       .filter(Boolean)
       .join(', ');
-    const billToAddress = (req.query.bill_to_address || req.body?.bill_to_address || '').toString().trim()
+    const billToAddress = q('bill_to_address').trim()
       || first.guest_address
       || composedCrm
       || '';
 
+    // From-side — operator overrides win, then account fields, then property
+    // fields as last resort. Every field editable in the modal before send.
+    const composedAccountAddress = [
+      first.account_address_line1, first.account_address_line2,
+      first.account_city, first.account_region, first.account_postcode, first.account_country
+    ].map(s => (s || '').toString().trim()).filter(Boolean).join(', ');
+    const composedPropertyAddress = [
+      first.property_address, first.property_city, first.property_country
+    ].map(s => (s || '').toString().trim()).filter(Boolean).join(', ');
+    const fromName = q('from_name').trim()
+      || first.account_business_name
+      || first.account_name
+      || first.property_name
+      || '';
+    const fromAddress = q('from_address').trim() || composedAccountAddress || composedPropertyAddress || '';
+    const fromEmail = q('from_email').trim() || first.account_email || '';
+    const fromPhone = q('from_phone').trim() || first.account_phone || '';
+    const fromVat = q('from_vat').trim() || first.account_vat_number || '';
+    const fromCompanyReg = q('from_company_reg').trim() || first.account_company_reg || '';
+
     // Prefill mode — modal fetches this on open to show what the server
-    // would use for bill-to (including CRM address). Lets the operator see
-    // and edit BEFORE generating.
+    // would use for both From (business) and Bill-To (client). Lets the
+    // operator see and edit EVERYTHING before generating.
     if (req.query.prefill === '1' || req.body?.prefill === '1') {
       return res.json({
         success: true,
         bill_to_name: billToName,
         bill_to_email: billToEmail,
         bill_to_address: billToAddress,
+        from_name: fromName,
+        from_address: fromAddress,
+        from_email: fromEmail,
+        from_phone: fromPhone,
+        from_vat: fromVat,
+        from_company_reg: fromCompanyReg,
         booking_count: result.rows.length,
         currency: currencyRaw,
         grand_total: result.rows.reduce((s, r) => s + parseFloat(r.grand_total || 0), 0)
@@ -86931,9 +86968,12 @@ app.all('/api/admin/bookings-group-invoice', async (req, res) => {
         <button class="print-btn noprint" onclick="window.print()">Print / Save PDF</button>
         <div class="header">
           <div>
-            <div class="company">${esc(first.property_name || first.account_name || 'Property')}</div>
-            <div style="color: #64748b; margin-top: 5px;">${esc(first.property_address || '')}</div>
-            <div style="color: #64748b;">${esc([first.property_city, first.property_country].filter(Boolean).join(', '))}</div>
+            <div class="company">${esc(fromName || 'Property')}</div>
+            ${fromAddress ? `<div style="color: #64748b; margin-top: 5px; white-space: pre-line;">${esc(fromAddress)}</div>` : ''}
+            ${fromPhone ? `<div style="color: #64748b; margin-top: 3px;">${esc(fromPhone)}</div>` : ''}
+            ${fromEmail ? `<div style="color: #64748b;">${esc(fromEmail)}</div>` : ''}
+            ${fromVat ? `<div style="color: #64748b; margin-top: 5px; font-size: 12px;">VAT: ${esc(fromVat)}</div>` : ''}
+            ${fromCompanyReg ? `<div style="color: #64748b; font-size: 12px;">Co. Reg: ${esc(fromCompanyReg)}</div>` : ''}
           </div>
           <div style="text-align: right;">
             <h1 class="invoice-title">Group Invoice</h1>
