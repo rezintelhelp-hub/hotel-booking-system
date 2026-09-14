@@ -50,6 +50,19 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $page_subtitle = '';
     $sections = $data['sections'];
 
+    // Operator-set page background from Web Builder (page-<slug>.bg).
+    // Empty when unset or default #ffffff so untouched pages are unaffected.
+    // Fix 2026-09-14 — colour picker was silently ignored on Section Builder pages.
+    $__gas_page_bg = '';
+    if (function_exists('developer_get_api_settings')) {
+        $__ws_pb = developer_get_api_settings();
+        $__pk_pb = 'page_' . str_replace('-', '_', $page_slug);
+        $__cand_pb = $__ws_pb[$__pk_pb . '_bg'] ?? '';
+        if ($__cand_pb && strtolower($__cand_pb) !== '#ffffff') {
+            $__gas_page_bg = $__cand_pb;
+        }
+    }
+
     // Override title/subtitle from website settings (supports multilingual)
     if (function_exists('developer_get_api_settings')) {
         $ws_api = developer_get_api_settings();
@@ -69,6 +82,12 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $radius_api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
     $btn_radius = $radius_api['btn_radius'] ?? '8';
     $card_radius = $radius_api['card_radius'] ?? '12';
+
+    // Styles → Buttons palette. Section-builder CTAs inherit these so operators
+    // manage button colour in ONE place. Fallback keeps unchanged behaviour on
+    // sites that never set button-specific colours. Fix 2026-09-14.
+    $btn_primary_bg = !empty($radius_api['btn_primary_bg']) ? $radius_api['btn_primary_bg'] : $primary_color;
+    $btn_primary_text = !empty($radius_api['btn_primary_text']) ? $radius_api['btn_primary_text'] : '#ffffff';
     $lg_radius = $radius_api['lg_radius'] ?? '16';
 
     // Check hero-enabled from custom page settings
@@ -85,13 +104,20 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     // Only render the page title hero if sections don't already contain a hero
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
 
+    // Wrap all Section Builder output in a page-bg div when operator set a
+    // colour, so gaps between sections and below-last-section space render
+    // the chosen colour.
+    if ($__gas_page_bg !== '') {
+        echo '<div class="gas-ps-page-bg" style="background: ' . esc_attr($__gas_page_bg) . ';">';
+    }
+
     if (!$hero_enabled_ps) {
         // Hero disabled — drop hero sections, but STILL emit the fixed-header
         // spacer or content tucks under the sticky menu. Regression from
         // commit 14a08221 — every client page with hero-off had its top cut.
         $sections = array_filter($sections, function($s) { return ($s['type'] ?? '') !== 'hero'; });
         $sections = array_values($sections);
-        echo '<div style="padding-top: 120px;"></div>';
+        echo '<div style="padding-top: 120px; background: ' . esc_attr($__gas_page_bg !== '' ? $__gas_page_bg : 'transparent') . ';"></div>';
     } elseif (!$has_hero_section) {
     ?>
     <section class="gas-ps-hero" style="position: relative; min-height: 250px; height: 35vh; display: flex; align-items: center; justify-content: center; background: #1e293b; overflow: hidden;">
@@ -137,7 +163,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($heading) : ?><h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 700; color: #fff; margin: 0 0 16px; text-shadow: 0 2px 15px rgba(0,0,0,0.3);"><?php echo esc_html($heading); ?></h1><?php endif; ?>
                         <?php if ($subheading) : ?><p style="font-size: 1.25rem; color: #fff; opacity: 0.9; margin: 0 0 24px;"><?php echo esc_html($subheading); ?></p><?php endif; ?>
                         <?php if ($body) : ?><div class="gas-ps-body" style="color: #fff; opacity: 0.9;"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
-                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                        <?php if ($cta_text && $cta_link) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; background: <?php echo esc_attr($btn_primary_bg); ?>; color: <?php echo esc_attr($btn_primary_text); ?>; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                     </div>
                 </section>
                 <?php break;
@@ -153,7 +179,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         <?php if ($body) : ?><div class="gas-ps-body"><?php echo wp_kses_post($body); ?></div><?php endif; ?>
                         <?php if ($cta_text && $cta_link) : ?>
                             <div style="text-align: center; margin-top: 24px;">
-                                <a href="<?php echo esc_url($cta_link); ?>"<?php echo $cta_target; ?> style="display: inline-block; background: <?php echo esc_attr($primary_color); ?>; color: #fff; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a>
+                                <a href="<?php echo esc_url($cta_link); ?>"<?php echo $cta_target; ?> style="display: inline-block; background: <?php echo esc_attr($btn_primary_bg); ?>; color: <?php echo esc_attr($btn_primary_text); ?>; padding: 14px 36px; border-radius: <?php echo esc_attr($btn_radius); ?>px; text-decoration: none; font-weight: 600;"><?php echo esc_html($cta_text); ?></a>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -315,16 +341,21 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                                 $has_cta = !empty($cta_link) && !empty($cta_text);
                                 $has_panel_content = !empty($card_title) || !empty($card_body) || $has_cta;
                                 $cta_size = $card['cta_size'] ?? 'sm';
+                                $card_cta_bg = !empty($card['cta_bg']) ? $card['cta_bg'] : $btn_primary_bg;
+                                $card_cta_text_color = !empty($card['cta_text_color']) ? $card['cta_text_color'] : $btn_primary_text;
+                                $card_panel_bg = !empty($card['card_bg']) ? $card['card_bg'] : '#ffffff';
+                                $card_title_color = !empty($card['card_text_color']) ? $card['card_text_color'] : '#1e293b';
+                                $card_body_color = !empty($card['card_text_color']) ? $card['card_text_color'] : '#64748b';
                                 $cta_pad = $cta_size === 'lg' ? '16px 40px' : ($cta_size === 'md' ? '12px 32px' : '8px 20px');
                                 $cta_font = $cta_size === 'lg' ? '1.05rem' : ($cta_size === 'md' ? '0.95rem' : '0.85rem');
                                 ?>
-                                <div style="background: #fff; border-radius: <?php echo esc_attr($lg_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+                                <div style="background: <?php echo esc_attr($card_panel_bg); ?>; border-radius: <?php echo esc_attr($lg_radius); ?>px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
                                     <?php if (!empty($card['image'])) : ?><img src="<?php echo esc_url($card['image']); ?>" alt="" style="width: 100%; height: 200px; object-fit: cover; display: block;"><?php endif; ?>
                                     <?php if ($has_panel_content) : ?>
                                     <div style="padding: 24px;">
-                                        <?php if (!empty($card_title)) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0 0 8px;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
-                                        <?php if (!empty($card_body)) : ?><div style="color: #64748b; margin: 0; line-height: 1.6; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
-                                        <?php if ($has_cta) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
+                                        <?php if (!empty($card_title)) : ?><h3 style="font-size: 1.25rem; font-weight: 700; color: <?php echo esc_attr($card_title_color); ?>; margin: 0 0 8px;"><?php echo esc_html($card_title); ?></h3><?php endif; ?>
+                                        <?php if (!empty($card_body)) : ?><div style="color: <?php echo esc_attr($card_body_color); ?>; margin: 0; line-height: 1.6; font-size: 0.95rem;"><?php echo wp_kses_post($card_body); ?></div><?php endif; ?>
+                                        <?php if ($has_cta) : ?><a href="<?php echo esc_url($cta_link); ?>" style="display: inline-block; margin-top: 16px; padding: <?php echo $cta_pad; ?>; font-size: <?php echo $cta_font; ?>; background: <?php echo esc_attr($card_cta_bg); ?>; color: <?php echo esc_attr($card_cta_text_color); ?>; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; transition: opacity 0.2s;"><?php echo esc_html($cta_text); ?></a><?php endif; ?>
                                     </div>
                                     <?php endif; ?>
                                 </div>
@@ -340,7 +371,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                         $section_btn_link = $section['button_link'] ?? '';
                         if (!empty($section_btn_text) && !empty($section_btn_link)) : ?>
                             <div style="text-align: center; margin-top: 32px;">
-                                <a href="<?php echo esc_url($section_btn_link); ?>" style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($primary_color); ?>; color: #fff; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 1rem;"><?php echo esc_html($section_btn_text); ?></a>
+                                <a href="<?php echo esc_url($section_btn_link); ?>" style="display: inline-block; padding: 14px 36px; background: <?php echo esc_attr($btn_primary_bg); ?>; color: <?php echo esc_attr($btn_primary_text); ?>; font-weight: 600; text-decoration: none; border-radius: <?php echo esc_attr($btn_radius); ?>px; font-size: 1rem;"><?php echo esc_html($section_btn_text); ?></a>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -822,6 +853,7 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
                 <?php endif; break;
         }
     }
+    if ($__gas_page_bg !== '') { echo '</div>'; }
     ?>
     <style>
     /* Inherit fonts from Styles & Fonts */

@@ -14099,6 +14099,15 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
 
       await pool.query('UPDATE gas_sync_properties SET last_image_sync = NOW() WHERE id = $1', [prop.id]);
 
+      // Auto-publish to room_images so images appear on the site immediately.
+      // The old (pre-2025-12) sync wrote directly to room_images; the current
+      // two-step flow left images stranded in staging unless an operator
+      // clicked "Copy sync images". Fire-and-forget so response stays fast
+      // (R2 compression can take minutes for large image sets).
+      const _port = process.env.PORT || 3000;
+      axios.post(`http://localhost:${_port}/api/gas-sync/properties/${prop.id}/copy-images`)
+        .catch(err => console.warn('[sync-images auto-publish] copy failed:', err.message));
+
       return res.json({
         success: true,
         adapter: 'hostfully',
@@ -14180,9 +14189,14 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     
     // Update last sync time
     await pool.query('UPDATE gas_sync_properties SET last_image_sync = NOW() WHERE id = $1', [prop.id]);
-    
+
     console.log(`  ✓ ${imagesSynced} images synced`);
-    
+
+    // Auto-publish to room_images (see Hostfully branch above for rationale).
+    const _port = process.env.PORT || 3000;
+    axios.post(`http://localhost:${_port}/api/gas-sync/properties/${prop.id}/copy-images`)
+      .catch(err => console.warn('[sync-images auto-publish] copy failed:', err.message));
+
     res.json({
       success: true,
       property: prop.name,
