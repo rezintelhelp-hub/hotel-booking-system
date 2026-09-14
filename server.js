@@ -62275,6 +62275,107 @@ app.get('/api/admin/properties/:id/room-leaves', async (req, res) => {
   }
 });
 
+// ── Cross-property availability search (Belmont 2026-09-14) ───────────
+// Fast "which rooms are free for these dates" tool for operators
+// working in the calendar. Scoped to one property when property_id is
+// passed, otherwise every property on the account. Uses the shared
+// computeRoomAvailability helper per candidate room so results match
+// the calendar view exactly. Skips hidden rooms + bike-storage + non-
+// active units to match calendar rules. Filters by guest count when
+// bookable_units.max_guests is set.
+app.get('/api/admin/availability/find', async (req, res) => {
+  try {
+    const user = await authenticateUser(req, res);
+    if (!user) return;
+    let accountId = parseInt(req.query.account_id, 10) || null;
+    const propertyIdRaw = req.query.property_id ? parseInt(req.query.property_id, 10) : null;
+    // scope=property (default): filter to just the passed property_id
+    // scope=account: use property_id ONLY to derive account_id, then
+    //                search every property on that account
+    const scope = String(req.query.scope || 'property').toLowerCase() === 'account' ? 'account' : 'property';
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const guests = parseInt(req.query.guests, 10) || 1;
+    const includeUnavailable = req.query.include_unavailable === '1' || req.query.include_unavailable === 'true';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+      return res.status(400).json({ success: false, error: 'from + to (YYYY-MM-DD) required' });
+    }
+    if (from >= to) return res.status(400).json({ success: false, error: 'departure must be after arrival' });
+    // Derive account_id from property_id if not passed. Also derive from
+    // user's own account for non-master admin. Master admin without either
+    // is asked to pass one explicitly.
+    if (!accountId && propertyIdRaw) {
+      const p = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyIdRaw]);
+      accountId = p.rows[0]?.account_id || null;
+    }
+    if (!accountId && user.role !== 'master_admin') {
+      accountId = user.accountId || user.id;
+    }
+    if (!accountId) return res.status(400).json({ success: false, error: 'account_id or property_id required' });
+    // Only filter by property_id when scope='property'. In 'account' mode
+    // we've already used it for account_id derivation and can ignore it.
+    const propertyId = scope === 'property' ? propertyIdRaw : null;
+    // Scope guard
+    if (user.role !== 'master_admin' && accountId !== (user.accountId || user.id)) {
+      return res.status(403).json({ success: false, error: 'Not your account' });
+    }
+    // Candidate rooms — mirror the calendar's visibility rules.
+    const candidates = await pool.query(
+      `SELECT bu.id, bu.name AS room_name, COALESCE(bu.max_guests, 99) AS max_guests,
+              COALESCE(bu.base_price, 0) AS base_price,
+              COALESCE(bu.currency, p.currency, 'GBP') AS currency,
+              p.id AS property_id, p.name AS property_name
+         FROM bookable_units bu
+         JOIN properties p ON p.id = bu.property_id
+        WHERE p.account_id = $1
+          ${propertyId ? 'AND p.id = $3' : ''}
+          AND COALESCE(bu.is_hidden, false) = false
+          AND COALESCE(bu.unit_role, 'room') NOT IN ('bike_storage','companion')
+          AND COALESCE(bu.status, 'active') = 'active'
+          AND COALESCE(bu.max_guests, 99) >= $2
+        ORDER BY p.name, bu.name`,
+      propertyId ? [accountId, guests, propertyId] : [accountId, guests]
+    );
+    // Fan out availability checks in parallel — 15-20 rooms is trivial;
+    // Cotswolds-scale (60+) still fast enough because each per-room query
+    // hits room_availability + bookings for the small [from,to) range.
+    const results = await Promise.all(candidates.rows.map(async (r) => {
+      const days = await computeRoomAvailability(pool, r.id, from, to).catch(() => null);
+      let is_available = false;
+      let blocker = null;
+      if (Array.isArray(days) && days.length) {
+        const allFree = days.every(d => d.available);
+        is_available = allFree;
+        if (!allFree) {
+          // Pick first blocked date's reason so the UI can show WHY
+          const firstBad = days.find(d => !d.available);
+          blocker = firstBad?.blocked_by || 'unknown';
+        }
+      }
+      return {
+        property_id: r.property_id, property_name: r.property_name,
+        room_id: r.id, room_name: r.room_name,
+        max_guests: r.max_guests, currency: r.currency,
+        price_from: parseFloat(r.base_price) || null,
+        is_available, blocker
+      };
+    }));
+    const available = results.filter(r => r.is_available);
+    const unavailable = results.filter(r => !r.is_available);
+    res.json({
+      success: true,
+      from, to, guests, account_id: accountId, property_id: propertyId,
+      total_scanned: candidates.rows.length,
+      available_count: available.length,
+      unavailable_count: unavailable.length,
+      results: includeUnavailable ? results : available
+    });
+  } catch (e) {
+    console.error('[availability/find]', e.message);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Toggle marketplace availability for a single unit
 app.put('/api/admin/bookable-units/:id/marketplace', async (req, res) => {
   try {

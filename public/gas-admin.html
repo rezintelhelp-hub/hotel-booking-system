@@ -5798,6 +5798,7 @@
                             </select>
                             <button class="btn btn-secondary" id="mobile-cal-toggle-btn" onclick="_mobCalToggle()" title="Mobile month view — one room per screen" style="padding: 0.5rem 0.75rem;">📱</button>
                             <button class="btn btn-secondary" id="grid-refresh-btn" onclick="refreshGrid(this)" title="Reload the calendar without changing the date" style="padding: 0.5rem 0.75rem;">🔄</button>
+                            <button class="btn btn-secondary" onclick="openFindRoomsModal()" title="Find rooms available for a date range across this property or all your properties" style="padding: 0.5rem 0.75rem;">🔍 Find rooms</button>
                             <button class="btn btn-secondary" onclick="openBlockUnblockModal()" title="Block or unblock one or more rooms across a date range" style="padding: 0.5rem 0.75rem;">🚫 Block / Unblock</button>
                             <button class="btn btn-secondary" onclick="openSwapBookingsModal()" title="Atomically swap two bookings' rooms (for when both destinations are occupied)" style="padding: 0.5rem 0.75rem;">🔄 Swap bookings</button>
                             <input type="date" id="grid-date-picker" title="Jump to a specific date" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
@@ -60020,6 +60021,166 @@ const promo = await fetch('/api/v1/offers/validate', {
             } finally {
                 btn.disabled = false; btn.innerHTML = orig;
             }
+        }
+
+        // ── Find rooms — cross-property availability search (Belmont 2026-09-14)
+        // Opens a small modal, operator enters dates + guest count + scope.
+        // Hits GET /api/admin/availability/find, renders the free rooms.
+        // Click a row → opens the Add Booking modal pre-filled with property
+        // + room + dates. Compatible with Simple/Detailed/Bespoke views.
+        function openFindRoomsModal() {
+            let modal = document.getElementById('findRoomsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'findRoomsModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width:640px;">
+                        <div class="modal-header" style="background:linear-gradient(135deg,#0ea5e9,#0369a1); color:white; padding:1rem 1.25rem; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
+                            <h3 style="margin:0; font-size:1.1rem;">🔍 Find available rooms</h3>
+                            <button onclick="closeModal('findRoomsModal')" style="background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">&times;</button>
+                        </div>
+                        <div style="padding:1.25rem;">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.75rem;">
+                                <div>
+                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Arrival</label>
+                                    <input type="date" id="find-rooms-from" class="form-input" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Departure</label>
+                                    <input type="date" id="find-rooms-to" class="form-input" style="width:100%;">
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.75rem; margin-bottom:0.75rem;">
+                                <div>
+                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Guests</label>
+                                    <input type="number" id="find-rooms-guests" class="form-input" min="1" value="2" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Scope</label>
+                                    <select id="find-rooms-scope" class="form-input" style="width:100%;">
+                                        <option value="property">This property only</option>
+                                        <option value="account">All my properties</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#475569; margin-bottom:0.75rem;">
+                                <input type="checkbox" id="find-rooms-show-unavailable">
+                                Also show unavailable rooms (with the reason)
+                            </label>
+                            <div style="display:flex; gap:0.5rem;">
+                                <button class="btn btn-primary" onclick="runFindRooms(this)" style="background:linear-gradient(135deg,#0ea5e9,#0369a1); flex:1;">Find rooms</button>
+                                <button class="btn btn-secondary" onclick="closeModal('findRoomsModal')">Close</button>
+                            </div>
+                            <div id="find-rooms-results" style="margin-top:1rem; max-height:50vh; overflow-y:auto;"></div>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+            }
+            // Default dates: use the currently-selected calendar start + 1 night,
+            // fallback to today + tomorrow. Guests defaults to 2.
+            const fromEl = document.getElementById('find-rooms-from');
+            const toEl = document.getElementById('find-rooms-to');
+            const startForDefault = (typeof gridStartDate !== 'undefined' && gridStartDate)
+                ? new Date(gridStartDate) : new Date();
+            const nextDay = new Date(startForDefault); nextDay.setDate(nextDay.getDate() + 1);
+            fromEl.value = startForDefault.toISOString().slice(0, 10);
+            toEl.value = nextDay.toISOString().slice(0, 10);
+            // Default scope: match the calendar's current property filter.
+            // If no property selected on the calendar, jump to "account".
+            const gridPropId = document.getElementById('grid-property-filter')?.value;
+            document.getElementById('find-rooms-scope').value = gridPropId ? 'property' : 'account';
+            document.getElementById('find-rooms-results').innerHTML = '';
+            openModal('findRoomsModal');
+        }
+
+        async function runFindRooms(btn) {
+            const from = document.getElementById('find-rooms-from').value;
+            const to = document.getElementById('find-rooms-to').value;
+            const guests = parseInt(document.getElementById('find-rooms-guests').value, 10) || 1;
+            const scope = document.getElementById('find-rooms-scope').value;
+            const includeUnavail = document.getElementById('find-rooms-show-unavailable').checked;
+            const resultsEl = document.getElementById('find-rooms-results');
+            if (!from || !to || from >= to) {
+                resultsEl.innerHTML = '<p style="color:#dc2626; margin:0;">Pick an arrival + departure date (departure after arrival).</p>';
+                return;
+            }
+            // Server derives account from property_id (or from auth token
+            // for regular admin). Send scope so server knows whether to
+            // filter to that property or search across the account.
+            const gridPropId = document.getElementById('grid-property-filter')?.value;
+            const params = new URLSearchParams();
+            params.set('from', from);
+            params.set('to', to);
+            params.set('guests', String(guests));
+            params.set('scope', scope);
+            if (includeUnavail) params.set('include_unavailable', '1');
+            if (gridPropId) params.set('property_id', gridPropId);
+            const orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '⏳ Searching…';
+            resultsEl.innerHTML = '<p style="color:#64748b; margin:0;">Checking rooms…</p>';
+            try {
+                const r = await fetch('/api/admin/availability/find?' + params.toString(), { headers: authHeaders() });
+                const d = await r.json();
+                if (!d.success) {
+                    resultsEl.innerHTML = `<p style="color:#dc2626; margin:0;">${d.error || 'Search failed'}</p>`;
+                    return;
+                }
+                if (d.results.length === 0) {
+                    resultsEl.innerHTML = `<p style="color:#64748b; margin:0;">No rooms available for ${from} → ${to} (${guests} guests). Scanned ${d.total_scanned}.</p>`;
+                    return;
+                }
+                // Group by property
+                const byProp = {};
+                for (const row of d.results) {
+                    (byProp[row.property_name] = byProp[row.property_name] || []).push(row);
+                }
+                let html = `<p style="font-size:0.8rem; color:#64748b; margin:0 0 0.5rem;">${d.available_count} available / ${d.total_scanned} scanned. Click a room to prefill Add Booking.</p>`;
+                for (const [prop, rows] of Object.entries(byProp)) {
+                    html += `<div style="margin-bottom:0.75rem;"><div style="font-weight:600; font-size:0.85rem; color:#0f172a; padding:0.35rem 0.5rem; background:#f1f5f9; border-radius:4px;">${prop}</div>`;
+                    for (const row of rows) {
+                        const bad = !row.is_available;
+                        const rowStyle = bad
+                            ? 'opacity:0.55; cursor:default; background:#fef2f2;'
+                            : 'cursor:pointer; background:#fff; border:1px solid #e2e8f0;';
+                        const clickAttr = bad ? '' : `onclick="prefillAddBookingFromFind(${row.property_id}, ${row.room_id}, '${from}', '${to}', ${guests})"`;
+                        const priceStr = row.price_from ? `${row.currency} ${parseFloat(row.price_from).toFixed(0)}/nt` : '';
+                        const reason = bad ? ` <span style="font-size:0.7rem; color:#dc2626;">(${row.blocker || 'unavailable'})</span>` : '';
+                        html += `<div ${clickAttr} style="${rowStyle} padding:0.5rem 0.75rem; border-radius:4px; margin:0.25rem 0; display:flex; justify-content:space-between; align-items:center; font-size:0.85rem;">
+                            <span>${row.room_name}${reason}</span>
+                            <span style="font-size:0.75rem; color:#64748b;">${priceStr} · ${row.max_guests}p</span>
+                        </div>`;
+                    }
+                    html += '</div>';
+                }
+                resultsEl.innerHTML = html;
+            } catch (e) {
+                resultsEl.innerHTML = `<p style="color:#dc2626; margin:0;">Network error: ${e.message}</p>`;
+            } finally {
+                btn.disabled = false; btn.innerHTML = orig;
+            }
+        }
+
+        function prefillAddBookingFromFind(propertyId, roomId, from, to, guests) {
+            closeModal('findRoomsModal');
+            openAddBookingModal();
+            // The Add Booking modal auto-populates dates on open; overwrite
+            // with the searched values + set property + room + guest count.
+            setTimeout(() => {
+                document.getElementById('booking-checkin').value = from;
+                document.getElementById('booking-checkout').value = to;
+                const propSel = document.getElementById('booking-property');
+                if (propSel) {
+                    propSel.value = String(propertyId);
+                    if (typeof loadBookingRooms === 'function') {
+                        loadBookingRooms().then(() => {
+                            const roomSel = document.getElementById('booking-room');
+                            if (roomSel) roomSel.value = String(roomId);
+                        }).catch(() => {});
+                    }
+                }
+                const gEl = document.getElementById('booking-guests');
+                if (gEl) gEl.value = String(guests);
+            }, 100);
         }
 
         // ── Room order editor (Belmont 2026-09-13) ────────────────────
