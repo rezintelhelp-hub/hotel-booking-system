@@ -42309,7 +42309,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return `<div class="form-group"><label class="form-label">${label}</label><input type="${type}" class="form-input" data-field="${field}" value="${val}"></div>`;
             };
 
-            const bgPicker = inp('background_color', 'Background Colour', 'color', sec.background_color || '');
+            // Paired hex-text + color-picker (matches the card BG pattern below).
+            // Was a lone <input type="color"> which offered no visible value and
+            // no way to paste a hex. Steve/Invest Jet 2026-09-14.
+            const bgVal = sec.background_color || '';
+            const bgPicker = `<div class="form-group"><label class="form-label">Background Colour</label>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <input type="text" class="form-input" data-field="background_color" value="${bgVal}"
+                        oninput="if(/^#[0-9a-f]{6}$/i.test(this.value)) this.nextElementSibling.value=this.value"
+                        placeholder="#ffffff" style="width:110px; font-family:monospace; font-size:0.85rem;">
+                    <input type="color" value="${bgVal || '#ffffff'}"
+                        onchange="this.previousElementSibling.value=this.value; this.previousElementSibling.dispatchEvent(new Event('input',{bubbles:true}));"
+                        style="width:36px; height:30px; border:1px solid #e2e8f0; border-radius:4px; cursor:pointer; padding:1px;">
+                    <button type="button" onclick="this.previousElementSibling.previousElementSibling.value=''; this.previousElementSibling.value='#ffffff';"
+                        style="padding:4px 8px; background:none; border:1px solid #e2e8f0; border-radius:4px; cursor:pointer; font-size:0.75rem; color:#64748b;">Clear</button>
+                </div></div>`;
 
             // Helper: build a Content Width <select> with the standard 4-option vocabulary.
             // `defaultVal` is the section's pre-existing default so unedited sections render unchanged.
@@ -42619,6 +42633,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="text" class="form-input" data-card-field="cta_text" value="${(item['cta_text_' + lang] ?? item.cta_text ?? '').replace(/"/g,'&quot;')}" placeholder="Button text (optional)" style="font-size:0.85rem;">
                                 <div style="display:flex;gap:4px;align-items:center;"><input type="text" class="form-input" data-card-field="cta_link" value="${(item.cta_link || '').replace(/"/g,'&quot;')}" placeholder="Button URL" style="flex:1;font-size:0.85rem;">${pagePickerBtn()}</div>
                                 <select class="form-input" data-card-field="cta_size" style="font-size:0.8rem; width:55px;"><option value="sm"${(item.cta_size||'sm')==='sm'?' selected':''}>S</option><option value="md"${(item.cta_size||'')==='md'?' selected':''}>M</option><option value="lg"${(item.cta_size||'')==='lg'?' selected':''}>L</option></select>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <label style="font-size:0.75rem; color:#64748b; white-space:nowrap;">Button BG</label>
+                                    <input type="text" class="form-input" data-card-field="cta_bg" value="${item.cta_bg || ''}" oninput="if(/^#[0-9a-f]{6}$/i.test(this.value))this.nextElementSibling.value=this.value" style="width:80px;font-size:0.8rem;" placeholder="#0ea5e9">
+                                    <input type="color" value="${item.cta_bg || '#0ea5e9'}" onchange="this.previousElementSibling.value=this.value; this.previousElementSibling.dispatchEvent(new Event('input',{bubbles:true}));" style="width:30px;height:28px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;padding:1px;">
+                                </div>
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <label style="font-size:0.75rem; color:#64748b; white-space:nowrap;">Button Text</label>
+                                    <input type="text" class="form-input" data-card-field="cta_text_color" value="${item.cta_text_color || ''}" oninput="if(/^#[0-9a-f]{6}$/i.test(this.value))this.nextElementSibling.value=this.value" style="width:80px;font-size:0.8rem;" placeholder="#ffffff">
+                                    <input type="color" value="${item.cta_text_color || '#ffffff'}" onchange="this.previousElementSibling.value=this.value; this.previousElementSibling.dispatchEvent(new Event('input',{bubbles:true}));" style="width:30px;height:28px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;padding:1px;">
+                                </div>
                             </div>
                             <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.8rem;color:#475569;cursor:pointer;">
                                 <input type="checkbox" data-card-field="cta_new_tab" ${item.cta_new_tab ? 'checked' : ''} style="width:14px;height:14px;cursor:pointer;">
