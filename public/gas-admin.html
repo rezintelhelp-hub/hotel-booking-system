@@ -60057,13 +60057,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <input type="number" id="find-rooms-guests" class="form-input" min="1" value="2" style="width:100%;">
                                 </div>
                                 <div>
-                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Scope</label>
-                                    <select id="find-rooms-scope" class="form-input" style="width:100%;">
-                                        <option value="property">This property only</option>
-                                        <option value="account">All my properties</option>
+                                    <label style="font-size:0.8rem; font-weight:600; color:#475569; display:block; margin-bottom:0.25rem;">Property</label>
+                                    <select id="find-rooms-property" class="form-input" style="width:100%;" onchange="_findRoomsSyncScope()">
+                                        <option value="">— All my properties —</option>
                                     </select>
                                 </div>
                             </div>
+                            <input type="hidden" id="find-rooms-scope" value="account">
+
                             <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#475569; margin-bottom:0.75rem;">
                                 <input type="checkbox" id="find-rooms-show-unavailable">
                                 Also show unavailable rooms (with the reason)
@@ -60086,12 +60087,29 @@ const promo = await fetch('/api/v1/offers/validate', {
             const nextDay = new Date(startForDefault); nextDay.setDate(nextDay.getDate() + 1);
             fromEl.value = startForDefault.toISOString().slice(0, 10);
             toEl.value = nextDay.toISOString().slice(0, 10);
-            // Default scope: match the calendar's current property filter.
-            // If no property selected on the calendar, jump to "account".
-            const gridPropId = document.getElementById('grid-property-filter')?.value;
-            document.getElementById('find-rooms-scope').value = gridPropId ? 'property' : 'account';
             document.getElementById('find-rooms-results').innerHTML = '';
+            // Populate property dropdown from the calendar's own list, so
+            // the user can pick even when they haven't set the calendar's
+            // property filter yet. Default to whatever the calendar has
+            // filtered to.
+            const propSel = document.getElementById('find-rooms-property');
+            const gridPropSel = document.getElementById('grid-property-filter');
+            if (propSel && gridPropSel) {
+                const current = gridPropSel.value || '';
+                propSel.innerHTML = '<option value="">— All my properties —</option>';
+                for (const opt of gridPropSel.options) {
+                    if (!opt.value) continue;
+                    propSel.innerHTML += `<option value="${opt.value}"${opt.value === current ? ' selected' : ''}>${opt.textContent}</option>`;
+                }
+            }
+            _findRoomsSyncScope();
             openModal('findRoomsModal');
+        }
+
+        function _findRoomsSyncScope() {
+            const propId = document.getElementById('find-rooms-property')?.value || '';
+            const scopeEl = document.getElementById('find-rooms-scope');
+            if (scopeEl) scopeEl.value = propId ? 'property' : 'account';
         }
 
         async function runFindRooms(btn) {
@@ -60105,17 +60123,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 resultsEl.innerHTML = '<p style="color:#dc2626; margin:0;">Pick an arrival + departure date (departure after arrival).</p>';
                 return;
             }
-            // Server derives account from property_id (or from auth token
-            // for regular admin). Send scope so server knows whether to
-            // filter to that property or search across the account.
-            const gridPropId = document.getElementById('grid-property-filter')?.value;
+            // Use the modal's own property picker (falls back to the
+            // calendar's filter when opened; can be changed in-modal).
+            const pickedPropId = document.getElementById('find-rooms-property')?.value || '';
+            const gridPropId = document.getElementById('grid-property-filter')?.value || '';
+            // Always send *some* property_id when available so the server
+            // can derive account_id. Server ignores it for scope filtering
+            // when scope=account.
+            const derivePropId = pickedPropId || gridPropId;
             const params = new URLSearchParams();
             params.set('from', from);
             params.set('to', to);
             params.set('guests', String(guests));
             params.set('scope', scope);
             if (includeUnavail) params.set('include_unavailable', '1');
-            if (gridPropId) params.set('property_id', gridPropId);
+            if (derivePropId) params.set('property_id', derivePropId);
             const orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '⏳ Searching…';
             resultsEl.innerHTML = '<p style="color:#64748b; margin:0;">Checking rooms…</p>';
             try {

@@ -62327,7 +62327,10 @@ app.get('/api/admin/availability/find', async (req, res) => {
     const candidates = await pool.query(
       `SELECT bu.id, bu.name AS room_name, COALESCE(bu.max_guests, 99) AS max_guests,
               COALESCE(bu.base_price, 0) AS base_price,
-              COALESCE(bu.currency, p.currency, 'GBP') AS currency,
+              -- Property currency is source of truth — bu.currency has been
+              -- seen stale-CHF on book-jet (acct 152) + Hebden (acct 169)
+              -- rooms even though the properties are EUR/GBP.
+              COALESCE(p.currency, bu.currency, 'GBP') AS currency,
               p.id AS property_id, p.name AS property_name
          FROM bookable_units bu
          JOIN properties p ON p.id = bu.property_id
