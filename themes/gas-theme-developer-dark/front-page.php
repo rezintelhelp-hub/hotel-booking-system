@@ -265,7 +265,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         endif; ?>
         
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
-        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo esc_html($hero_subtitle); ?></p>
+        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
         
         <!-- GAS Search Widget with custom styling -->
         <?php
@@ -517,7 +517,7 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     <div class="developer-container">
         <div class="developer-section-header">
             <h2 style="color: <?php echo esc_attr($featured_title_color); ?>;"><?php echo esc_html($featured_title); ?></h2>
-            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;"><?php echo esc_html($featured_subtitle); ?></p>
+            <p style="color: <?php echo esc_attr($featured_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($featured_subtitle)); ?></p>
         </div>
         
         <?php 
@@ -560,7 +560,7 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
             <h2 class="developer-section-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($usp_title); ?></h2>
         <?php endif; ?>
         <?php if ($usp_subtitle) : ?>
-            <p class="developer-section-subtitle" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo esc_html($usp_subtitle); ?></p>
+            <p class="developer-section-subtitle" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo wp_kses_post($usp_subtitle); ?></p>
         <?php endif; ?>
 
         <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo min(count($usp_items), 3); ?>, 1fr);">
@@ -737,7 +737,7 @@ for ($i = 1; $i <= 8; $i++) {
                         <h3 style="color: <?php echo esc_attr($services_card_text_color); ?>;"><?php echo esc_html($item['title']); ?></h3>
                     <?php endif; ?>
                     <?php if (!empty($item['text'])) : ?>
-                        <p style="color: <?php echo esc_attr($services_card_text_color); ?>; opacity: 0.8;"><?php echo nl2br(esc_html($item['text'])); ?></p>
+                        <p style="color: <?php echo esc_attr($services_card_text_color); ?>; opacity: 0.8;"><?php echo nl2br(wp_kses_post($item['text'])); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
@@ -1052,7 +1052,7 @@ if ($cta_enabled) :
     <div class="developer-container">
         <div class="developer-cta-content">
             <h2 style="color: <?php echo esc_attr($cta_text_color); ?>; font-size: <?php echo esc_attr($cta_title_size); ?>px;"><?php echo esc_html($cta_title); ?></h2>
-            <p style="color: <?php echo esc_attr($cta_text_color); ?>; opacity: 0.9; font-size: <?php echo esc_attr($cta_text_size); ?>px;"><?php echo esc_html($cta_text); ?></p>
+            <p style="color: <?php echo esc_attr($cta_text_color); ?>; opacity: 0.9; font-size: <?php echo esc_attr($cta_text_size); ?>px;"><?php echo nl2br(wp_kses_post($cta_text)); ?></p>
             <?php if ($cta_btn_text) : ?>
                 <a href="<?php echo esc_url(home_url($cta_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($cta_btn_bg); ?> !important; color: <?php echo esc_attr($cta_btn_text_color); ?> !important;"><?php echo esc_html($cta_btn_text); ?></a>
             <?php endif; ?>
