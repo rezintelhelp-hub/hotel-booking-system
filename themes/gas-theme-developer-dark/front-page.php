@@ -590,7 +590,7 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                         <p class="usp-card-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
                     <?php endif; ?>
                     <?php if (!empty($item['text'])) : ?>
-                        <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(esc_html($item['text'])); ?></p>
+                        <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(wp_kses_post($item['text'])); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
