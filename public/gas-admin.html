@@ -41488,6 +41488,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     sec.items[i].cta_link = row.querySelector('[data-card-field="cta_link"]')?.value || '';
                     sec.items[i].cta_size = row.querySelector('[data-card-field="cta_size"]')?.value || 'sm';
                     sec.items[i].cta_new_tab = !!row.querySelector('[data-card-field="cta_new_tab"]')?.checked;
+                    // Per-card button colours — Steve/Invest Jet 2026-09-14.
+                    // Empty falls back to primary_color / white in theme.
+                    sec.items[i].cta_bg = row.querySelector('[data-card-field="cta_bg"]')?.value || '';
+                    sec.items[i].cta_text_color = row.querySelector('[data-card-field="cta_text_color"]')?.value || '';
                 });
             }
             if (sec.type === 'gallery' || sec.type === 'hero_slider') {
