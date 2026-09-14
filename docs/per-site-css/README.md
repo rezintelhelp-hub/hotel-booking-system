@@ -27,3 +27,4 @@ ssh root@72.61.207.109 "cd /var/www/wordpress && wp --allow-root eval \
 | Site | File | Notes |
 |---|---|---|
 | dwellfortcom.sites.gas.travel | `dwellfortcom.sites.gas.travel.css` | Bespoke tweaks matching Anton's SetSeed global_design_mode_theme7 design (nav buttons black + 5px radius, hero Lora 44/Muli 20, hide cart, search pill button #69695e) |
+| book-jet.sites.gas.travel | `book-jet.sites.gas.travel.css` | Cap the page.php 120px header spacer at 80px so sub-pages (about, etc) don't leave a big empty band above content — page.php spacer was overshooting the 80px header height |

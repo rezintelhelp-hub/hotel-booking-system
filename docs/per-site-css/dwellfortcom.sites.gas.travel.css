@@ -879,6 +879,20 @@ h1.gas-room-title {
 p.gas-room-location {
     text-align: left !important;
 }
+/* Nuclear overflow clamp on mobile — iPhone Safari was showing the room
+   page shifted right (whole layout off-centre) after the Map tab landed.
+   Some element above .gas-room-widget is overflowing on iOS and my
+   widget-level clamp doesn't reach it. This locks body + html so
+   nothing on any page can horizontal-scroll past viewport. If it turns
+   out a sticky/fixed header needs the scroll, we scope this narrower.
+   Steve 2026-08-22. */
+@media (max-width: 768px) {
+    html, body {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+    }
+}
+
 /* Booking sidebar labels — plugin CSS already says text-transform:none,
    deployed CSS confirmed via curl, but Steve reports caps still visible
    2026-08-22. Something on Dwellfort is winning specificity or applying

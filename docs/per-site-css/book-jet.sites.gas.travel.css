@@ -1,0 +1,10 @@
+/* Book Jet — per-site tweaks (2026-09-14, Steve/Invest Jet).
+   Sub-pages (About, etc) rendered by gas-theme-developer-light's page.php
+   inject a 120px spacer div to compensate for the fixed header. Header
+   is 80px tall on this site, so 120px leaves an obvious empty band
+   above the first content section (visible on /about/ between header
+   and the media_wrap section). Match spacer to header height. */
+
+div[style*="padding-top: 120px"] {
+  padding-top: 80px !important;
+}
