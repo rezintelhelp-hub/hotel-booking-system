@@ -86789,7 +86789,11 @@ app.all('/api/bookings/:id/invoice', async (req, res) => {
 // &bill_to_address=... and renders one HTML invoice covering all of them.
 // No persistence — regenerable from the same selection any time. Follows
 // the single-booking /invoice pattern for styling + print button.
-app.all('/api/bookings/group-invoice', async (req, res) => {
+//
+// Path is /api/admin/bookings-group-invoice (not /api/bookings/group-invoice)
+// because /api/bookings/:id at line 85925 would swallow "group-invoice" as
+// the :id param and blow up in the SQL cast to integer.
+app.all('/api/admin/bookings-group-invoice', async (req, res) => {
   try {
     const idsRaw = String(req.query.ids || req.body?.ids || '').trim();
     if (!idsRaw) return res.status(400).send('ids query param required');
@@ -86806,11 +86810,16 @@ app.all('/api/bookings/group-invoice', async (req, res) => {
              p.country as property_country,
              p.account_id as property_account_id,
              a.name as account_name,
-             a.email as account_email
+             a.email as account_email,
+             g.address as crm_address,
+             g.city as crm_city,
+             g.country as crm_country,
+             g.postcode as crm_postcode
       FROM bookings b
       LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
       LEFT JOIN properties p ON b.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN guests g ON LOWER(g.email) = LOWER(b.guest_email)
       WHERE b.id = ANY($1::int[])
       ORDER BY b.arrival_date, b.id
     `, [ids]);
@@ -86843,8 +86852,18 @@ app.all('/api/bookings/group-invoice', async (req, res) => {
       || '';
     const billToEmail = (req.query.bill_to_email || req.body?.bill_to_email || '').toString().trim()
       || first.guest_email || '';
+    // Address fallback chain: operator override → booking's guest_address →
+    // CRM guests.address → composed from CRM city/postcode/country. Real
+    // booking rows rarely have street address (checkout doesn't collect it)
+    // so the CRM lookup is what makes the invoice usable.
+    const composedCrm = [first.crm_address, first.crm_city, first.crm_postcode, first.crm_country]
+      .map(s => (s || '').toString().trim())
+      .filter(Boolean)
+      .join(', ');
     const billToAddress = (req.query.bill_to_address || req.body?.bill_to_address || '').toString().trim()
-      || first.guest_address || '';
+      || first.guest_address
+      || composedCrm
+      || '';
 
     const grandTotal = result.rows.reduce((s, r) => s + parseFloat(r.grand_total || 0), 0);
     const depositTotal = result.rows.reduce((s, r) => s + parseFloat(r.deposit_amount || 0), 0);

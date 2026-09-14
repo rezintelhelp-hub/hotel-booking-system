@@ -73326,7 +73326,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (name) params.set('bill_to_name', name);
             if (email) params.set('bill_to_email', email);
             if (address) params.set('bill_to_address', address);
-            window.open('/api/bookings/group-invoice?' + params.toString(), '_blank');
+            window.open('/api/admin/bookings-group-invoice?' + params.toString(), '_blank');
             const modal = document.getElementById('group-invoice-modal');
             if (modal) modal.remove();
         }
