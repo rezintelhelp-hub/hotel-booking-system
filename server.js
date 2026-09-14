@@ -1473,7 +1473,8 @@ async function sendEmail({ to, cc, bcc, subject, html, from, replyTo, context, a
   try {
     const formData = new URLSearchParams();
     formData.append('from', resolvedFrom);
-    formData.append('to', Array.isArray(to) ? to.join(',') : to);
+    // Note: 'to' is appended AFTER the lockout block below so the strip
+    // pass can remove opted-out addresses from the To list too.
     formData.append('subject', subject);
     formData.append('html', html);
     if (resolvedReplyTo) formData.append('h:Reply-To', resolvedReplyTo);
@@ -1489,18 +1490,70 @@ async function sendEmail({ to, cc, bcc, subject, html, from, replyTo, context, a
     // accounts.settings.owner_copy_mode (default ON) and dedupes against
     // to/cc so owner-directed sends don't self-copy. Silently returns []
     // on any failure so a bookings-table hiccup can't block the guest send.
+    const effAccountId = accountId || context?.accountId;
+    const effBookingId = bookingId || context?.bookingId;
     const ownerBcc = await resolveOwnerBcc({
-      accountId: accountId || context?.accountId,
+      accountId: effAccountId,
       siteId: siteId || context?.siteId,
-      bookingId: bookingId || context?.bookingId,
+      bookingId: effBookingId,
       to, cc
     });
     const existingBcc = Array.isArray(bcc)
       ? bcc.slice()
       : (bcc ? String(bcc).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
-    const mergedBcc = [...existingBcc, ...ownerBcc];
+    let mergedBcc = [...existingBcc, ...ownerBcc];
 
-    const ccList = _emailList(cc);
+    // FULL LOCKOUT — when the owner opted out via notify_main_email=false
+    // AND this send is booking/account-scoped (has accountId or bookingId),
+    // strip accounts.email from every recipient list. Password-reset and
+    // welcome emails don't pass accountId/bookingId, so login credential
+    // sends still reach the owner. Sarah / Hebden 2026-09-14 — she does
+    // not want to see ANYTHING booking-related; bookings@ (via
+    // booking_cc_email or Site Comms) is the sole ops-recipient path.
+    let finalTo = to;
+    let finalCc = cc;
+    if (effAccountId || effBookingId) {
+      try {
+        let lockoutRow = null;
+        if (effAccountId) {
+          const q = await pool.query('SELECT email, notify_main_email FROM accounts WHERE id = $1', [effAccountId]);
+          lockoutRow = q.rows[0];
+        } else if (effBookingId) {
+          const q = await pool.query(
+            `SELECT a.email, a.notify_main_email
+               FROM bookings b JOIN properties p ON p.id=b.property_id
+               JOIN accounts a ON a.id=p.account_id
+              WHERE b.id = $1`, [effBookingId]);
+          lockoutRow = q.rows[0];
+        }
+        if (lockoutRow && lockoutRow.email && lockoutRow.notify_main_email === false) {
+          const optOutAddr = String(lockoutRow.email).trim().toLowerCase();
+          const strip = (v) => {
+            if (!v) return v;
+            const parts = Array.isArray(v) ? v : String(v).split(/[,;]+/);
+            const kept = parts.map(s => String(s).trim()).filter(a => a && a.toLowerCase() !== optOutAddr);
+            return Array.isArray(v) ? kept : kept.join(',');
+          };
+          finalTo = strip(to);
+          finalCc = strip(cc);
+          mergedBcc = strip(mergedBcc);
+          // If stripping killed the entire To list, drop the send — an
+          // email with no recipients is a Mailgun error anyway. Caller
+          // that only-owner-targeted this send gets a no-op; caller that
+          // included another recipient (guest, ops mailbox) still sends.
+          if (!finalTo || (Array.isArray(finalTo) && finalTo.length === 0) || (typeof finalTo === 'string' && !finalTo.trim())) {
+            console.log(`[sendEmail] full lockout — owner opted out on account ${effAccountId||'?'} and no other recipients; skipping send`);
+            return { success: true, skipped: 'owner-opted-out-no-other-recipient' };
+          }
+        }
+      } catch (e) {
+        console.warn('[sendEmail lockout check]', e.message);
+      }
+    }
+
+    // Append the (possibly-stripped) To list now that lockout has run.
+    formData.append('to', Array.isArray(finalTo) ? finalTo.join(',') : finalTo);
+    const ccList = _emailList(finalCc);
     const bccList = _emailList(mergedBcc);
     if (ccList) formData.append('cc', ccList);
     if (bccList) formData.append('bcc', bccList);
