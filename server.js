@@ -86865,6 +86865,21 @@ app.all('/api/admin/bookings-group-invoice', async (req, res) => {
       || composedCrm
       || '';
 
+    // Prefill mode — modal fetches this on open to show what the server
+    // would use for bill-to (including CRM address). Lets the operator see
+    // and edit BEFORE generating.
+    if (req.query.prefill === '1' || req.body?.prefill === '1') {
+      return res.json({
+        success: true,
+        bill_to_name: billToName,
+        bill_to_email: billToEmail,
+        bill_to_address: billToAddress,
+        booking_count: result.rows.length,
+        currency: currencyRaw,
+        grand_total: result.rows.reduce((s, r) => s + parseFloat(r.grand_total || 0), 0)
+      });
+    }
+
     const grandTotal = result.rows.reduce((s, r) => s + parseFloat(r.grand_total || 0), 0);
     const depositTotal = result.rows.reduce((s, r) => s + parseFloat(r.deposit_amount || 0), 0);
     const balanceDue = grandTotal - depositTotal;
