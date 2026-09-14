@@ -86782,6 +86782,178 @@ app.all('/api/bookings/:id/invoice', async (req, res) => {
   }
 });
 
+// Group invoice — Scott/Hebden 2026-09-14. Operator ticks 2+ bookings on
+// the Bookings tab, hits "Create Group Invoice", modal prefills bill-to from
+// the first row and lets them override for a company/agent invoice. This
+// endpoint takes ?ids=A,B,C&bill_to_name=...&bill_to_email=...
+// &bill_to_address=... and renders one HTML invoice covering all of them.
+// No persistence — regenerable from the same selection any time. Follows
+// the single-booking /invoice pattern for styling + print button.
+app.all('/api/bookings/group-invoice', async (req, res) => {
+  try {
+    const idsRaw = String(req.query.ids || req.body?.ids || '').trim();
+    if (!idsRaw) return res.status(400).send('ids query param required');
+
+    const ids = idsRaw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isFinite(n));
+    if (ids.length < 2) return res.status(400).send('At least 2 booking ids required for a group invoice');
+
+    const result = await pool.query(`
+      SELECT b.*,
+             bu.name as unit_name,
+             p.name as property_name,
+             p.address as property_address,
+             p.city as property_city,
+             p.country as property_country,
+             p.account_id as property_account_id,
+             a.name as account_name,
+             a.email as account_email
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = ANY($1::int[])
+      ORDER BY b.arrival_date, b.id
+    `, [ids]);
+
+    if (result.rows.length === 0) return res.status(404).send('No bookings found');
+    if (result.rows.length !== ids.length) {
+      return res.status(400).send(`Requested ${ids.length} bookings, found ${result.rows.length}. Some IDs may be invalid.`);
+    }
+
+    // Safety: all bookings must belong to the same account. Blocks a rogue
+    // caller from mashing bookings from different clients into one invoice.
+    const accountIds = new Set(result.rows.map(r => r.property_account_id).filter(Boolean));
+    if (accountIds.size > 1) return res.status(400).send('All selected bookings must belong to the same account');
+
+    // Safety: all bookings must share currency. Rendering mixed £ + € on a
+    // single grand total would be nonsense.
+    const currencies = new Set(result.rows.map(r => String(r.currency || 'GBP').toUpperCase()));
+    if (currencies.size > 1) return res.status(400).send(`Cannot group bookings with different currencies: ${[...currencies].join(', ')}`);
+
+    const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€', CAD: 'C$', AUD: 'A$', NZD: 'NZ$', CHF: 'CHF ', JPY: '¥' };
+    const currencyRaw = [...currencies][0] || 'GBP';
+    const sym = CURRENCY_SYMBOLS[currencyRaw] || (currencyRaw + ' ');
+
+    // Bill-to — operator-supplied overrides win; otherwise fall back to the
+    // first booking's guest so an un-customised group invoice still makes
+    // sense.
+    const first = result.rows[0];
+    const billToName = (req.query.bill_to_name || req.body?.bill_to_name || '').toString().trim()
+      || [first.guest_first_name, first.guest_last_name].filter(Boolean).join(' ')
+      || '';
+    const billToEmail = (req.query.bill_to_email || req.body?.bill_to_email || '').toString().trim()
+      || first.guest_email || '';
+    const billToAddress = (req.query.bill_to_address || req.body?.bill_to_address || '').toString().trim()
+      || first.guest_address || '';
+
+    const grandTotal = result.rows.reduce((s, r) => s + parseFloat(r.grand_total || 0), 0);
+    const depositTotal = result.rows.reduce((s, r) => s + parseFloat(r.deposit_amount || 0), 0);
+    const balanceDue = grandTotal - depositTotal;
+
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '-';
+    const includePrintScript = req.method === 'GET' && req.query.noprint !== '1';
+
+    // Composite invoice number — stable, reproducible from the same
+    // selection. Not a sequential accounting number by design (see thread
+    // 2026-09-14). If clients later need real sequential numbers, add a
+    // group_invoices table + next_group_invoice_number.
+    const invoiceRef = `GRP-INV-${ids.slice().sort((a,b)=>a-b).join('-')}`;
+
+    const lineRows = result.rows.map(b => `
+      <div class="detail-row">
+        <span>
+          <div style="font-weight: 600;">${esc(b.unit_name || 'Room')}</div>
+          <div style="font-size: 12px; color: #64748b;">${fmtDate(b.arrival_date)} → ${fmtDate(b.departure_date)} &middot; ${(b.num_adults || 0) + (b.num_children || 0)} guest${((b.num_adults || 0) + (b.num_children || 0)) === 1 ? '' : 's'} &middot; Booking #${b.id}</div>
+        </span>
+        <span style="font-weight: 600;">${sym}${parseFloat(b.grand_total || 0).toFixed(2)}</span>
+      </div>
+    `).join('');
+
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Group Invoice ${esc(invoiceRef)}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; }
+          .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          .company { font-size: 24px; font-weight: bold; color: #4f46e5; }
+          .invoice-title { font-size: 32px; color: #1e293b; margin: 0; }
+          .invoice-number { color: #64748b; font-size: 13px; }
+          .section { margin-bottom: 30px; }
+          .section-title { font-size: 14px; text-transform: uppercase; color: #64748b; margin-bottom: 10px; letter-spacing: 0.05em; }
+          .guest-name { font-size: 18px; font-weight: 600; }
+          .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e2e8f0; align-items: flex-start; gap: 20px; }
+          .detail-row:last-child { border-bottom: none; }
+          .total-row { font-weight: bold; font-size: 18px; background: #f8fafc; padding: 15px; border-radius: 8px; }
+          .footer { margin-top: 40px; text-align: center; color: #64748b; font-size: 14px; }
+          @media print { body { padding: 20px; } .noprint { display: none; } }
+          .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #4f46e5; color: #fff; border: 0; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        </style>
+      </head>
+      <body>
+        <button class="print-btn noprint" onclick="window.print()">Print / Save PDF</button>
+        <div class="header">
+          <div>
+            <div class="company">${esc(first.property_name || first.account_name || 'Property')}</div>
+            <div style="color: #64748b; margin-top: 5px;">${esc(first.property_address || '')}</div>
+            <div style="color: #64748b;">${esc([first.property_city, first.property_country].filter(Boolean).join(', '))}</div>
+          </div>
+          <div style="text-align: right;">
+            <h1 class="invoice-title">Group Invoice</h1>
+            <div class="invoice-number">${esc(invoiceRef)}</div>
+            <div style="color: #64748b; margin-top: 10px;">Date: ${new Date().toLocaleDateString('en-GB')}</div>
+            <div style="color: #64748b;">${result.rows.length} bookings</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Bill To</div>
+          <div class="guest-name">${esc(billToName)}</div>
+          ${billToEmail ? `<div style="color: #64748b;">${esc(billToEmail)}</div>` : ''}
+          ${billToAddress ? `<div style="color: #64748b; white-space: pre-line;">${esc(billToAddress)}</div>` : ''}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Bookings</div>
+          ${lineRows}
+        </div>
+
+        <div class="section">
+          <div class="detail-row total-row">
+            <span>Total</span>
+            <span>${sym}${grandTotal.toFixed(2)}</span>
+          </div>
+          ${depositTotal > 0 ? `
+          <div class="detail-row" style="margin-top: 8px;">
+            <span>Deposits paid</span>
+            <span style="color: #16a34a;">${sym}${depositTotal.toFixed(2)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Balance due</span>
+            <span style="color: ${balanceDue > 0.005 ? '#dc2626' : '#16a34a'}; font-weight: 600;">${sym}${balanceDue.toFixed(2)}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="footer">
+          <p>Thank you for your bookings!</p>
+          <p style="font-size: 12px;">Generated by GAS &middot; Global Accommodation System</p>
+        </div>
+        ${includePrintScript ? '<script>setTimeout(()=>window.print(),300);</script>' : ''}
+      </body>
+      </html>
+    `;
+
+    res.send(invoiceHtml);
+  } catch (error) {
+    console.error('Group invoice error:', error);
+    res.status(500).send('Group invoice error: ' + error.message);
+  }
+});
+
 // Send an invoice to the guest. Called from the Preview & Send Invoice
 // modal — accepts the (possibly edited) HTML the operator just previewed,
 // pipes it through the shared sendEmail() so it lands in the comms log
