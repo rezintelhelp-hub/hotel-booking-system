@@ -60182,27 +60182,48 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        function prefillAddBookingFromFind(propertyId, roomId, from, to, guests) {
+        async function prefillAddBookingFromFind(propertyId, roomId, from, to, guests) {
             closeModal('findRoomsModal');
             openAddBookingModal();
-            // The Add Booking modal auto-populates dates on open; overwrite
-            // with the searched values + set property + room + guest count.
-            setTimeout(() => {
-                document.getElementById('booking-checkin').value = from;
-                document.getElementById('booking-checkout').value = to;
-                const propSel = document.getElementById('booking-property');
-                if (propSel) {
+            // openAddBookingModal fires loadBookingProperties async — poll
+            // until the target <option> exists before setting the value.
+            // Otherwise the assignment silently no-ops (select can't take
+            // a value that isn't yet an option). 100ms fixed timeout was
+            // racing on slow networks.
+            const propSel = document.getElementById('booking-property');
+            const _waitForOption = (select, value, maxMs = 5000) => new Promise(resolve => {
+                const start = Date.now();
+                const tick = () => {
+                    if (Array.from(select.options).some(o => o.value === String(value))) return resolve(true);
+                    if (Date.now() - start > maxMs) return resolve(false);
+                    setTimeout(tick, 50);
+                };
+                tick();
+            });
+            if (propSel) {
+                const ok = await _waitForOption(propSel, propertyId);
+                if (ok) {
                     propSel.value = String(propertyId);
+                    // Trigger the room-load side-effects (currency label +
+                    // payment config + rooms dropdown populate).
                     if (typeof loadBookingRooms === 'function') {
-                        loadBookingRooms().then(() => {
-                            const roomSel = document.getElementById('booking-room');
-                            if (roomSel) roomSel.value = String(roomId);
-                        }).catch(() => {});
+                        try { await loadBookingRooms(); } catch (_) {}
+                    }
+                    const roomSel = document.getElementById('booking-room');
+                    if (roomSel) {
+                        const okRoom = await _waitForOption(roomSel, roomId);
+                        if (okRoom) roomSel.value = String(roomId);
                     }
                 }
-                const gEl = document.getElementById('booking-guests');
-                if (gEl) gEl.value = String(guests);
-            }, 100);
+            }
+            // Dates + guest count. Set AFTER property so the modal's
+            // own onchange handlers don't stomp them.
+            const ciEl = document.getElementById('booking-checkin');
+            const coEl = document.getElementById('booking-checkout');
+            if (ciEl) ciEl.value = from;
+            if (coEl) coEl.value = to;
+            const gEl = document.getElementById('booking-guests');
+            if (gEl) gEl.value = String(guests);
         }
 
         // ── Room order editor (Belmont 2026-09-13) ────────────────────
