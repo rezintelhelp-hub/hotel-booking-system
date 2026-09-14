@@ -18396,12 +18396,15 @@
                                     <label style="display: flex; align-items: flex-start; gap: 0.55rem; cursor: pointer; font-size: 0.9rem; color: #1e293b; margin: 0;">
                                         <input type="checkbox" id="myAccountNotifyMainEmail" checked style="margin-top: 3px;">
                                         <span>
-                                            <strong>Send booking notifications to the main Email above</strong>
+                                            <strong>Copy the account owner (<span id="myAccountNotifyMainEmailAddr" style="font-family:monospace;">this email</span>) on every booking notification</strong>
                                             <div style="font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; font-weight: 400;">
-                                                Untick if you don't want to be copied on every booking alert or guest email. Your Booking notifications CC (above) and any site-level Notification Email in Site Comms still fire. Use this when a team handles booking traffic and you want your inbox clear.
+                                                <strong>Ticked</strong> (default): owner receives every booking alert and guest email BCC.
+                                                <strong>Unticked</strong>: owner sees nothing booking-related — Booking notifications CC (above) still fires.
+                                                Untick when a team handles booking traffic and you want the owner's inbox clear.
                                             </div>
                                         </span>
                                     </label>
+                                    <div id="myAccountNotifyMainEmailStatus" style="font-size: 0.78rem; margin-top: 0.5rem;"></div>
                                 </div>
 
                                 <div style="border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 0.5rem;">
@@ -30726,9 +30729,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label style="display: flex; align-items: flex-start; gap: 0.55rem; cursor: pointer; font-size: 0.85rem; color: #1e293b; margin: 0;">
                                 <input type="checkbox" id="account-notify-main-email" checked style="margin-top: 3px;">
                                 <span>
-                                    <strong>Send booking notifications to the main Email above</strong>
+                                    <strong>Copy the account owner (<span id="account-notify-main-email-addr" style="font-family:monospace;">this email</span>) on every booking notification</strong>
                                     <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.2rem; font-weight: 400;">
-                                        Untick if the owner shouldn't be copied on booking alerts or guest emails. Site-level Notification Email + Notification CC (Site Comms) and the Booking CC address below still fire. Use when a team handles booking traffic and the owner wants their inbox clear.
+                                        <strong>Ticked</strong> (default): owner receives every booking alert + guest-email BCC.
+                                        <strong>Unticked</strong>: owner sees nothing booking-related — Booking notifications CC below still fires.
                                     </div>
                                 </span>
                             </label>
@@ -45781,6 +45785,38 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (rtEl) rtEl.value = account.reply_to_email || '';
                     const nmEl = document.getElementById('myAccountNotifyMainEmail');
                     if (nmEl) nmEl.checked = account.notify_main_email !== false;
+                    // Show the owner's email in the label + status line so
+                    // operators aren't guessing which of the 3 email fields
+                    // this refers to. Steve/Sarah 2026-09-14 — "main Email
+                    // above" was confusing (3 email fields on the page).
+                    const _addrSpan = document.getElementById('myAccountNotifyMainEmailAddr');
+                    if (_addrSpan) _addrSpan.textContent = account.email || 'this email';
+                    const _status = document.getElementById('myAccountNotifyMainEmailStatus');
+                    if (_status) {
+                        const optedIn = account.notify_main_email !== false;
+                        const cc = (account.booking_cc_email || '').trim();
+                        if (optedIn) {
+                            _status.innerHTML = '<span style="color:#0ea5e9;">📨 Owner is copied on every booking</span>';
+                        } else if (cc) {
+                            _status.innerHTML = '<span style="color:#059669;">✓ Owner opted OUT — <strong>' + cc.replace(/</g,'&lt;') + '</strong> receives copies instead</span>';
+                        } else {
+                            _status.innerHTML = '<span style="color:#b45309;">⚠ Owner opted OUT but no Booking notifications CC set — nobody sees booking emails. Add a CC address above.</span>';
+                        }
+                    }
+                    // Update status when the operator toggles the checkbox.
+                    if (nmEl && _status && !nmEl._statusWired) {
+                        nmEl._statusWired = true;
+                        nmEl.addEventListener('change', () => {
+                            const ccNow = (document.getElementById('myAccountBookingCc')?.value || '').trim();
+                            if (nmEl.checked) {
+                                _status.innerHTML = '<span style="color:#0ea5e9;">📨 Owner is copied on every booking</span>';
+                            } else if (ccNow) {
+                                _status.innerHTML = '<span style="color:#059669;">✓ Owner opted OUT — <strong>' + ccNow.replace(/</g,'&lt;') + '</strong> receives copies instead</span>';
+                            } else {
+                                _status.innerHTML = '<span style="color:#b45309;">⚠ Owner opted OUT but no Booking notifications CC set — nobody sees booking emails.</span>';
+                            }
+                        });
+                    }
                     document.getElementById('myAccountContactChannel').value = account.preferred_contact_channel || 'email';
                     document.getElementById('myAccountWhatsApp').value = account.contact_whatsapp || '';
                     
@@ -49616,6 +49652,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (_billingEmail) _billingEmail.value = account.billing_email || '';
                     const _notifyMain = document.getElementById('account-notify-main-email');
                     if (_notifyMain) _notifyMain.checked = account.notify_main_email !== false;
+                    const _notifyAddr = document.getElementById('account-notify-main-email-addr');
+                    if (_notifyAddr) _notifyAddr.textContent = account.email || 'this email';
                     document.getElementById('account-phone').value = account.phone || '';
                     const _waEl = document.getElementById('account-contact-whatsapp');
                     if (_waEl) _waEl.value = account.contact_whatsapp || '';
