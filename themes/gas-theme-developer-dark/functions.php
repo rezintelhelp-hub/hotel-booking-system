@@ -3073,6 +3073,7 @@ function developer_get_api_settings() {
         'usp_bg' => $website_usp['bg'] ?? $website_usp['bg-color'] ?? '#f1f0eb',
         'usp_title_color' => $website_usp['title-color'] ?? '#1e293b',
         'usp_text_color' => $website_usp['text-color'] ?? '#64748b',
+        'usp_card_title_color' => $website_usp['card-title-color'] ?? $website_usp['title-color'] ?? '#1e293b',
         'usp_card_bg' => $website_usp['card-bg'] ?? '#ffffff',
         'usp_bottom_bg' => $website_usp['bottom-bg'] ?? '#ffffff',
         'usp_card_title_size' => $website_usp['card-title-size'] ?? '18',

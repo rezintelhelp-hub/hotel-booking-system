@@ -136,6 +136,7 @@ $usp_subtitle = $api['usp_subtitle'] ?? '';
 $usp_bg = $api['usp_bg'] ?? '#f1f0eb';
 $usp_title_color = $api['usp_title_color'] ?? $_global_heading ?? '#1e293b';
 $usp_text_color = $api['usp_text_color'] ?? '#64748b';
+$usp_card_title_color = $api['usp_card_title_color'] ?? $usp_title_color;
 $usp_card_bg = $api['usp_card_bg'] ?? '#ffffff';
 $usp_bottom_bg = $api['usp_bottom_bg'] ?? '#ffffff';
 $usp_card_title_size = $api['usp_card_title_size'] ?? '18';
@@ -587,7 +588,7 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($item['title'])) : ?>
-                        <p class="usp-card-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
+                        <p class="usp-card-title" style="color: <?php echo esc_attr($usp_card_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
                     <?php endif; ?>
                     <?php if (!empty($item['text'])) : ?>
                         <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(wp_kses_post($item['text'])); ?></p>

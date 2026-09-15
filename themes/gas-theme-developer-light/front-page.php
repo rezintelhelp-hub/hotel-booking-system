@@ -136,6 +136,11 @@ $usp_subtitle = $api['usp_subtitle'] ?? '';
 $usp_bg = $api['usp_bg'] ?? '#f1f0eb';
 $usp_title_color = $api['usp_title_color'] ?? $_global_heading ?? '#1e293b';
 $usp_text_color = $api['usp_text_color'] ?? '#64748b';
+// Card title colour distinct from section title colour so operators can pair
+// (e.g.) a dark section-BG + white section title with lighter cards that need
+// a dark card title for contrast. Falls back to section title colour so
+// every existing site's look is preserved. Steve/Trillium 2026-09-15.
+$usp_card_title_color = $api['usp_card_title_color'] ?? $usp_title_color;
 $usp_card_bg = $api['usp_card_bg'] ?? '#ffffff';
 $usp_bottom_bg = $api['usp_bottom_bg'] ?? '#ffffff';
 $usp_card_title_size = $api['usp_card_title_size'] ?? '18';
@@ -716,7 +721,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($item['title'])) : ?>
-                        <p class="usp-card-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
+                        <p class="usp-card-title" style="color: <?php echo esc_attr($usp_card_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
                     <?php endif; ?>
                     <?php if (!empty($item['text'])) : ?>
                         <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(wp_kses_post($item['text'])); ?></p>
@@ -1307,7 +1312,7 @@ for ($ir = 1; $ir <= 4; $ir++) {
                 ? ''
                 : 'max-width: ' . esc_attr($ir_desc_mw) . 'px; margin-left: auto; margin-right: auto;';
             if ($ir_desc) : ?>
-                <p style="color: #475569; line-height: 1.6; margin: 0 0 24px; text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $ir_desc_width_css; ?> font-size: <?php echo esc_attr($ir_desc_font); ?>;"><?php echo nl2br(esc_html($ir_desc)); ?></p>
+                <p style="color: #475569; line-height: 1.6; margin: 0 0 24px; text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $ir_desc_width_css; ?> font-size: <?php echo esc_attr($ir_desc_font); ?>;"><?php echo nl2br(wp_kses_post($ir_desc)); ?></p>
             <?php else : ?>
                 <div style="margin-bottom: 24px;"></div>
             <?php endif; ?>
