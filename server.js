@@ -43651,6 +43651,19 @@ app.post('/api/admin/bookings/:id/deposit/capture', async (req, res) => {
       ]
     );
 
+    // Phase 4l migration 2026-09-15 — INSERT stays raw because the
+    // parent_transaction_id + guest_id link isn't in the primitive's
+    // signature. Sync now awaited inline so a captured security deposit
+    // shows on Beds24 as a payment line (matches Steve's expectation:
+    // Beds24 mirror sees every real charge). Was completely missing before.
+    if (typeof syncBeds24PaymentItem === 'function') {
+      try {
+        await syncBeds24PaymentItem(bookingId);
+      } catch (syncErr) {
+        console.error(`[deposit/capture beds24 sync] booking ${bookingId}:`, syncErr.message);
+      }
+    }
+
     if (booking.guest_email) {
       sendEmail({
         to: booking.guest_email,
@@ -44129,6 +44142,16 @@ app.post('/api/admin/claims/:id/capture', async (req, res) => {
       `UPDATE booking_deposit_claims SET status = 'captured', capture_tx_id = $2, updated_at = NOW() WHERE id = $1`,
       [claimId, txIns.rows[0].id]
     );
+
+    // Phase 4m migration 2026-09-15 — Beds24 sync awaited so a captured
+    // deposit-claim shows on Beds24 as a payment line. Was missing entirely.
+    if (typeof syncBeds24PaymentItem === 'function') {
+      try {
+        await syncBeds24PaymentItem(claim.booking_id);
+      } catch (syncErr) {
+        console.error(`[claims/capture beds24 sync] booking ${claim.booking_id} claim ${claimId}:`, syncErr.message);
+      }
+    }
 
     if (booking.guest_email) {
       sendEmail({
@@ -46255,16 +46278,20 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // which has done this since 2026-07 — group bookings missed it,
         // leaving Beds24 with a balance-due on every group deposit.
         // Steve 2026-08-28 (Marta Pacheco B92156352 pattern).
+        // Phase 4k migration 2026-09-15 — was fire-and-forget Promise.allSettled
+        // + fire-and-log-on-rejection. Now AWAITED so failures land in
+        // bookings.sync_errors via the helper's persist logic AND we can see
+        // outcomes in the response. Each booking's sync happens serially
+        // (not parallel) so a single 429 credit exhaustion doesn't fan out
+        // and block the whole group.
         if (typeof syncBeds24PaymentItem === 'function' && createdBookings.length > 0) {
-            Promise.allSettled(
-                createdBookings.map(b => syncBeds24PaymentItem(b.id))
-            ).then(results => {
-                results.forEach((r, i) => {
-                    if (r.status === 'rejected') {
-                        console.error('[create-group-booking] beds24 payment sync rejected for booking', createdBookings[i].id, r.reason?.message || r.reason);
-                    }
-                });
-            });
+            for (const b of createdBookings) {
+                try {
+                    await syncBeds24PaymentItem(b.id);
+                } catch (syncErr) {
+                    console.error(`[create-group-booking beds24 sync] booking ${b.id}:`, syncErr.message);
+                }
+            }
         }
 
         // DEBUG: Verify bookings exist on SAME connection before releasing
@@ -83523,6 +83550,23 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Phase 4j partial migration 2026-09-15 — the raw INSERT above stays
+    // inside the client transaction (atomic with the booking create) but
+    // the Beds24 sync now runs INLINE + AWAITED after commit. Was
+    // silently missing entirely, so admin-created with-card bookings
+    // showed GAS=paid but Beds24=balance-due until manual sync. syncFn
+    // uses correct per-account auth (getBeds24AccessTokenForAccount).
+    if (provider !== 'card_guarantee' && typeof syncBeds24PaymentItem === 'function') {
+      try {
+        await syncBeds24PaymentItem(booking.id);
+      } catch (syncErr) {
+        console.error(`[admin bookings/with-card beds24 sync] booking ${booking.id}:`, syncErr.message);
+        // Don't fail the response — the payment is already recorded + the
+        // booking is created. The helper writes to bookings.sync_errors on
+        // its own so operators can retry from the admin.
+      }
+    }
 
     res.json({
       success: true,
