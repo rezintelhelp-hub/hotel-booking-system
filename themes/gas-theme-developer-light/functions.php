@@ -368,6 +368,7 @@ function developer_developer_scripts() {
         'oswald'            => 'Oswald:wght@400;500;600;700',
         'roboto'            => 'Roboto:wght@400;500;700',
         'lobster'           => 'Lobster',
+        'bodoni-moda'       => 'Bodoni+Moda:wght@400;500;600;700;800;900',
     );
     
     // Build Google Fonts URL
@@ -3841,6 +3842,7 @@ function developer_developer_custom_css() {
         'oswald'            => "'Oswald', sans-serif",
         'roboto'            => "'Roboto', sans-serif",
         'lobster'           => "'Lobster', cursive",
+        'bodoni-moda'       => "'Bodoni Moda', Georgia, serif",
     );
     
     $heading_family = isset($font_families[$heading_font]) ? $font_families[$heading_font] : $font_families['playfair'];
