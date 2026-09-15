@@ -10732,8 +10732,15 @@ app.post('/api/admin/bookings/:id/sync-beds24-payment', async (req, res) => {
     if (req.query?.token && !req.headers.authorization) {
       req.headers.authorization = 'Bearer ' + String(req.query.token);
     }
-    const decoded = await extractAccountFromToken(req);
-    if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    // Also accept X-Cron-Secret so heal scripts and Claude Code can fire
+    // this without pasting a master JWT into a chat window. Same pattern as
+    // /api/cron/sync-hostfully-availability. Steve 2026-09-15.
+    const cronSecretHeader = req.headers['x-cron-secret'];
+    const cronOk = cronSecretHeader && process.env.CRON_SECRET && cronSecretHeader === process.env.CRON_SECRET;
+    if (!cronOk) {
+      const decoded = await extractAccountFromToken(req);
+      if (!decoded || decoded.role !== 'master_admin') return res.status(403).json({ success: false, error: 'Master admin only' });
+    }
     const bookingId = parseInt(req.params.id, 10);
     if (!bookingId) return res.status(400).json({ success: false, error: 'Invalid booking id' });
     const result = await syncBeds24PaymentItem(bookingId);
