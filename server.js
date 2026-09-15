@@ -41165,73 +41165,27 @@ app.post('/api/payments/confirm', async (req, res) => {
         
         const amount = paymentIntent.amount / 100; // Convert from cents
         const paymentType = paymentIntent.metadata.payment_type || 'deposit';
-        
-        // Record transaction
-        await pool.query(`
-            INSERT INTO payment_transactions (
-                booking_id, account_id, transaction_type, amount, currency,
-                payment_gateway, gateway_transaction_id, status,
-                payment_method_type, completed_at
-            ) VALUES ($1, $2, $3, $4, $5, 'stripe', $6, 'completed', 'card', NOW())
-        `, [
-            booking_id, bookingData.account_id, paymentType, amount,
-            paymentIntent.currency.toUpperCase(), payment_intent_id
-        ]);
-        
-        // Update booking status
-        let newStatus = 'deposit_paid';
-        let updateFields = 'deposit_amount = $1, deposit_paid_at = NOW()';
-        
-        if (paymentType === 'balance') {
-            newStatus = 'fully_paid';
-            updateFields = 'balance_amount = $1, balance_paid_at = NOW()';
-        } else if (paymentType === 'full') {
-            newStatus = 'fully_paid';
-            updateFields = 'total_amount = $1, deposit_paid_at = NOW(), balance_paid_at = NOW()';
-        }
-        
-        await pool.query(`
-            UPDATE bookings SET payment_status = $1, ${updateFields}, updated_at = NOW()
-            WHERE id = $2
-        `, [newStatus, amount, booking_id]);
-        
-        // Sync payment to Beds24 if booking is linked
-        try {
-          const beds24Check = await pool.query(`
-            SELECT b.beds24_booking_id, bu.beds24_room_id, p.beds24_property_id
-            FROM bookings b
-            LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
-            LEFT JOIN properties p ON bu.property_id = p.id
-            WHERE b.id = $1 AND b.beds24_booking_id IS NOT NULL
-          `, [booking_id]);
 
-          if (beds24Check.rows[0]?.beds24_booking_id) {
-            const accessToken = await getBeds24AccessToken(pool);
-            const paymentDesc = paymentType === 'balance' ? 'Balance payment via Stripe' : 
-                               paymentType === 'full' ? 'Full payment via Stripe' : 'Deposit via Stripe';
-            
-            const paymentData = [{
-              id: beds24Check.rows[0].beds24_booking_id,
-                payments: [{
-                description: paymentDesc,
-                amount: amount,
-                status: 'received',
-                date: new Date().toISOString().split('T')[0]
-              }]
-            }];
-            paymentData.forEach(b => b.allowWebhooks = true);
+        // Phase 4c migration 2026-09-15 — was raw INSERT + booking UPDATE +
+        // a broken Beds24 push that used the global master token
+        // (getBeds24AccessToken) instead of the per-account helper. That
+        // silently failed for every per-account-OAuth client (Cotswolds
+        // Sagar Taank £777 / Beds24 93120103, 2026-09-14). Central primitive
+        // handles INSERT, aggregate recompute, status update AND
+        // per-account Beds24 push in one awaited call.
+        const rec = await recordBookingPayment(pool, booking_id, {
+            amount,
+            currency: paymentIntent.currency.toUpperCase(),
+            transaction_type: paymentType === 'full' ? 'payment' : paymentType,
+            gateway: 'stripe',
+            gateway_transaction_id: payment_intent_id,
+            method: 'card',
+            account_id: bookingData.account_id,
+            syncBeds24PaymentItem
+        });
 
-            await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
-              headers: getBeds24BookingHeaders(beds24Check.rows[0]?.beds24_property_id, accessToken)
-            });
-            console.log(`Payment synced to Beds24 for booking ${booking_id}`);
-          }
-        } catch (beds24Error) {
-          console.error('Could not sync payment to Beds24:', beds24Error.message);
-          // Continue - don't fail the payment confirmation
-        }
-        
-        res.json({ success: true, status: newStatus, amount: amount });
+        const newStatus = rec.booking_status?.payment_status || 'deposit_paid';
+        res.json({ success: true, status: newStatus, amount, beds24_sync: rec.sync_result || null });
         
     } catch (error) {
         console.error('Error confirming payment:', error);
@@ -165675,41 +165629,37 @@ app.post('/api/bookings/:id/charge-card', async (req, res) => {
       proxy_success: proxyResponse.ok
     });
     
-    // Log as payment transaction
-    try {
-      await pool.query(`
-        INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, payment_gateway, description, created_at)
-        VALUES ($1, 'charge', $2, $3, $4, 'enigma_proxy', $5, CURRENT_TIMESTAMP)
-      `, [
-        bookingId,
-        amount,
-        currency,
-        proxyResponse.ok ? 'completed' : 'failed',
-        JSON.stringify({ gateway_response: proxyResult, description })
-      ]);
-    } catch (txErr) {
-      console.error('Failed to log payment transaction:', txErr.message);
-    }
-    
     if (!proxyResponse.ok) {
+      // Failed at gateway — log as failed transaction WITHOUT going through
+      // the primitive (recordBookingPayment is for successful writes; failed
+      // charges don't need the aggregate recompute or Beds24 push).
+      try {
+        await pool.query(`
+          INSERT INTO payment_transactions (booking_id, transaction_type, amount, currency, status, payment_gateway, description, created_at)
+          VALUES ($1, 'charge', $2, $3, 'failed', 'enigma_proxy', $4, CURRENT_TIMESTAMP)
+        `, [bookingId, amount, currency, JSON.stringify({ gateway_response: proxyResult, description })]);
+      } catch (txErr) {
+        console.error('Failed to log failed payment transaction:', txErr.message);
+      }
       console.error(`❌ [Enigma] Charge failed for booking ${bookingId}:`, proxyResult);
       return res.status(400).json({ success: false, error: 'Charge failed', details: proxyResult });
     }
-    
-    // Update booking payment status
-    await pool.query(`
-      UPDATE bookings SET payment_status = 'charged', updated_at = CURRENT_TIMESTAMP WHERE id = $1
-    `, [bookingId]);
-    
-    console.log(`✅ [Enigma] Charged ${currency} ${amount} for booking ${bookingId} - ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`);
 
-    // Sync payment to Beds24 so its invoice matches. Same fire-and-forget
-    // pattern as the Stripe manual charge + auto-charge cron. Enigma
-    // charge succeeded at the gateway — a Beds24 push failure must not
-    // fail the response.
-    if (typeof syncBeds24PaymentItem === 'function') {
-      setImmediate(() => syncBeds24PaymentItem(bookingId).catch(e => console.warn(`[enigma charge-card beds24 sync] booking ${bookingId}: ${e.message}`)));
-    }
+    // Phase 4d migration 2026-09-15 — was raw INSERT + separate booking
+    // UPDATE + fire-and-forget syncBeds24PaymentItem. Central primitive
+    // handles all three atomically and AWAITS the Beds24 push so we know
+    // it succeeded before returning success to the caller.
+    const rec = await recordBookingPayment(pool, bookingId, {
+      amount,
+      currency,
+      transaction_type: 'charge',
+      gateway: 'enigma_proxy',
+      description: description || `Enigma charge ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`,
+      account_id: booking.account_id,
+      syncBeds24PaymentItem
+    });
+
+    console.log(`✅ [Enigma] Charged ${currency} ${amount} for booking ${bookingId} - ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`);
 
     res.json({
       success: true,
@@ -169929,16 +169879,26 @@ app.post('/api/webhooks/stripe-shop', express.raw({ type: 'application/json' }),
           return res.json({ received: true });
         }
         const extra = upd.rows[0];
-        await pool.query(
-          `INSERT INTO payment_transactions
-             (booking_id, account_id, transaction_type, amount, currency,
-              payment_gateway, gateway_transaction_id, status, description, created_at)
-           VALUES ($1, $2, 'charge', $3, $4, 'stripe', $5, 'completed', $6, NOW())`,
-          [bookingId, parseInt(accountId, 10) || null, extra.unit_price, String(extra.currency || 'USD').toUpperCase(),
-           session.payment_intent || session.id, `Add to stay · ${extra.name}`]
-        );
-        if (typeof syncBeds24PaymentItem === 'function') {
-          Promise.resolve(syncBeds24PaymentItem(bookingId)).catch(e => console.warn('[add-to-stay webhook beds24]', e.message));
+        // Phase 4e migration 2026-09-15 — was raw INSERT + fire-and-forget
+        // Beds24 sync. Central primitive awaits the push so a Beds24
+        // failure surfaces in the webhook response (Stripe retries webhooks
+        // on non-2xx). Fire-and-forget hid failures in the log 24h window.
+        try {
+          await recordBookingPayment(pool, bookingId, {
+            amount: parseFloat(extra.unit_price),
+            currency: String(extra.currency || 'USD').toUpperCase(),
+            transaction_type: 'charge',
+            gateway: 'stripe',
+            gateway_transaction_id: session.payment_intent || session.id,
+            description: `Add to stay · ${extra.name}`,
+            account_id: parseInt(accountId, 10) || null,
+            syncBeds24PaymentItem
+          });
+        } catch (recErr) {
+          console.error('[add-to-stay webhook recordBookingPayment]', recErr.message);
+          // Booking_extras is already flipped to 'paid'; log + continue so
+          // the guest confirmation still fires and Stripe doesn't retry
+          // the whole webhook (which would double-email).
         }
         // Guest confirmation email — best effort.
         try {
