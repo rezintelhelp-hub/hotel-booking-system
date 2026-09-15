@@ -113065,8 +113065,8 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
              -- hardcoded 15:00/11:00 pattern 2026-09-15). Prefer the newer
              -- check_in_from / check_out_by fields, fall back to the legacy
              -- check_in_time / check_out_time. Steve 2026-09-15.
-             COALESCE(p.check_in_from, p.check_in_time) as property_check_in_time,
-             COALESCE(p.check_out_by, p.check_out_time) as property_check_out_time,
+             COALESCE(p.check_in_from::text, p.check_in_time) as property_check_in_time,
+             COALESCE(p.check_out_by::text, p.check_out_time) as property_check_out_time,
              -- Property location fields for the room detail page. bu has no
              -- city/state/country of its own, so we surface the parent
              -- property's. property_address is used only by the optional
