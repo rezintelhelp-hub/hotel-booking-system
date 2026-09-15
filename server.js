@@ -2192,12 +2192,22 @@ async function getEmailBranding(pool, accountId, propertyId) {
   };
 
   try {
-    // Get account info
-    const acc = await pool.query('SELECT name, email, phone, contact_name FROM accounts WHERE id = $1', [accountId]);
+    // Get account info. Prefer the account's public reply_to_email over the
+    // owner's personal email so the guest-facing "Contact us at" footer
+    // doesn't leak the owner's inbox address — especially important when
+    // notify_main_email=false (owner deliberately hidden from booking
+    // notifications; footer was still showing their email). Sarah/Hebden
+    // 2026-09-15. Fallback to account.email preserves prior behaviour for
+    // every account that hasn't set reply_to_email.
+    const acc = await pool.query('SELECT name, email, phone, contact_name, reply_to_email, notify_main_email FROM accounts WHERE id = $1', [accountId]);
     if (acc.rows[0]) {
       branding.accountName = acc.rows[0].name || '';
       branding.fromName = acc.rows[0].name || 'GAS Bookings';
-      branding.contactEmail = acc.rows[0].email || '';
+      const replyTo = (acc.rows[0].reply_to_email || '').trim();
+      const notifyMain = acc.rows[0].notify_main_email !== false;
+      // Priority: explicit reply-to → owner email if allowed → empty
+      // (empty then falls through to property.email → EMAIL_FROM at render).
+      branding.contactEmail = replyTo || (notifyMain ? (acc.rows[0].email || '') : '');
       branding.contactPhone = acc.rows[0].phone || '';
     }
 
