@@ -56480,27 +56480,30 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     
     const propertyId = siteResult.rows[0].property_id;
     const siteUrl = siteResult.rows[0].site_url;
-    
-    if (!propertyId) {
-      return res.json({ success: false, error: 'No property linked to this site' });
-    }
-    
+
+    // property_id gate removed 2026-09-15 — sites without a "primary" property
+    // (multi-property sites, agency landing sites like Booking Assist) must
+    // still be able to save the ticked-rooms selection. Steve.
+
     // Update the room_ids in deployed_sites
     await pool.query(`
       UPDATE deployed_sites SET room_ids = $1, updated_at = NOW() WHERE id = $2
     `, [JSON.stringify(roomIds || []), id]);
-    
-    // Also update bookable_units.website_id for tracking
-    // First, unlink all rooms from this website
-    await pool.query(`
-      UPDATE bookable_units SET website_id = NULL WHERE property_id = $1
-    `, [propertyId]);
-    
-    // Then link the selected rooms
-    if (roomIds && roomIds.length > 0) {
+
+    // bookable_units.website_id is a legacy per-property tracker used when
+    // sites had exactly one property. Only update it when this site has a
+    // primary property_id — otherwise skip (multi-property sites don't map
+    // cleanly to a single property scope here anyway).
+    if (propertyId) {
       await pool.query(`
-        UPDATE bookable_units SET website_id = $1 WHERE id = ANY($2::int[]) AND property_id = $3
-      `, [id, roomIds, propertyId]);
+        UPDATE bookable_units SET website_id = NULL WHERE property_id = $1
+      `, [propertyId]);
+
+      if (roomIds && roomIds.length > 0) {
+        await pool.query(`
+          UPDATE bookable_units SET website_id = $1 WHERE id = ANY($2::int[]) AND property_id = $3
+        `, [id, roomIds, propertyId]);
+      }
     }
     
     console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked. room_ids updated in deployed_sites.`);
