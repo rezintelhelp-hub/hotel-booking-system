@@ -98,7 +98,8 @@ $cta_is_external = preg_match('#^https?://#i', $cta_link_raw);
 $cta_link = $cta_is_external ? $cta_link_raw : home_url($cta_link_raw);
 $cta_target = $cta_is_external ? ' target="_blank" rel="noopener noreferrer"' : '';
 // Only render the CTA if the operator actually filled in text + a real link (not just whitespace or a bare slash)
-$cta_enabled = trim($cta_text) !== '' && trim($cta_link_raw, "/ \t\n\r") !== '';
+$cta_toggle_on = (($api_settings['header_cta_button_enabled'] ?? true) !== false);
+$cta_enabled = $cta_toggle_on && trim($cta_text) !== '' && trim($cta_link_raw, "/ \t\n\r") !== '';
 
 // Get logo from API, fallback to theme_mod, then WP custom logo
 // If API explicitly sets empty string, respect it (logo was removed)

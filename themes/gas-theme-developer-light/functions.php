@@ -2974,6 +2974,10 @@ function developer_get_api_settings() {
 
         // CTA Button (Header) - use multilingual lookup for text
         'cta_text' => developer_get_ml_value($website_header, 'cta-button-text', $lang) ?: ($website_header['cta-button-text'] ?? null),
+        // 'cta-button-enabled' is the Web Builder "Show Book Now CTA" toggle.
+        // Default TRUE — sites that haven't touched the checkbox (key missing)
+        // keep the CTA. Only hides when explicitly set to false. Steve 2026-09-15.
+        'header_cta_button_enabled' => ($website_header['cta-button-enabled'] ?? true) !== false,
         'cta_link' => $website_header['cta-link'] ?? '/book-now/',
         'cta_bg' => $website_header['cta-bg'] ?? null,
         'cta_text_color' => $website_header['cta-text-color'] ?? null,
@@ -3276,6 +3280,7 @@ function developer_get_api_settings() {
         'usp_title_color' => $website_usp['title-color'] ?? '#1e293b',
         'usp_text_color' => $website_usp['text-color'] ?? '#64748b',
         'usp_card_bg' => $website_usp['card-bg'] ?? '#ffffff',
+        'usp_max_cols' => intval($website_usp['max-cols'] ?? 0),
         'usp_bottom_bg' => $website_usp['bottom-bg'] ?? '#ffffff',
         'usp_card_title_size' => $website_usp['card-title-size'] ?? '18',
         'usp_item_1_icon' => $website_usp['item-1-icon'] ?? '',
