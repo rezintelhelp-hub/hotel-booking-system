@@ -84714,19 +84714,29 @@ app.post('/api/public/booking/upsell-pay', async (req, res) => {
         requires_action: pi.status === 'requires_action'
       });
     }
-    const txIns = await pool.query(`
-      INSERT INTO payment_transactions (booking_id, account_id, transaction_type, amount, currency,
-        payment_gateway, gateway_transaction_id, status, payment_method_type, completed_at, description)
-      VALUES ($1, $2, 'upsell', $3, $4, 'stripe', $5, 'completed', 'card', NOW(), $6)
-      RETURNING id
-    `, [ur.booking_id, ur.account_id, ur.amount, currency, pi.id, `Upsell · ${ur.description}`]);
+    // Phase 4i migration 2026-09-15 — was raw INSERT + no Beds24 sync at
+    // all for upsell payments. Central primitive handles ledger row + sync.
+    // Transaction type 'upsell' isn't in the primitive's VALID_TRANSACTION_TYPES
+    // list, so we pass 'charge' — behaves the same on Beds24 (line item, not
+    // deposit/balance state change).
+    const rec = await recordBookingPayment(pool, ur.booking_id, {
+      amount: parseFloat(ur.amount),
+      currency,
+      transaction_type: 'charge',
+      gateway: 'stripe',
+      gateway_transaction_id: pi.id,
+      method: 'card',
+      description: `Upsell · ${ur.description}`,
+      account_id: ur.account_id,
+      syncBeds24PaymentItem
+    });
     await pool.query(`
       INSERT INTO booking_extras (booking_id, source_type, source_id, name, qty, unit_price, currency, status, notes)
       VALUES ($1, 'upsell', $2, $3, 1, $4, $5, 'paid', $6)
     `, [ur.booking_id, String(upsellRequestId), ur.description, ur.amount, currency, `Paid via upsell link · pi=${pi.id}`]).catch(() => {});
     await pool.query(`
       UPDATE booking_upsell_requests SET status='paid', paid_at=NOW(), payment_transaction_id=$1 WHERE id=$2
-    `, [txIns.rows[0].id, upsellRequestId]);
+    `, [rec.transaction_id, upsellRequestId]);
     res.json({ success: true, amount: ur.amount, currency, description: ur.description });
   } catch (err) {
     console.error('[upsell-pay]', err);
@@ -123181,30 +123191,26 @@ app.post('/api/public/portal/pay', async (req, res) => {
       }
     }
 
-    const ins = await pool.query(
-      `INSERT INTO payment_transactions
-         (booking_id, account_id, guest_id, contact_id, transaction_type,
-          amount, currency, payment_gateway, gateway_transaction_id, status,
-          description, initiated_at, completed_at, created_at)
-       VALUES ($1, $2, $3, $4, 'payment', $5, $6, $7, $8, 'completed', $9, NOW(), NOW(), NOW())
-       RETURNING id`,
-      [booking.id, booking.account_id, booking.guest_id || null,
-       booking.contact_id || null,
-       amtRounded, currency, provider, gatewayTxId,
-       `Guest part-payment via portal (${provider})`]
-    );
-
-    // Beds24 sync — same fire-and-forget pattern as server.js:110875, 25750 etc.
-    // Channex-connected clients skip inside syncBeds24PaymentItem (no beds24_booking_id).
-    setImmediate(() => {
-      syncBeds24PaymentItem(booking.id).catch(e => console.warn('[portal/pay] beds24 sync:', e.message));
+    // Phase 4h migration 2026-09-15 — was raw INSERT + fire-and-forget
+    // Beds24 sync. Guest portal part-payments now go through the primitive
+    // which awaits the push. Idempotent via provider+gatewayTxId inside
+    // the primitive (won't duplicate if the guest hits Pay twice).
+    const rec = await recordBookingPayment(pool, booking.id, {
+      amount: amtRounded,
+      currency,
+      transaction_type: 'payment',
+      gateway: provider,
+      gateway_transaction_id: gatewayTxId,
+      description: `Guest part-payment via portal (${provider})`,
+      account_id: booking.account_id,
+      syncBeds24PaymentItem
     });
 
     const newPaid = paid + amtRounded;
     const newOutstanding = Math.max(0, Math.round((total - newPaid) * 100) / 100);
     res.json({
       success: true,
-      transaction_id: ins.rows[0]?.id || null,
+      transaction_id: rec.transaction_id || null,
       amount: amtRounded,
       currency,
       new_paid: Number(newPaid.toFixed(2)),
@@ -171892,10 +171898,7 @@ async function _processAutoChargeSquareBranch() {
             const payment = payBody.payment;
             await pool.query(`
                 UPDATE bookings
-                SET payment_status = 'paid',
-                    balance_amount = 0,
-                    balance_paid_at = NOW(),
-                    square_payment_id = COALESCE(square_payment_id, $2),
+                SET square_payment_id = COALESCE(square_payment_id, $2),
                     updated_at = NOW()
                 WHERE id = $1
             `, [booking.booking_id, payment.id]);
@@ -171912,25 +171915,25 @@ async function _processAutoChargeSquareBranch() {
                 console.error(`[AUTO-CHARGE SQUARE extras] booking ${booking.booking_id}:`, extraErr.message);
             }
 
-            // Ledger row. Idempotent via ON CONFLICT DO NOTHING against the
-            // gateway_transaction_id. If Square returned the same payment.id
-            // on a retry (idempotency_key match), this row won't duplicate.
+            // Phase 4g migration 2026-09-15 — was raw INSERT + no Beds24 sync.
+            // Every Square auto-charge (Barbara / Charles House balance
+            // charges) landed in GAS but never on Beds24. Central primitive
+            // handles ledger row, status recompute + Beds24 push in one
+            // awaited call.
             try {
-                await pool.query(`
-                    INSERT INTO payment_transactions (
-                        booking_id, account_id, transaction_type, amount, currency,
-                        payment_gateway, gateway_transaction_id, status,
-                        payment_method_type, completed_at, description
-                    ) VALUES ($1, $2, 'balance', $3, $4, 'square', $5, 'completed', 'card', NOW(), $6)
-                    ON CONFLICT DO NOTHING
-                `, [
-                    booking.booking_id, booking.account_id,
-                    outstanding, chargeCurrency,
-                    payment.id,
-                    `Auto-charge balance · trigger ${booking.trigger_date} · days_before ${booking.effective_days_before}`
-                ]);
-            } catch (ledgerErr) {
-                console.error(`[AUTO-CHARGE SQUARE ledger] booking ${booking.booking_id} sq=${payment.id}:`, ledgerErr.message);
+                await recordBookingPayment(pool, booking.booking_id, {
+                    amount: outstanding,
+                    currency: chargeCurrency,
+                    transaction_type: 'balance',
+                    gateway: 'square',
+                    gateway_transaction_id: payment.id,
+                    method: 'card',
+                    description: `Auto-charge balance · trigger ${booking.trigger_date} · days_before ${booking.effective_days_before}`,
+                    account_id: booking.account_id,
+                    syncBeds24PaymentItem
+                });
+            } catch (recErr) {
+                console.error(`[AUTO-CHARGE SQUARE recordBookingPayment] booking ${booking.booking_id} sq=${payment.id}:`, recErr.message);
             }
 
             console.log(`[AUTO-CHARGE SQUARE] Successfully charged booking ${booking.booking_id} - ${guestName} sq=${payment.id}`);
@@ -172103,33 +172106,35 @@ async function _processAutoChargeExpediaVCCBranch() {
                 throw new Error(`PaymentIntent status: ${paymentIntent.status}. PI: ${paymentIntent.id}, last_payment_error: ${paymentIntent.last_payment_error?.message || 'none'}`);
             }
 
+            // Stripe PI + charge id land on bookings for downstream refund/audit.
+            // Primitive handles payment_status / balance_amount / balance_paid_at.
             await pool.query(`
                 UPDATE bookings
-                SET payment_status = 'paid',
-                    balance_amount = 0,
-                    balance_paid_at = NOW(),
-                    stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $2),
+                SET stripe_payment_intent_id = COALESCE(stripe_payment_intent_id, $2),
                     stripe_charge_id = COALESCE(stripe_charge_id, $3),
                     updated_at = NOW()
                 WHERE id = $1
             `, [booking.booking_id, paymentIntent.id, paymentIntent.latest_charge || null]);
 
+            // Phase 4f migration 2026-09-15 — was raw INSERT + no Beds24 sync
+            // at all. Expedia VCC auto-charges never made it to Beds24, so
+            // Expedia Collect properties showed GAS=paid but Beds24=balance-due
+            // for every VCC charge. Central primitive handles the ledger row,
+            // the aggregate recompute, and the Beds24 push in one awaited call.
             try {
-                await pool.query(`
-                    INSERT INTO payment_transactions (
-                        booking_id, account_id, transaction_type, amount, currency,
-                        payment_gateway, gateway_transaction_id, status,
-                        payment_method_type, completed_at, description
-                    ) VALUES ($1, $2, 'balance', $3, $4, 'stripe', $5, 'completed', 'card', NOW(), $6)
-                    ON CONFLICT DO NOTHING
-                `, [
-                    booking.booking_id, booking.account_id,
-                    outstanding, chargeCurrency.toUpperCase(),
-                    paymentIntent.id,
-                    `Auto-charge Expedia VCC · check-in ${booking.arrival_date}`
-                ]);
-            } catch (ledgerErr) {
-                console.error(`[AUTO-CHARGE EXPEDIA-VCC ledger] booking ${booking.booking_id} pi=${paymentIntent.id}:`, ledgerErr.message);
+                await recordBookingPayment(pool, booking.booking_id, {
+                    amount: outstanding,
+                    currency: chargeCurrency.toUpperCase(),
+                    transaction_type: 'balance',
+                    gateway: 'stripe',
+                    gateway_transaction_id: paymentIntent.id,
+                    method: 'card',
+                    description: `Auto-charge Expedia VCC · check-in ${booking.arrival_date}`,
+                    account_id: booking.account_id,
+                    syncBeds24PaymentItem
+                });
+            } catch (recErr) {
+                console.error(`[AUTO-CHARGE EXPEDIA-VCC recordBookingPayment] booking ${booking.booking_id} pi=${paymentIntent.id}:`, recErr.message);
             }
 
             console.log(`[AUTO-CHARGE EXPEDIA-VCC] Successfully charged booking ${booking.booking_id} - ${guestName} pi=${paymentIntent.id}`);
