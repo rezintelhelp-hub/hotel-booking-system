@@ -61567,6 +61567,50 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
+// Owner magic-link redemption. Property owners registered via a
+// white-label site (Booking Assist etc.) get a signed link in their
+// welcome email. Clicking it verifies the token, marks it used, then
+// redirects to /gas-admin.html with the account's api_key + id in the
+// URL fragment so the frontend can persist to localStorage and
+// initialise a live session. Steve 2026-09-15.
+app.get('/api/auth/owner-magic-link', async (req, res) => {
+    try {
+        await ensureOnboardingSignupsTable();
+        const token = String(req.query.token || '').trim();
+        if (!token) return res.status(400).send('<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;"><h2>Missing token</h2><p>The link is incomplete. Please use the exact URL from your welcome email.</p></body></html>');
+
+        const r = await pool.query(
+            `SELECT t.id, t.account_id, t.expires_at, t.used_at, a.api_key, a.role
+             FROM owner_magic_link_tokens t
+             JOIN accounts a ON a.id = t.account_id
+             WHERE t.token = $1`,
+            [token]
+        );
+        if (!r.rows.length) {
+            return res.status(404).send('<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;"><h2>Link not recognised</h2><p>This magic link isn\'t valid. If you\'re trying to sign in, please request a fresh link from the register form on your host\'s site.</p></body></html>');
+        }
+        const row = r.rows[0];
+        if (row.used_at) {
+            return res.status(410).send('<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;"><h2>Link already used</h2><p>This magic link has already opened a session. If you need to sign in again, request a fresh link.</p></body></html>');
+        }
+        if (new Date(row.expires_at) < new Date()) {
+            return res.status(410).send('<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;"><h2>Link expired</h2><p>This magic link has expired. Please request a fresh one from your host.</p></body></html>');
+        }
+
+        // Mark used before handing out the session — replay-safe.
+        await pool.query('UPDATE owner_magic_link_tokens SET used_at = NOW() WHERE id = $1', [row.id]);
+
+        // Redirect to gas-admin.html with the credentials in the URL
+        // fragment (never sent to server, so it won't land in access logs).
+        // Frontend detects ?magic=1 + hash, persists, cleans the URL.
+        const redirectUrl = `/gas-admin.html?magic=1#gas_token=${encodeURIComponent(row.api_key || '')}&gas_selected_account_id=${row.account_id}`;
+        res.redirect(302, redirectUrl);
+    } catch (error) {
+        console.error('owner-magic-link error:', error);
+        res.status(500).send('<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:0 auto;"><h2>Something went wrong</h2><p>Please try the link again in a minute or ask your host for a fresh one.</p></body></html>');
+    }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -133682,9 +133726,34 @@ app.get('/api/admin/seo/dashboard', async (req, res) => {
 // Assist for Invest Jet; later reused for every partner agency).
 // Populated by the form-submit hook when form_name='gas-onboard-signup'.
 // Steve 2026-09-14.
+//
+// Also ensures the 'owner' role is on the accounts CHECK constraint and
+// creates owner_magic_link_tokens so magic-link sign-ins work.
+// Steve 2026-09-15.
 let _onboardingSignupsReady = false;
 async function ensureOnboardingSignupsTable() {
     if (_onboardingSignupsReady) return;
+    // Widen accounts.role CHECK to accept 'owner'. Uses DROP + ADD because
+    // Postgres doesn't allow modifying an existing CHECK in place.
+    await pool.query(`
+        ALTER TABLE accounts DROP CONSTRAINT IF EXISTS valid_role;
+        ALTER TABLE accounts ADD CONSTRAINT valid_role CHECK (
+            role IN ('master_admin','agency_admin','submaster_admin','admin','travel_agent','owner')
+        );
+    `).catch(err => console.warn('[owner-role] widen CHECK skipped:', err.message));
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS owner_magic_link_tokens (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            token VARCHAR(96) NOT NULL UNIQUE,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_owner_magic_link_tokens_token ON owner_magic_link_tokens(token)`);
+
     await pool.query(`
         CREATE TABLE IF NOT EXISTS onboarding_signups (
             id SERIAL PRIMARY KEY,
@@ -133806,18 +133875,105 @@ app.post('/api/public/form-submit', (req, res, next) => {
                 const currentListings = String(fieldData.currently_listed_elsewhere || '').slice(0, 200);
                 const notes = String(fieldData.anything_else_we_should_know || '').slice(0, 2000);
 
+                // 1. Create the owner's GAS accounts row (child of agency).
+                //    Reuses existing email if the owner has signed up before.
+                let ownerAccountId = null;
+                let isNewAccount = false;
+                if (ownerEmail) {
+                    const existing = await pool.query('SELECT id FROM accounts WHERE LOWER(email) = LOWER($1)', [ownerEmail]);
+                    if (existing.rows.length) {
+                        ownerAccountId = existing.rows[0].id;
+                    } else {
+                        // Split first/last from ownerName for the required
+                        // columns. Nothing fancy — first token is first name,
+                        // remainder is last name. Owner can fix it later.
+                        const nameParts = (ownerName || 'Owner').trim().split(/\s+/);
+                        const firstName = nameParts.shift() || 'Owner';
+                        const lastName = nameParts.join(' ') || '';
+                        const apiKey = require('crypto').randomBytes(24).toString('hex');
+                        const newAcc = await pool.query(`
+                            INSERT INTO accounts (
+                                parent_id, role, name, email, phone,
+                                contact_name, api_key, api_key_active,
+                                status, currency, created_at, updated_at
+                            ) VALUES ($1, 'owner', $2, $3, $4, $5, $6, true, 'active', 'GBP', NOW(), NOW())
+                            RETURNING id
+                        `, [
+                            accountId,
+                            ownerName || 'Owner',
+                            ownerEmail,
+                            ownerPhone || null,
+                            [firstName, lastName].filter(Boolean).join(' '),
+                            apiKey
+                        ]);
+                        ownerAccountId = newAcc.rows[0].id;
+                        isNewAccount = true;
+                        console.log(`[gas-onboard-signup] account created id=${ownerAccountId} parent=${accountId}`);
+                    }
+                }
+
+                // 2. Placeholder property. status='pending' keeps it hidden
+                //    from every public site until the agency reviews.
+                let ownerPropertyId = null;
+                if (ownerAccountId && propertyName) {
+                    const newProp = await pool.query(`
+                        INSERT INTO properties (
+                            account_id, name, city, status, sync_enabled,
+                            currency, created_at, updated_at
+                        ) VALUES ($1, $2, $3, 'pending', false, 'GBP', NOW(), NOW())
+                        RETURNING id
+                    `, [ownerAccountId, propertyName, propertyLocation || null]);
+                    ownerPropertyId = newProp.rows[0].id;
+                    console.log(`[gas-onboard-signup] property created id=${ownerPropertyId} owner=${ownerAccountId}`);
+                }
+
+                // 3. Log the signup with linkage back to the created account.
                 await pool.query(`
                     INSERT INTO onboarding_signups
-                        (agency_account_id, owner_name, owner_email, owner_phone,
+                        (agency_account_id, owner_account_id, owner_name, owner_email, owner_phone,
                          property_name, property_location, bedrooms,
                          current_listings, notes, source_site_url, status, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', NOW())
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                 `, [
-                    accountId, ownerName, ownerEmail, ownerPhone,
+                    accountId, ownerAccountId, ownerName, ownerEmail, ownerPhone,
                     propertyName, propertyLocation, bedrooms,
-                    currentListings, notes, siteUrl
+                    currentListings, notes, siteUrl,
+                    isNewAccount ? 'provisioned' : 'pending'
                 ]);
-                console.log(`[gas-onboard-signup] queued: ${ownerName} (${ownerEmail}) — property ${propertyName} @ ${propertyLocation} — agency=${accountId}`);
+
+                // 4. Magic-link token + email invite. Fire-and-forget so a
+                //    SendGrid hiccup doesn't 500 the form for the owner.
+                if (isNewAccount && ownerAccountId && ownerEmail) {
+                    (async () => {
+                        try {
+                            const token = require('crypto').randomBytes(32).toString('hex');
+                            await pool.query(
+                                `INSERT INTO owner_magic_link_tokens (account_id, token, expires_at) VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+                                [ownerAccountId, token]
+                            );
+                            const baseUrl = process.env.PUBLIC_API_BASE_URL || 'https://admin.gas.travel';
+                            const magicUrl = `${baseUrl}/api/auth/owner-magic-link?token=${token}`;
+                            // Look up agency name for the welcome copy.
+                            const ag = await pool.query('SELECT name FROM accounts WHERE id = $1', [accountId]);
+                            const agencyName = ag.rows[0]?.name || 'your host';
+                            if (typeof sendEmail === 'function' && process.env.SENDGRID_API_KEY) {
+                                await sendEmail({
+                                    to: ownerEmail,
+                                    subject: `Welcome to ${agencyName} — your property dashboard`,
+                                    text: `Hi ${ownerName || 'there'},\n\nThanks for registering ${propertyName} with ${agencyName}. Click below to open your property dashboard:\n\n${magicUrl}\n\nThe link is valid for 7 days. If you didn't request this, ignore this email.\n\n— ${agencyName}`,
+                                    html: `<p>Hi ${ownerName || 'there'},</p><p>Thanks for registering <strong>${propertyName}</strong> with ${agencyName}. Click below to open your property dashboard:</p><p><a href="${magicUrl}" style="display:inline-block;padding:12px 24px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open my dashboard</a></p><p style="color:#64748b;font-size:0.9rem;">The link is valid for 7 days. If you didn't request this, ignore this email.</p><p>— ${agencyName}</p>`
+                                });
+                                console.log(`[gas-onboard-signup] magic link emailed to ${ownerEmail}`);
+                            } else {
+                                console.log(`[gas-onboard-signup] magic link (no SendGrid): ${magicUrl}`);
+                            }
+                        } catch (e) {
+                            console.error('[gas-onboard-signup] magic-link send failed:', e.message);
+                        }
+                    })();
+                }
+
+                console.log(`[gas-onboard-signup] queued: ${ownerName} (${ownerEmail}) — property ${propertyName} @ ${propertyLocation} — agency=${accountId} — owner_acc=${ownerAccountId}`);
             } catch (e) {
                 // Don't fail the form submission — the lead is captured in
                 // lead_form_submissions; the onboarding_signups row is an

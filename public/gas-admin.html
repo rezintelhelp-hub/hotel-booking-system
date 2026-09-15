@@ -35046,10 +35046,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             return code || country; // Return original if not found
         }
         
+        // Magic-link handler — property owners registered via a white-label
+        // site (Booking Assist etc.) land here via a redirect from
+        // /api/auth/owner-magic-link. The endpoint puts the api_key +
+        // account_id in the URL fragment (not the query string, so it never
+        // hits server logs). Persist to localStorage, clean the URL, then
+        // fall through to normal checkAuth. Steve 2026-09-15.
+        (function handleOwnerMagicLink() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('magic') !== '1') return;
+            const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const token = hash.get('gas_token');
+            const accountId = hash.get('gas_selected_account_id');
+            if (token) localStorage.setItem('gas_token', token);
+            if (accountId) localStorage.setItem('gas_selected_account_id', accountId);
+            // Strip both the ?magic=1 and the credentials fragment from the
+            // visible URL so refreshing / bookmarking doesn't loop the flow.
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+        })();
+
         // Check authentication on page load
         async function checkAuth() {
             const token = localStorage.getItem('gas_token');
-            
+
             if (!token) {
                 window.location.href = '/login.html';
                 return false;
@@ -35232,6 +35252,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 selectedAccountName = currentAccount.name;
             }
 
+            // Property-owner role (Booking Assist / GAS Onboard signups).
+            // Same shape as team-member restriction: promote effective role
+            // to 'admin' so data-roles gating unhides the base UI, then
+            // apply a hard whitelist to the visible views. Steve 2026-09-15.
+            const OWNER_ALLOWED_VIEWS = ['my-account','app-properties','properties','bookings','calendar','availability','messages-inbox','rooms'];
+            const isPropertyOwner = role === 'owner' && !currentAccount.is_team_member;
+            if (isPropertyOwner) {
+                effectiveRole = 'admin';
+                selectedAccountId = currentAccount.id;
+                selectedAccountName = currentAccount.name;
+            }
+
             // Whitelist role gating: apply to ALL data-roles elements (nav + dashboard + any future)
             document.querySelectorAll('[data-roles]').forEach(el => {
                 const allowed = el.dataset.roles.split(',').map(s => s.trim());
@@ -35250,6 +35282,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (!allowedViews.includes(targetView)) el.style.display = 'none';
                     });
                 }
+            }
+            // Property-owner whitelist — same shape as team-member enforcement.
+            if (isPropertyOwner) {
+                document.querySelectorAll('.category-card[onclick], .nav-item[data-view]').forEach(el => {
+                    const onclick = el.getAttribute('onclick') || '';
+                    const m = onclick.match(/showView\(['"]([^'"]+)['"]/);
+                    const targetView = el.dataset.view || (m ? m[1] : null);
+                    if (!targetView) return;
+                    if (!OWNER_ALLOWED_VIEWS.includes(targetView)) el.style.display = 'none';
+                });
+                // Hide the site picker + agency filter chrome that operators
+                // use to swap contexts — owners have exactly one context.
+                document.querySelectorAll('#agencyFilterBanner, #clearFilterBtn, #managePlanBtn').forEach(el => { el.style.display = 'none'; });
             }
             // Hide nav sections where ALL children are hidden
             document.querySelectorAll('nav.nav .nav-section').forEach(section => {
