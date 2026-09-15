@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.4.15
+ * Version: 4.4.17
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.15');
+define('GAS_BOOKING_VERSION', '4.4.17');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -6357,17 +6357,20 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             return strcasecmp($property_display_names[$a] ?? $a, $property_display_names[$b] ?? $b);
         });
         
-        // Determine layout based on room count
-        // On the homepage (featured section), always use grid layout
+        // Determine layout based on operator's chosen layout_mode + room count.
+        // Previously we force-gridded on the homepage regardless of setting —
+        // meant that "columns=1 / layout=row" in Web Builder Featured did
+        // nothing on / while working on /book-now/. Steve 2026-09-14: honour
+        // the operator's explicit choice everywhere. If they don't want a
+        // wide card on the homepage, they set layout=grid.
         $room_count = count($rooms);
         $use_row_layout = false;
         $use_carousel = false;
-        $is_homepage = is_front_page();
         if ($layout_mode === 'carousel') {
             $use_carousel = true;
-        } elseif ($layout_mode === 'row' && !$is_homepage) {
+        } elseif ($layout_mode === 'row') {
             $use_row_layout = true;
-        } elseif ($layout_mode === 'auto' && $room_count <= 2 && !$is_homepage) {
+        } elseif ($layout_mode === 'auto' && $room_count <= 2) {
             $use_row_layout = true;
         }
         
@@ -8881,12 +8884,12 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <div class="gas-summary-date-block">
                                     <span class="gas-date-label"><?php echo esc_html($t_booking['check_in'] ?? 'Check-in'); ?></span>
                                     <span class="gas-date-value gas-checkin-display"><?php echo $checkin ? esc_html(date('D, M j, Y', strtotime($checkin))) : 'Loading...'; ?></span>
-                                    <span class="gas-date-time"><?php echo esc_html($t_booking['from_time'] ?? 'From'); ?> 3:00 PM</span>
+                                    <span class="gas-date-time gas-checkin-time"><?php echo esc_html($t_booking['from_time'] ?? 'From'); ?> …</span>
                                 </div>
                                 <div class="gas-summary-date-block">
                                     <span class="gas-date-label"><?php echo esc_html($t_booking['check_out'] ?? 'Check-out'); ?></span>
                                     <span class="gas-date-value gas-checkout-display"><?php echo $checkout ? esc_html(date('D, M j, Y', strtotime($checkout))) : 'Loading...'; ?></span>
-                                    <span class="gas-date-time"><?php echo esc_html($t_booking['by_time'] ?? 'By'); ?> 11:00 AM</span>
+                                    <span class="gas-date-time gas-checkout-time"><?php echo esc_html($t_booking['by_time'] ?? 'By'); ?> …</span>
                                 </div>
                             </div>
                             
@@ -9388,13 +9391,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <div class="gas-date-block">
                                             <span class="gas-date-label"><?php echo esc_html($t_booking['check_in'] ?? 'Check-in'); ?></span>
                                             <span class="gas-date-value gas-conf-checkin"></span>
-                                            <span class="gas-date-time"><?php echo esc_html($t_booking['from_time'] ?? 'From'); ?> 3:00 PM</span>
+                                            <span class="gas-date-time gas-checkin-time"><?php echo esc_html($t_booking['from_time'] ?? 'From'); ?> …</span>
                                         </div>
                                         <div class="gas-date-divider">→</div>
                                         <div class="gas-date-block">
                                             <span class="gas-date-label"><?php echo esc_html($t_booking['check_out'] ?? 'Check-out'); ?></span>
                                             <span class="gas-date-value gas-conf-checkout"></span>
-                                            <span class="gas-date-time"><?php echo esc_html($t_booking['by_time'] ?? 'By'); ?> 11:00 AM</span>
+                                            <span class="gas-date-time gas-checkout-time"><?php echo esc_html($t_booking['by_time'] ?? 'By'); ?> …</span>
                                         </div>
                                     </div>
                                     

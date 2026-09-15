@@ -8846,6 +8846,36 @@ jQuery(document).ready(function($) {
                         
                         checkoutData.room = room;
                         checkoutData.currency = resolveCurrency(room.currency);
+
+                        // Populate check-in / check-out TIMES from the property
+                        // (server returns property_check_in_time /
+                        // property_check_out_time as HH:MM strings). Was
+                        // hardcoded '3:00 PM' / '11:00 AM' in the template;
+                        // every property with different times looked wrong.
+                        // Steve 2026-09-15.
+                        var fmtTime = function(hhmm) {
+                            if (!hhmm) return null;
+                            var m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
+                            if (!m) return null;
+                            var h = parseInt(m[1], 10), mm = m[2];
+                            var period = h >= 12 ? 'PM' : 'AM';
+                            var h12 = h % 12; if (h12 === 0) h12 = 12;
+                            return h12 + ':' + mm + ' ' + period;
+                        };
+                        var ci = fmtTime(room.property_check_in_time);
+                        var co = fmtTime(room.property_check_out_time);
+                        var fromLabel = ($('.gas-checkin-time').data('from-label')) || 'From';
+                        var byLabel = ($('.gas-checkout-time').data('by-label')) || 'By';
+                        // Read existing label from the current text (which the
+                        // template already localised as 'From …' / 'By …').
+                        $('.gas-checkin-time').each(function() {
+                            var existing = $(this).text().replace(/[…\s\d:APM]+$/,'').trim() || 'From';
+                            if (ci) $(this).text(existing + ' ' + ci);
+                        });
+                        $('.gas-checkout-time').each(function() {
+                            var existing = $(this).text().replace(/[…\s\d:APM]+$/,'').trim() || 'By';
+                            if (co) $(this).text(existing + ' ' + co);
+                        });
                     }
                 }
             });
