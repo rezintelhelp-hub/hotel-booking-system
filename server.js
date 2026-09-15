@@ -13404,47 +13404,19 @@ app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, re
       if (!room) { skipped++; continue; }
 
       // BLOCK leads = manual blocks, Airbnb/OTA holds, owner closures, etc.
-      // We MUST pull these so the GAS availability check excludes those dates,
-      // otherwise direct bookings will overlap with Hostfully-side reservations
-      // GAS can't see. Stored as bookings.status='blocked' so existing
-      // availability logic naturally treats them as unavailable.
+      // WAS: inserted synthetic 'Hostfully Block' bookings so availability
+      // logic saw them as unavailable. Never had a delete-when-removed pass,
+      // so stale blocks accumulated (Hunters Gate had a 34-day stale block
+      // Aug→Nov 2026 that hid the room from booking searches for weeks).
+      //
+      // NOW: skipped. The daily calendar sync (syncAllHostfullyAvailability)
+      // already writes is_blocked=true to room_availability for the same
+      // dates, and computeRoomAvailability honours hostfully-source blocks
+      // (per fix at lib/availability.js — 2026-09-15). Single source of
+      // truth, self-heals on next daily sync when Hostfully removes a block.
+      // Steve 2026-09-15.
       if (lead.type === 'BLOCK') {
-        const blockIn = lead.checkInLocalDateTime ? lead.checkInLocalDateTime.split('T')[0] : null;
-        const blockOut = lead.checkOutLocalDateTime ? lead.checkOutLocalDateTime.split('T')[0] : null;
-        if (!blockIn || !blockOut) { skipped++; continue; }
-        const existingBlock = await pool.query(
-          `SELECT id FROM bookings WHERE api_reference = $1 AND booking_source = 'hostfully'`,
-          [lead.uid]
-        );
-        if (existingBlock.rows.length > 0) {
-          await pool.query(
-            `UPDATE bookings SET arrival_date = $1, departure_date = $2, status = 'blocked', updated_at = NOW() WHERE id = $3`,
-            [blockIn, blockOut, existingBlock.rows[0].id]
-          );
-          updated++;
-        } else {
-          await pool.query(`
-            INSERT INTO bookings (
-              property_id, bookable_unit_id, property_owner_id, arrival_date, departure_date,
-              num_adults, num_children, num_infants,
-              guest_first_name, guest_last_name, guest_email,
-              status, booking_source, channel, api_source, api_reference,
-              notes, accommodation_price, subtotal, grand_total, total_amount,
-              booking_time, created_at, updated_at
-            ) VALUES (
-              $1, $2, 1, $3, $4,
-              0, 0, 0,
-              'Hostfully', 'Block', '',
-              'blocked', 'hostfully', $5, 'hostfully', $6,
-              $7, 0, 0, 0, 0,
-              NOW(), NOW(), NOW()
-            )`,
-            [room.property_id, room.gas_room_id, blockIn, blockOut,
-             channelMap[lead.channel] || lead.channel || 'BLOCK', lead.uid, lead.notes || '']
-          );
-          created++;
-        }
-        blocksImported++;
+        skipped++;
         continue;
       }
 
