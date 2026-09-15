@@ -133914,13 +133914,16 @@ app.post('/api/public/form-submit', (req, res, next) => {
 
                 // 2. Placeholder property. status='pending' keeps it hidden
                 //    from every public site until the agency reviews.
+                //    user_id=1 matches the legacy pattern used across every
+                //    Invest Jet property in the DB (NOT NULL column with no
+                //    default). Owner sees this row scoped by account_id.
                 let ownerPropertyId = null;
                 if (ownerAccountId && propertyName) {
                     const newProp = await pool.query(`
                         INSERT INTO properties (
-                            account_id, name, city, status, sync_enabled,
+                            user_id, account_id, name, city, status, sync_enabled,
                             currency, created_at, updated_at
-                        ) VALUES ($1, $2, $3, 'pending', false, 'GBP', NOW(), NOW())
+                        ) VALUES (1, $1, $2, $3, 'pending', false, 'GBP', NOW(), NOW())
                         RETURNING id
                     `, [ownerAccountId, propertyName, propertyLocation || null]);
                     ownerPropertyId = newProp.rows[0].id;
