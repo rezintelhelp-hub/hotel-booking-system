@@ -195,6 +195,28 @@ $sr = hexdec(substr($search_hex, 0, 2));
 $sg = hexdec(substr($search_hex, 2, 2));
 $sb = hexdec(substr($search_hex, 4, 2));
 $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
+
+// --- Section ordering system ---
+// Default positions: Hero=1, Intro=3, Featured=5, USP=7, About=9, Services=11, Reviews=13, CTA=15
+// Even numbers (2,4,6,8,10,12,14) available for Image Row sections
+$section_positions = array(
+    'intro'    => intval($api['section_order_intro'] ?? 3),
+    'wrap'     => intval($api['section_order_wrap'] ?? 4),
+    'featured' => intval($api['section_order_featured'] ?? 5),
+    'usp'      => intval($api['section_order_usp'] ?? 7),
+    'about'    => intval($api['section_order_about'] ?? 9),
+    'services' => intval($api['section_order_services'] ?? 11),
+    'reviews'  => intval($api['section_order_reviews'] ?? 13),
+    'cta'      => intval($api['section_order_cta'] ?? 15),
+);
+
+// Image Row sections (4 available, even positions)
+for ($ir = 1; $ir <= 4; $ir++) {
+    $ir_key = 'image_row_' . $ir;
+    $section_positions[$ir_key] = intval($api['section_order_' . $ir_key] ?? (90 + $ir)); // default off-screen
+}
+
+$homepage_sections = array(); // position => html
 ?>
 
 <?php if ($hero_mobile_image) : ?>
@@ -355,6 +377,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 </style>
 <?php endif; ?>
 
+<?php ob_start(); ?>
 <?php if ($intro_enabled && ($intro_title || $intro_text)) : ?>
 <!-- Intro Section -->
 <section class="developer-section developer-intro" style="background: <?php echo esc_attr($intro_bg); ?>; color: <?php echo esc_attr($intro_text_color); ?>;">
@@ -378,6 +401,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['intro']] = ob_get_clean(); ?>
 
 <?php
 // Wrap Section — magazine-style: body text wraps around a floated image or
@@ -385,6 +409,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 // enabled and there's body text in the active language. See -light theme.
 $wrap_enabled = $api['wrap_enabled'] ?? false;
 $wrap_text = $api['wrap_text'] ?? '';
+ob_start();
 if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     $wrap_title = $api['wrap_title'] ?? '';
     $wrap_bg = $api['wrap_bg'] ?? '#ffffff';
@@ -510,8 +535,11 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
         }
     </style>
 </section>
-<?php endif; ?>
+<?php endif;
+$homepage_sections[$section_positions['wrap']] = ob_get_clean();
+?>
 
+<?php ob_start(); ?>
 <?php if ($featured_enabled) : ?>
 <!-- Featured Properties -->
 <section class="developer-section developer-featured" style="background-color: <?php echo esc_attr($featured_bg); ?>;">
@@ -552,7 +580,9 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['featured']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php if ($usp_enabled && count($usp_items) > 0) : ?>
 <!-- USP / What We Offer Section -->
 <section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>; --usp-card-title-size: <?php echo esc_attr($usp_card_title_size); ?>px; --usp-bottom-bg: <?php echo esc_attr($usp_bottom_bg); ?>;">
@@ -599,7 +629,9 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['usp']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php if ($about_enabled) : ?>
 <!-- About Section -->
 <section class="developer-section developer-section-alt" style="background-color: <?php echo esc_attr($about_bg); ?>;">
@@ -677,7 +709,9 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
 <?php endif; ?>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['about']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php
 // Services Section settings (with API override)
 $services_enabled = $api['services_enabled'] ?? false;
@@ -746,7 +780,9 @@ for ($i = 1; $i <= 8; $i++) {
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['services']] = ob_get_clean(); ?>
 
+<?php ob_start(); ?>
 <?php
 // Reviews Section (API override → theme_mod fallback)
 $reviews_enabled = $api['reviews_enabled'] ?? get_theme_mod('developer_reviews_enabled', false);
@@ -1031,8 +1067,10 @@ if (!is_wp_error($hostaway_response)) {
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['reviews']] = ob_get_clean(); ?>
 
-<?php 
+<?php ob_start(); ?>
+<?php
 // CTA Section settings (with API override)
 $cta_enabled = $api['cta_section_enabled'] ?? get_theme_mod('developer_cta_enabled', true);
 $cta_title = $api['cta_section_title'] ?? get_theme_mod('developer_cta_title', 'Ready to Book Your Stay?');
@@ -1061,6 +1099,15 @@ if ($cta_enabled) :
     </div>
 </section>
 <?php endif; ?>
+<?php $homepage_sections[$section_positions['cta']] = ob_get_clean(); ?>
+
+<?php
+// --- Sort all sections by position and output ---
+ksort($homepage_sections);
+foreach ($homepage_sections as $html) {
+    echo $html;
+}
+?>
 
 <?php
 if (function_exists('developer_render_faqs')) {

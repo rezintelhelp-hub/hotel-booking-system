@@ -3010,6 +3010,13 @@ function developer_get_api_settings() {
         'wrap_card_button_text' => developer_get_ml_value($website_wrap, 'card_button_text', $lang),
         'wrap_card_button_link' => $website_wrap['card-button-link'] ?? '',
         'section_order_wrap' => $website_wrap['position'] ?? null,
+        'section_order_intro' => $website_intro['position'] ?? null,
+        'section_order_featured' => $website_featured['position'] ?? null,
+        'section_order_usp' => $website_usp['position'] ?? null,
+        'section_order_about' => $website_about['position'] ?? null,
+        'section_order_services' => $website_services['position'] ?? null,
+        'section_order_reviews' => $website_reviews['position'] ?? null,
+        'section_order_cta' => $website_cta['position'] ?? null,
 
         // Reviews Section - MULTILINGUAL
         'reviews_enabled' => $website_reviews['enabled'] ?? false,
