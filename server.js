@@ -3939,6 +3939,12 @@ async function runMigrations() {
       // on the Rooms page (per property). NULLS render last so accounts
       // that haven't ordered yet still fall through to name-ASC.
       try { await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_order INTEGER`); } catch (e) { console.error('[migration] bookable_units.display_order skipped:', e.message); }
+      // Drop the legacy DEFAULT 'CHF' on bookable_units.currency — this
+      // silently stamped CHF onto every INSERT that omitted currency,
+      // corrupting 1,434 units estate-wide (Cordelia Belmont's guest
+      // receipt going out in CHF was how it surfaced 2026-09-16). Idempotent
+      // — no-op after first run.
+      try { await pool.query(`ALTER TABLE bookable_units ALTER COLUMN currency DROP DEFAULT`); } catch (e) { console.error('[migration] bookable_units.currency DROP DEFAULT skipped:', e.message); }
       // stripe_transactions — one row per Balance Transaction imported
       // from a Stripe CSV export (Balance change / Balance transactions
       // reports). Keyed on (account_id, txn_id) so re-uploading the same
