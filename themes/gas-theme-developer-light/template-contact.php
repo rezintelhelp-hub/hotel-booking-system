@@ -105,6 +105,10 @@ $hours_days = [
 // Card titles (multilingual)
 $details_title    = $api['page_contact_details_title'] ?? $ct['details'];
 $directions_text  = $api['page_contact_directions_text'] ?? $ct['directions'];
+$directions_mode  = $api['page_contact_directions_mode'] ?? 'link';
+$directions_extra = trim((string)($api['page_contact_directions_extra'] ?? ''));
+$extra_title      = trim((string)($api['page_contact_extra_title'] ?? ''));
+$extra_content    = trim((string)($api['page_contact_extra_content'] ?? ''));
 $map_title        = $api['page_contact_map_title'] ?? $ct['find_us'];
 $form_title       = $api['page_contact_form_title'] ?? $ct['contact_us'];
 
@@ -324,6 +328,9 @@ $lg_radius   = $api['lg_radius'] ?? 16;
                     <?php echo esc_html($directions_text); ?>
                 </a>
                 <p class="gas-contact-directions-address"><?php echo esc_html($full_address); ?></p>
+                <?php if ($directions_mode === 'custom' && $directions_extra !== ''): ?>
+                    <div class="gas-contact-directions-extra" style="margin-top:1rem; color: var(--developer-text-light, #64748b); font-size:0.95rem; line-height:1.55;"><?php echo wp_kses_post($directions_extra); ?></div>
+                <?php endif; ?>
             </div>
             <?php endif; ?>
 
@@ -403,8 +410,32 @@ $lg_radius   = $api['lg_radius'] ?? 16;
 
         </div>
 
+        <?php if ($extra_content !== ''): ?>
+        <!-- Full-width Extra Info block (below the 4 cards) -->
+        <div class="gas-contact-extra">
+            <?php if ($extra_title !== ''): ?>
+                <h2 style="margin:0 0 1rem;"><?php echo esc_html($extra_title); ?></h2>
+            <?php endif; ?>
+            <div class="gas-contact-extra-body"><?php echo wp_kses_post($extra_content); ?></div>
+        </div>
+        <?php endif; ?>
+
     </div>
 </div>
+
+<style>
+.gas-contact-extra {
+    background: var(--developer-card-bg, #fff);
+    border: 1px solid var(--developer-border, #e5e7eb);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 2rem;
+    line-height: 1.6;
+}
+.gas-contact-extra h2 { color: var(--developer-heading-color, #1e293b); }
+.gas-contact-extra-body { color: var(--developer-text, #334155); font-size: 0.95rem; }
+.gas-contact-extra-body p:last-child { margin-bottom: 0; }
+</style>
 
 <script>
 function handleGasContactForm(e) {
