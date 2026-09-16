@@ -85694,7 +85694,7 @@ app.post('/api/admin/bookings/:id/resend-confirmation-fresh', async (req, res) =
       grand_total: parseFloat(booking.grand_total) || 0,
       deposit_amount: parseFloat(booking.deposit_amount) || 0,
       balance_amount: parseFloat(booking.balance_amount) || 0,
-      currency: room.currency || booking.currency || '£',
+      currency: booking.currency || property.currency || room.currency || '£',
       guest_first_name: booking.guest_first_name,
       guest_last_name: booking.guest_last_name,
       stripe_setup_intent_id: booking.stripe_setup_intent_id,
@@ -85795,7 +85795,7 @@ app.get('/api/admin/bookings/:id/preview-confirmation', async (req, res) => {
       grand_total: parseFloat(booking.grand_total) || 0,
       deposit_amount: parseFloat(booking.deposit_amount) || 0,
       balance_amount: parseFloat(booking.balance_amount) || 0,
-      currency: room.currency || booking.currency || '£',
+      currency: booking.currency || property.currency || room.currency || '£',
       guest_first_name: booking.guest_first_name, guest_last_name: booking.guest_last_name,
       stripe_setup_intent_id: booking.stripe_setup_intent_id,
       stripe_payment_method_id: booking.stripe_payment_method_id,
@@ -85833,7 +85833,7 @@ app.get('/api/admin/bookings/:id/preview-receipt', async (req, res) => {
          FROM payment_transactions
         WHERE booking_id = $1 AND status = 'completed'
         ORDER BY COALESCE(completed_at, created_at) ASC`, [bookingId]);
-    const cur = room.currency || booking.currency || 'GBP';
+    const cur = booking.currency || property.currency || room.currency || 'GBP';
     const sym = ({ GBP: '£', EUR: '€', USD: '$' })[cur] || '';
     const rowsHtml = pxRows.rows.map(r => `
       <tr>
