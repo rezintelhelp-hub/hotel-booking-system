@@ -76519,6 +76519,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({
                             property_id: propertyId, room_id: roomId,
+                            individual_unit_id: primarySubroom || null,
                             check_in: checkin, check_out: checkout,
                             num_adults: adults, num_children: children,
                             guest_first_name: firstName, guest_last_name: lastName,
@@ -76526,6 +76527,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                             guest_address: address, guest_city: city, guest_state: stateReg,
                             guest_postcode: postcode, guest_country: country,
                             total_price: total || 0,
+                            // Steve 2026-09-16 — pass the operator's deposit
+                            // override so the server charges just the deposit
+                            // (or saves the card only if deposit=0) instead
+                            // of always charging total_price.
+                            deposit_amount_override: (function () {
+                                const mode = document.querySelector('input[name="booking-deposit-mode"]:checked')?.value;
+                                if (mode !== 'manual') return null;
+                                const v = parseFloat(document.getElementById('booking-deposit-override')?.value);
+                                return Number.isFinite(v) && v >= 0 ? v : null;
+                            })(),
                             notes, sync_to_cm: syncCM,
                             provider,
                             booking_group_id: groupId,

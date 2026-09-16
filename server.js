@@ -83335,7 +83335,16 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
       payment_method_id,                          // stripe
       square_source_id, square_verification_token, // square
       enigma_reference_id,                        // card_guarantee
-      save_card_on_file
+      save_card_on_file,
+      // Steve 2026-09-16 — operator sets deposit_amount_override (from
+      // the manual-mode deposit input). When 0 with Stripe, we save the
+      // card only (no charge) rather than blindly charging the full
+      // total_price. When >0 we charge exactly that. Falls back to full
+      // total_price when not set (existing behaviour).
+      deposit_amount_override,
+      // Sub-room picker output — pins a specific individual_unit under a
+      // type wrapper (Belmont Twin → Room 5 vs Room 19).
+      individual_unit_id
     } = req.body;
 
     const provider = providerRaw || 'stripe';
@@ -83354,11 +83363,28 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
     if (!tokenForProvider) {
       return res.json({ success: false, error: `Missing payment token for provider '${provider}'` });
     }
-    const amount = parseFloat(total_price || 0);
-    // card_guarantee is auth-only, so 0 is fine. Real charges need >0.
-    if (provider !== 'card_guarantee' && !(amount > 0)) {
-      return res.json({ success: false, error: 'Cannot charge a card for zero amount' });
+    const totalPrice = parseFloat(total_price || 0);
+    // Effective charge amount. Operator can override the deposit via
+    // deposit_amount_override; falls back to full total_price otherwise.
+    // 0 means "save card, don't charge" — routed to storeCardOnly below.
+    const depOverrideRaw = (deposit_amount_override != null && deposit_amount_override !== '')
+      ? parseFloat(deposit_amount_override)
+      : NaN;
+    const chargeAmount = Number.isFinite(depOverrideRaw) ? Math.max(0, depOverrideRaw) : totalPrice;
+    // Route decision: save-card-only when the resolved charge is exactly 0.
+    // card_guarantee is always store-only (Enigma verify, no funds moved).
+    const saveCardOnlyMode = (provider === 'card_guarantee') || (chargeAmount === 0);
+    // Square doesn't have a store-only path wired into this endpoint yet,
+    // so reject deposit=0 with Square rather than silently charge total.
+    if (provider === 'square' && chargeAmount === 0) {
+      return res.json({ success: false, error: 'Square does not support save-card-without-charge. Set a deposit > 0 or use Stripe.' });
     }
+    if (chargeAmount < 0) {
+      return res.json({ success: false, error: 'Deposit amount cannot be negative' });
+    }
+    // Kept as `amount` below so the existing charge/insert code doesn't
+    // renumber. chargeCurrency comes later.
+    const amount = chargeAmount;
 
     // Property lookup for currency, owner, account.
     // Was: p.owner_user_id / a.owner_user_id — neither column exists.
@@ -83394,10 +83420,24 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
 
     // Dispatch — charge or store-card. Throws on failure; caller surfaces
     // the message without writing a booking row.
+    // Steve 2026-09-16 — Stripe with deposit=0 routes through storeCardOnly
+    // (SetupIntent) instead of chargeAndConfirm so no money moves. The
+    // card is saved on the booking so the balance-due auto-charge cron
+    // (or a later manual charge) can hit it when appropriate.
     let paymentResult;
     try {
-      if (provider === 'card_guarantee') {
-        paymentResult = await adapter.storeCardOnly(cfg, { token: tokenForProvider }, _paymentHelpers);
+      if (saveCardOnlyMode) {
+        paymentResult = await adapter.storeCardOnly(cfg, {
+          token: tokenForProvider,
+          buyer_email: guest_email,
+          description: `GAS Admin booking (save card only) · ${guest_first_name} ${guest_last_name} · ${check_in} → ${check_out}`,
+          metadata: {
+            source: 'gas_admin_direct_booking_save_card_only',
+            gas_account_id: String(accountId),
+            gas_property_id: String(property_id),
+            gas_guest_email: guest_email,
+          }
+        }, _paymentHelpers);
       } else {
         paymentResult = await adapter.chargeAndConfirm(cfg, {
           token: tokenForProvider,
@@ -83436,9 +83476,29 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
       depositRule = await resolveDepositRule(pool, property_id, accountId, null, check_in, new Date(), room_id);
     } catch (_) {}
 
-    const paymentStatus = provider === 'card_guarantee' ? 'guaranteed' : 'fully_paid';
+    // Steve 2026-09-16 — split total_price from charged deposit so the
+    // booking reflects reality when operator only charges a partial
+    // deposit (or saves card without charging).
+    const paymentStatus = provider === 'card_guarantee'
+      ? 'guaranteed'
+      : (saveCardOnlyMode
+          ? 'pending'
+          : (chargeAmount >= totalPrice ? 'fully_paid' : 'deposit_paid'));
     const paymentMethodCol = provider === 'card_guarantee' ? 'card_guarantee'
                             : provider === 'square' ? 'square' : 'card';
+    const depositForRow = saveCardOnlyMode ? 0 : chargeAmount;
+    const balanceForRow = Math.max(0, totalPrice - depositForRow);
+    // Balance due date — 1 day before arrival by default, so the balance-
+    // due auto-charge cron can hit it on the day of check-in prep. Only
+    // set when there's a real balance outstanding (else null).
+    let balanceDueDate = null;
+    if (balanceForRow > 0 && check_in) {
+      try {
+        const arr = new Date(check_in);
+        arr.setUTCDate(arr.getUTCDate() - 1);
+        balanceDueDate = arr.toISOString().slice(0, 10);
+      } catch (_) {}
+    }
 
     await client.query('BEGIN');
 
@@ -83447,7 +83507,7 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
     // (That's the bug class that produced this morning's outage.)
     const bookingResult = await client.query(`
       INSERT INTO bookings (
-        property_id, property_owner_id, bookable_unit_id,
+        property_id, property_owner_id, bookable_unit_id, individual_unit_id,
         arrival_date, departure_date,
         num_adults, num_children,
         guest_first_name, guest_last_name, guest_email, guest_phone,
@@ -83456,20 +83516,22 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
         deposit_rule_id, deposit_amount, balance_amount, balance_due_date,
         booking_group_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-              $12, $12, $12,
-              $13, 'confirmed', 'direct', $14, $15, $16,
-              $17, $12, 0, NULL, $18)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+              $13, $13, $13,
+              $14, 'confirmed', 'direct', $15, $16, $17,
+              $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       property_id, propertyOwnerId, room_id,
+      (individual_unit_id === '' || individual_unit_id == null) ? null : parseInt(individual_unit_id, 10),
       check_in, check_out,
       num_adults || 1, num_children || 0,
       guest_first_name, guest_last_name, guest_email, guest_phone || null,
-      amount,
+      totalPrice,
       paymentStatus,
       bookingCurrency, notes || null, paymentMethodCol,
       depositRule ? depositRule.id : null,
+      depositForRow, balanceForRow, balanceDueDate,
       booking_group_id || null
     ]);
     let booking = bookingResult.rows[0];
@@ -83516,8 +83578,10 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
       booking = upd.rows[0];
     }
 
-    // Audit row — payment_transactions only for actual charges, not card_guarantee.
-    if (provider !== 'card_guarantee') {
+    // Audit row — payment_transactions only for actual charges, not
+    // card_guarantee, and not save-card-only mode (deposit=0, no funds
+    // moved). Steve 2026-09-16.
+    if (provider !== 'card_guarantee' && !saveCardOnlyMode) {
       try {
         await client.query(`
           INSERT INTO payment_transactions (booking_id, amount, currency, type, provider, provider_transaction_id, status, metadata, created_at)
