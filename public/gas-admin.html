@@ -76348,9 +76348,25 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!roomSelect) return;
             const row = roomSelect.closest('.booking-room-row');
             if (!row) { console.warn('[subroom] no .booking-room-row ancestor'); return; }
-            const subWrap = row.querySelector('.booking-subroom-wrap');
-            const subSel = row.querySelector('.booking-subroom-select');
-            if (!subWrap || !subSel) { console.warn('[subroom] wrap or select missing in row', row); return; }
+            // Find or create the sub-room wrap. If the static one from
+            // addBookingModal HTML isn't there (older DOM, replaced by a
+            // rebuild etc.), inject it dynamically. Belmont 2026-09-16 —
+            // Steve reported the picker never appearing despite deployed
+            // code; this bulletproofs against a DOM mismatch too.
+            let subWrap = row.querySelector('.booking-subroom-wrap');
+            let subSel = row.querySelector('.booking-subroom-select');
+            if (!subWrap || !subSel) {
+                console.warn('[subroom] wrap/select missing — injecting fresh');
+                const injected = document.createElement('div');
+                injected.className = 'booking-subroom-wrap';
+                injected.style.cssText = 'display:none; margin-top:0.4rem;';
+                injected.innerHTML =
+                    '<label style="font-size:0.8rem; color:#64748b; margin-bottom:0.2rem; display:block;">Assign to specific unit</label>' +
+                    '<select class="form-input booking-subroom-select" style="padding:0.5rem; border-radius:8px; font-size:0.88rem;"><option value="">Auto-allocate</option></select>';
+                row.appendChild(injected);
+                subWrap = injected;
+                subSel = injected.querySelector('.booking-subroom-select');
+            }
             // Reset
             subSel.innerHTML = '<option value="">Auto-allocate</option>';
             subWrap.style.display = 'none';
@@ -76370,7 +76386,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     opt.textContent = nm + num;
                     subSel.appendChild(opt);
                 });
-                subWrap.style.display = '';
+                // Force visible with inline style — beats any external CSS
+                subWrap.style.cssText = 'display:block !important; margin-top:0.4rem; padding:0.6rem 0.75rem; background:#fef3c7; border:2px solid #f59e0b; border-radius:8px;';
                 console.log('[subroom] picker shown with', units.length, 'options');
             } catch (e) {
                 console.warn('[subroom] fetch failed', e);
