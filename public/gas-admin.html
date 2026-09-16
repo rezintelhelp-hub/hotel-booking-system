@@ -76690,9 +76690,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (typeof _mobCal !== 'undefined' && _mobCal.monthStart && typeof _mobCalRender === 'function') _mobCalRender().catch(() => {});
                     const bookingRef = `GAS-${String(data.booking_id).padStart(4, '0')}`;
                     const cardSuffix = data.card && data.card.last4 ? ` (${data.card.brand || 'card'} ****${data.card.last4})` : '';
-                    const msg = (data.provider === 'card_guarantee' || _bookingSelectedProvider === 'card_guarantee')
+                    const isCardGuarantee = (data.provider === 'card_guarantee' || _bookingSelectedProvider === 'card_guarantee');
+                    const chargedAmt = parseFloat(data.charge_amount || 0);
+                    const msg = isCardGuarantee
                         ? `✅ Card secured${cardSuffix} and booking created (${bookingRef}).`
-                        : `✅ Card charged (${data.currency} ${data.charge_amount})${cardSuffix} and booking created (${bookingRef}).`;
+                        : (chargedAmt > 0
+                            ? `✅ Card charged (${data.currency} ${chargedAmt.toFixed(2)})${cardSuffix} and booking created (${bookingRef}).`
+                            : `✅ Card saved — no charge taken${cardSuffix}. Booking created (${bookingRef}).`);
                     alert(msg);
                     return;
                 }
