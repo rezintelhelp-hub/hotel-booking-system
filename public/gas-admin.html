@@ -30335,7 +30335,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="display:flex; gap:0.5rem; align-items:end;">
                                     <div style="flex:1;">
                                         <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room *</label>
-                                        <select id="booking-room" class="form-input booking-room-select" style="padding: 0.6rem; border-radius: 8px;" onchange="_bookingCalOnRoomChange(); loadBookingDepositRules(); loadBookingSubRooms(this);" required>
+                                        <select id="booking-room" class="form-input booking-room-select" style="padding: 0.6rem; border-radius: 8px;" onchange="loadBookingSubRooms(this); _bookingCalOnRoomChange(); loadBookingDepositRules();" required>
                                             <option value="">Select Room...</option>
                                         </select>
                                     </div>
@@ -76344,21 +76344,23 @@ const promo = await fetch('/api/v1/offers/validate', {
         // — booking Twin type silently landed in Room 5 because there was no
         // way to say "put this in Room 19".
         async function loadBookingSubRooms(roomSelect) {
+            console.log('[subroom] loadBookingSubRooms called', roomSelect);
             if (!roomSelect) return;
             const row = roomSelect.closest('.booking-room-row');
-            if (!row) return;
+            if (!row) { console.warn('[subroom] no .booking-room-row ancestor'); return; }
             const subWrap = row.querySelector('.booking-subroom-wrap');
             const subSel = row.querySelector('.booking-subroom-select');
-            if (!subWrap || !subSel) return;
+            if (!subWrap || !subSel) { console.warn('[subroom] wrap or select missing in row', row); return; }
             // Reset
             subSel.innerHTML = '<option value="">Auto-allocate</option>';
             subWrap.style.display = 'none';
             const buId = roomSelect.value;
-            if (!buId) return;
+            if (!buId) { console.log('[subroom] no room selected yet'); return; }
             try {
                 const r = await fetch('/api/admin/bookable-units/' + buId + '/individual-units', { headers: authHeaders() });
                 const d = await r.json();
                 const units = d.units || d.data || [];
+                console.log('[subroom] bu=' + buId + ' returned', units.length, 'units', units);
                 if (units.length < 2) return; // nothing to pick between
                 units.forEach(u => {
                     const opt = document.createElement('option');
@@ -76369,10 +76371,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     subSel.appendChild(opt);
                 });
                 subWrap.style.display = '';
+                console.log('[subroom] picker shown with', units.length, 'options');
             } catch (e) {
-                console.warn('loadBookingSubRooms', e);
+                console.warn('[subroom] fetch failed', e);
             }
         }
+
+        // Bulletproof delegated listener — fires even if the inline onchange
+        // handler is stripped by a browser policy or an earlier statement in
+        // the onchange chain throws. Belmont 2026-09-16, Steve was seeing no
+        // sub-room picker despite deployed code + hard-refresh + incognito.
+        document.addEventListener('change', function (e) {
+            const t = e.target;
+            if (!t || !t.classList || !t.classList.contains('booking-room-select')) return;
+            try { loadBookingSubRooms(t); } catch (err) { console.warn('[subroom] delegated fire failed', err); }
+        });
 
         async function saveNewBooking(submitBtn) {
             const propertyId = document.getElementById('booking-property').value;
