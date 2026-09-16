@@ -80534,12 +80534,14 @@ app.get('/api/admin/bookings', async (req, res) => {
     let query = `
       SELECT b.*,
              bu.name as unit_name,
+             iu.unit_name as individual_unit_name,
              p.name as property_name,
              COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14) AS balance_due_days,
              (b.arrival_date - INTERVAL '1 day' * COALESCE(dr.balance_due_days, dr.auto_charge_days_before, 14))::date AS balance_trigger_date,
              EXISTS (SELECT 1 FROM bookings bc WHERE bc.copied_from_booking_id = b.id) AS has_active_copy
       FROM bookings b
       LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN individual_units iu ON iu.id = b.individual_unit_id
       LEFT JOIN properties p ON b.property_id = p.id
       LEFT JOIN deposit_rules dr ON dr.id = COALESCE(
           b.deposit_rule_id,
