@@ -83600,7 +83600,57 @@ app.post('/api/admin/bookings/with-card', async (req, res) => {
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Create direct booking with card error:', error);
-    res.json({ success: false, error: error.message });
+    // Steve 2026-09-16 — SAFETY: if Stripe/Square captured funds but the
+    // booking failed to persist, refund the guest IMMEDIATELY. Without
+    // this, an orphan charge sits on the merchant's Stripe account with
+    // no matching booking row in GAS — guest is out of pocket, operator
+    // has no record. Steve hit this on a dummy booking test just now.
+    let autoRefund = null;
+    if (paymentResult && paymentResult.provider_payment_id && provider !== 'card_guarantee') {
+      try {
+        if (provider === 'stripe' && cfg && cfg.secret_key) {
+          const StripeLib = require('stripe');
+          const stripe = StripeLib(cfg.secret_key);
+          const reqOpts = cfg.stripe_account_id ? { stripeAccount: cfg.stripe_account_id } : undefined;
+          const refund = await stripe.refunds.create({
+            payment_intent: paymentResult.provider_payment_id,
+            reason: 'requested_by_customer',
+            metadata: {
+              source: 'gas_auto_refund_on_booking_save_failure',
+              gas_property_id: String(property_id),
+              gas_guest_email: guest_email || '',
+              original_error: (error.message || '').slice(0, 200),
+            }
+          }, reqOpts);
+          autoRefund = { provider: 'stripe', refund_id: refund.id, status: refund.status, amount: amount };
+          console.error(`[admin bookings/with-card] AUTO-REFUND fired — pi=${paymentResult.provider_payment_id} refund=${refund.id} status=${refund.status}`);
+        }
+        // Square auto-refund deferred — no current client is on Square in
+        // this flow. If we add one, mirror the pattern with squareup /v2/refunds.
+      } catch (refundErr) {
+        console.error('[admin bookings/with-card] AUTO-REFUND FAILED — MANUAL REFUND REQUIRED:',
+          'pi=' + paymentResult.provider_payment_id,
+          'account=' + (cfg?.stripe_account_id || 'platform'),
+          'error=' + refundErr.message);
+        autoRefund = {
+          error: refundErr.message,
+          provider_payment_id: paymentResult.provider_payment_id,
+          stripe_account_id: cfg?.stripe_account_id || null,
+        };
+      }
+    }
+    res.json({
+      success: false,
+      error: error.message,
+      auto_refund: autoRefund,
+      // Loud front-end message the operator can't miss when a refund
+      // happened / a refund is required.
+      operator_message: autoRefund
+        ? (autoRefund.error
+            ? `⚠ Booking failed AND auto-refund failed. Manual refund required on Stripe ${autoRefund.stripe_account_id || 'platform'} for payment intent ${autoRefund.provider_payment_id}.`
+            : `Booking failed, so guest was auto-refunded ${amount} ${(cfg?.currency || 'GBP').toUpperCase()} (Stripe refund ${autoRefund.refund_id}).`)
+        : null,
+    });
   } finally {
     client.release();
   }
