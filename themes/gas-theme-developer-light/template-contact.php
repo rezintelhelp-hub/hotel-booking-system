@@ -328,7 +328,7 @@ $lg_radius   = $api['lg_radius'] ?? 16;
                     <?php echo esc_html($directions_text); ?>
                 </a>
                 <p class="gas-contact-directions-address"><?php echo esc_html($full_address); ?></p>
-                <?php if ($directions_mode === 'custom' && $directions_extra !== ''): ?>
+                <?php if ($directions_extra !== ''): ?>
                     <div class="gas-contact-directions-extra" style="margin-top:1rem; color: var(--developer-text-light, #64748b); font-size:0.95rem; line-height:1.55;"><?php echo wp_kses_post($directions_extra); ?></div>
                 <?php endif; ?>
             </div>
