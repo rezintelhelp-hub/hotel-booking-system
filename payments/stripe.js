@@ -108,6 +108,13 @@ module.exports = {
       setup_future_usage: opts.save_card_on_file ? 'off_session' : undefined,
       description: opts.description,
       metadata: opts.metadata || {},
+      // Cordelia Belmont 2026-09-16 — if the connected account has any
+      // redirect-based methods enabled in Stripe Dashboard (Klarna,
+      // Affirm, ACH, etc), Stripe demands a return_url on the intent
+      // unless we opt out of redirects explicitly. Admin-keyed charges
+      // have no guest browser to redirect, so hard-set allow_redirects
+      // to 'never' — the operator only charges the card that was keyed.
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
     };
     // MOTO — Mail Order/Telephone Order flag. Reduces chargeback exposure
     // on operator-keyed charges. Requires the connected Stripe account to
