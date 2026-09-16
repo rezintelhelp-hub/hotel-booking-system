@@ -99,17 +99,41 @@ module.exports = {
   async chargeAndConfirm(cfg, opts) {
     const stripe = Stripe(cfg.secret_key);
     const reqOpts = this._reqOpts(cfg);
-    const pi = await stripe.paymentIntents.create({
+    const baseParams = {
       amount: Math.round(opts.amount * 100),
       currency: (opts.currency || cfg.currency).toLowerCase(),
       payment_method: opts.token,
-      ...(opts.moto ? { payment_method_options: { card: { moto: true } } } : {}),
       confirm: true,
       off_session: false,
       setup_future_usage: opts.save_card_on_file ? 'off_session' : undefined,
       description: opts.description,
       metadata: opts.metadata || {},
-    }, reqOpts);
+    };
+    // MOTO — Mail Order/Telephone Order flag. Reduces chargeback exposure
+    // on operator-keyed charges. Requires the connected Stripe account to
+    // have MOTO capability enabled; accounts without it reject the whole
+    // call with "Received unknown parameter: payment_method_options[card][moto]".
+    // Cordelia Belmont 2026-09-16 — try with the flag, retry without on
+    // that specific rejection so phone charges succeed everywhere.
+    let pi;
+    if (opts.moto) {
+      try {
+        pi = await stripe.paymentIntents.create({
+          ...baseParams,
+          payment_method_options: { card: { moto: true } },
+        }, reqOpts);
+      } catch (e) {
+        const isMotoUnsupported = e && (
+          e.code === 'parameter_unknown' ||
+          /unknown parameter[^]*moto/i.test(String(e.message || ''))
+        );
+        if (!isMotoUnsupported) throw e;
+        console.warn(`[stripe] MOTO capability not enabled on account ${cfg.stripe_account_id || 'platform'} — retrying without moto flag`);
+        pi = await stripe.paymentIntents.create(baseParams, reqOpts);
+      }
+    } else {
+      pi = await stripe.paymentIntents.create(baseParams, reqOpts);
+    }
 
     if (pi.status !== 'succeeded') {
       // Caller decides whether to surface client_secret for SCA. Throw with
