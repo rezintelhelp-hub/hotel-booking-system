@@ -90882,10 +90882,14 @@ app.get('/api/availability/:roomId', async (req, res) => {
       for (const h of helperDays) {
         if (!availMap[h.date]) availMap[h.date] = { date: h.date };
         availMap[h.date].is_available = h.available;
-        // Preserve operator-vs-cm block distinction. Only operator intent
-        // stamps is_blocked=true; CM-noise blocks (source outside the
-        // whitelist) surface via is_available=false without is_blocked.
-        availMap[h.date].is_blocked = !h.available && h.blocked_by === 'operator';
+        // Stamp is_blocked=true for any closure that is NOT a real booking —
+        // that means operator intent, trusted CM calendar blocks (Beds24
+        // single-unit, Hostfully) and buyout cascades all render as blocked
+        // in the admin calendar. Real bookings surface via is_booked/units.
+        // Steve 2026-09-16 — Cotswolds Goosewing was returning is_blocked=false
+        // for CM-source blocks so the admin calendar showed 362 blocked days
+        // as green available.
+        availMap[h.date].is_blocked = !h.available && h.blocked_by !== null && h.blocked_by !== 'bookings';
         if (h.quantity > 1) {
           availMap[h.date].capacity = h.quantity;
           availMap[h.date].bookings_count = h.bookings;
