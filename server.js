@@ -84910,7 +84910,13 @@ app.post('/api/admin/bookings', async (req, res) => {
       // Manual mode — balance is collected manually (cash on arrival etc.),
       // so we skip balance_due_date + auto-charge scheduling for this
       // booking. Also suppresses the chase cron down the line.
-      manual_balance_collection
+      manual_balance_collection,
+      // 2026-09-16 Steve/Cordelia — operator can pin a specific individual
+      // unit (physical sub-room) inside a multi-unit type wrapper. Belmont
+      // Twin type has Room 5 + Room 19 underneath; without this the display
+      // silently defaulted to the first (Room 5) even when the operator
+      // wanted Room 19.
+      individual_unit_id
     } = req.body;
 
     if (!property_id || !room_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
@@ -85089,7 +85095,7 @@ app.post('/api/admin/bookings', async (req, res) => {
     // inventory_pool_dates — same as /api/public/book.
     const bookingResult = await client.query(`
       INSERT INTO bookings (
-        property_id, property_owner_id, bookable_unit_id, listing_id,
+        property_id, property_owner_id, bookable_unit_id, individual_unit_id, listing_id,
         arrival_date, departure_date,
         num_adults, num_children,
         guest_first_name, guest_last_name, guest_email, guest_phone,
@@ -85099,14 +85105,16 @@ app.post('/api/admin/bookings', async (req, res) => {
         deposit_rule_id, deposit_amount, balance_amount, balance_due_date,
         booking_group_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-              $13, $14, $15, $16, $17,
-              $18, $18, $18,
-              $19, $20, 'direct', $21, $22,
-              $23, $24, $25, $26, $27)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+              $14, $15, $16, $17, $18,
+              $19, $19, $19,
+              $20, $21, 'direct', $22, $23,
+              $24, $25, $26, $27, $28)
       RETURNING *
     `, [
-      property_id, propertyOwnerId, room_id, listing_id || null,
+      property_id, propertyOwnerId, room_id,
+      (individual_unit_id === '' || individual_unit_id == null) ? null : parseInt(individual_unit_id, 10),
+      listing_id || null,
       check_in, check_out,
       num_adults || 1, num_children || 0,
       guest_first_name, guest_last_name, guest_email, guest_phone || null,
