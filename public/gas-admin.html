@@ -76386,8 +76386,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     opt.textContent = nm + num;
                     subSel.appendChild(opt);
                 });
-                // Force visible with inline style — beats any external CSS
-                subWrap.style.cssText = 'display:block !important; margin-top:0.4rem; padding:0.6rem 0.75rem; background:#fef3c7; border:2px solid #f59e0b; border-radius:8px;';
+                // Force visible with inline style — beats any external CSS.
+                // Subtle styling to match the rest of the modal.
+                subWrap.style.cssText = 'display:block !important; margin-top:0.4rem;';
                 console.log('[subroom] picker shown with', units.length, 'options');
             } catch (e) {
                 console.warn('[subroom] fetch failed', e);
