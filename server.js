@@ -85848,6 +85848,25 @@ app.get('/api/admin/bookings/:id/preview-receipt', async (req, res) => {
     const emailBranding = await getEmailBranding(pool, property.account_id, property.id);
     const brandingHeader = emailBranding && emailBranding.header_html ? emailBranding.header_html : '';
     const brandingFooter = emailBranding && emailBranding.footer_html ? emailBranding.footer_html : '';
+    // Booking details block — Cordelia 2026-09-16: receipt didn't show
+    // which room / dates the guest booked, so the email was ambiguous
+    // when a guest had multiple stays.
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const nights = booking.nights_count || booking.num_nights || (() => {
+      if (!booking.arrival_date || !booking.departure_date) return null;
+      const ms = new Date(booking.departure_date) - new Date(booking.arrival_date);
+      return Math.max(1, Math.round(ms / 86400000));
+    })();
+    const bookingDetailsBlock = `
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; margin:0 0 18px; font-size:0.92em; line-height:1.5;">
+        <div style="font-weight:600; color:#1e293b; margin-bottom:6px;">Your Stay</div>
+        ${room.name ? `<div><strong>Room:</strong> ${room.name}</div>` : ''}
+        ${property.name && property.name !== room.name ? `<div><strong>Property:</strong> ${property.name}</div>` : ''}
+        ${booking.arrival_date ? `<div><strong>Check-in:</strong> ${fmtDate(booking.arrival_date)}</div>` : ''}
+        ${booking.departure_date ? `<div><strong>Check-out:</strong> ${fmtDate(booking.departure_date)}</div>` : ''}
+        ${nights ? `<div><strong>Nights:</strong> ${nights}</div>` : ''}
+      </div>`;
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payment Receipt — Booking ${booking.id}</title></head>
 <body style="font-family: Arial, sans-serif; color:#1e293b; margin:0; padding:0; background:#f8fafc;">
   <div style="max-width:640px; margin:0 auto; background:white;">
@@ -85856,6 +85875,7 @@ app.get('/api/admin/bookings/:id/preview-receipt', async (req, res) => {
       <h1 style="margin:0 0 6px; font-size:22px;">Payment Receipt</h1>
       <div style="color:#64748b; font-size:0.9em; margin-bottom:18px;">${property.name || ''} — Booking Ref: ${booking.id}</div>
       <p style="margin:0 0 12px;">Hi ${booking.guest_first_name || 'there'},</p>
+      ${bookingDetailsBlock}
       <p style="margin:0 0 12px;">Thank you — here's a summary of the payments received for your booking:</p>
       <table style="width:100%; border-collapse:collapse; margin:12px 0; font-size:0.95em;">
         <thead>
