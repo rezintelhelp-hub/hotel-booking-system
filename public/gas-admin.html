@@ -54880,16 +54880,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return;
                 }
 
-                // Resolve room display name — display_name can be a multilingual
-                // JSONB object ({"en":"..."}) so we unwrap it before stringifying.
-                // Without this, `.replace()` on the object threw silently and
-                // the rooms list rendered nothing.
+                // Resolve room label. Steve 2026-09-17 (Mimo Stays) — bookable_units.name
+                // is the operator's internal ID (unique: "490 - 5", "520 - 3") whereas
+                // display_name is often the marketing name synced from Beds24 which is
+                // identical across most rooms of a property. Prefer name to keep the
+                // room list disambiguable in the upload picker; append display_name in
+                // parentheses when it adds detail.
+                // display_name may be a multilingual JSONB object ({"en":"..."}) —
+                // unwrap it before rendering.
+                const unwrap = (v) => {
+                    if (v && typeof v === 'object') return v.en || Object.values(v)[0] || '';
+                    return v == null ? '' : String(v);
+                };
                 const resolveLabel = (r) => {
-                    let raw = r.display_name;
-                    if (raw && typeof raw === 'object') raw = raw.en || Object.values(raw)[0] || '';
-                    if (!raw) raw = r.name;
-                    if (raw && typeof raw === 'object') raw = raw.en || Object.values(raw)[0] || '';
-                    return String(raw || ('Room ' + r.id));
+                    const nm = unwrap(r.name).trim();
+                    return nm || unwrap(r.display_name).trim() || ('Room ' + r.id);
                 };
                 container.innerHTML = rooms.map(room => `
                     <label class="checkbox-label" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem; padding: 6px 0;">
