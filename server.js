@@ -85183,52 +85183,61 @@ app.post('/api/admin/bookings', async (req, res) => {
         isPoolAcct = acct.rows[0]?.inventory_model === 'pool';
       } catch (_) { /* treat as non-pool on lookup failure — safer */ }
       if (!isPoolAcct) {
-        const gasConflict = await client.query(
-          `SELECT id, arrival_date, departure_date, status
-             FROM bookings
-            WHERE bookable_unit_id = $1
-              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry', 'copied', 'rejected', 'expired')
-              AND arrival_date < $3::date AND departure_date > $2::date
-            LIMIT 1`,
-          [room_id, check_in, check_out]
-        );
-        if (gasConflict.rows.length) {
-          await client.query('ROLLBACK');
-          const c = gasConflict.rows[0];
-          console.warn(`[admin booking] REJECT — GAS booking ${c.id} (${String(c.arrival_date).slice(0,10)} → ${String(c.departure_date).slice(0,10)}, status=${c.status}) overlaps ${check_in} → ${check_out} on unit ${room_id}`);
-          return res.json({
-            success: false,
-            error: `This unit is already booked over these dates (existing booking GAS-${c.id}, ${String(c.arrival_date).slice(0,10)} → ${String(c.departure_date).slice(0,10)}). Pick different dates or cancel the other booking first.`,
-            conflict_booking_id: c.id
-          });
+        // Routes through the shared computeRoomAvailability helper so the
+        // admin booking form agrees with the calendar + Channex outbound
+        // + /api/public/book gate. For multi-qty rooms (Belmont Standard
+        // Double Rear Facing has quantity=5) this correctly counts
+        // bookings against quantity and only rejects when the type is
+        // truly sold out on some night. The previous "LIMIT 1 on any
+        // overlap" query rejected multi-qty rooms after their first
+        // sale — Belmont 2026-09-17: 3 free rooms out of 5 but the
+        // admin form refused to sell one because Colin already had one.
+        let helperDays = [];
+        try {
+          helperDays = await computeRoomAvailability(client, room_id, check_in, check_out);
+        } catch (e) {
+          console.warn('[admin booking availability helper]', e.message);
         }
-        const blockedRow = await client.query(
-          `SELECT date FROM room_availability
-            WHERE room_id = $1
-              AND date >= $2::date AND date < $3::date
-              AND (COALESCE(is_available, true) = false OR COALESCE(is_blocked, false) = true)
-            ORDER BY date LIMIT 1`,
-          [room_id, check_in, check_out]
-        );
-        if (blockedRow.rows.length) {
-          // Steve 2026-07-31 — operator can intentionally book on top of a
-          // block from the admin modal (block stays in place for OTAs; the
-          // booking serves the direct guest). Frontend passes
-          // allow_over_block: true when the user has clicked Save after
-          // seeing the yellow warning banner. Without that opt-in, keep
-          // the rejection so a naive API caller can't accidentally book
-          // over a block.
-          if (req.body.allow_over_block === true) {
-            const d = String(blockedRow.rows[0].date).slice(0, 10);
-            console.warn(`[admin booking] BLOCKED-OVERRIDE — unit ${room_id} booked on ${d} despite block (allow_over_block=true)`);
-          } else {
+        const bad = helperDays.find(d => !d.available);
+        if (bad) {
+          // 'operator' blocks can be overridden by allow_over_block=true
+          // (Steve 2026-07-31 — operator can intentionally book on top of
+          // a block; block stays for OTAs, booking serves direct guest).
+          // 'bookings' / 'buyout' / 'cm_calendar' remain hard rejections.
+          if (bad.blocked_by === 'operator' && req.body.allow_over_block === true) {
+            console.warn(`[admin booking] BLOCKED-OVERRIDE — unit ${room_id} booked on ${bad.date} despite operator block (allow_over_block=true)`);
+          } else if (bad.blocked_by === 'bookings') {
             await client.query('ROLLBACK');
-            const d = String(blockedRow.rows[0].date).slice(0, 10);
-            console.warn(`[admin booking] REJECT — room_availability closed on ${d} (unit ${room_id})`);
+            const sample = await pool.query(
+              `SELECT id, arrival_date, departure_date FROM bookings
+                WHERE bookable_unit_id = $1
+                  AND status NOT IN ('cancelled','no_show','declined','event_hold','inquiry','copied','rejected','expired')
+                  AND arrival_date < $3::date AND departure_date > $2::date
+                LIMIT 1`,
+              [room_id, check_in, check_out]
+            );
+            const c = sample.rows[0];
+            console.warn(`[admin booking] REJECT — unit ${room_id} sold out on ${bad.date} (${bad.bookings}/${bad.quantity} taken)`);
             return res.json({
               success: false,
-              error: `This unit is blocked on ${d}. Unblock it first or pick different dates.`,
-              unavailable_date: d
+              error: c
+                ? `This room type is fully booked on ${bad.date} (${bad.bookings} of ${bad.quantity} taken, e.g. GAS-${c.id} ${String(c.arrival_date).slice(0,10)} → ${String(c.departure_date).slice(0,10)}). Pick different dates.`
+                : `This room type is fully booked on ${bad.date}.`,
+              conflict_booking_id: c?.id || null,
+              unavailable_date: bad.date
+            });
+          } else {
+            await client.query('ROLLBACK');
+            const reason = bad.blocked_by === 'operator' ? 'blocked' :
+                           bad.blocked_by === 'buyout' ? 'held for a whole-property buyout' :
+                           bad.blocked_by === 'cm_calendar' ? 'closed by the channel manager' :
+                           'unavailable';
+            console.warn(`[admin booking] REJECT — ${bad.blocked_by || 'unknown'} on ${bad.date} (unit ${room_id})`);
+            return res.json({
+              success: false,
+              error: `This unit is ${reason} on ${bad.date}. Unblock it first or pick different dates.`,
+              unavailable_date: bad.date,
+              block_reason: bad.blocked_by || 'unknown'
             });
           }
         }
