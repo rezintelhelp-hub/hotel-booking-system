@@ -85187,7 +85187,7 @@ app.post('/api/admin/bookings', async (req, res) => {
           `SELECT id, arrival_date, departure_date, status
              FROM bookings
             WHERE bookable_unit_id = $1
-              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry')
+              AND status NOT IN ('cancelled', 'no_show', 'declined', 'event_hold', 'inquiry', 'copied', 'rejected', 'expired')
               AND arrival_date < $3::date AND departure_date > $2::date
             LIMIT 1`,
           [room_id, check_in, check_out]
