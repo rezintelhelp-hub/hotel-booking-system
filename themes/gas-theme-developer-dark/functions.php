@@ -2606,6 +2606,7 @@ function developer_get_api_settings() {
         'lg_radius' => (intval($website_styles['btn-radius'] ?? 8) > 0) ? intval($website_styles['btn-radius'] ?? 8) * 2 : 0,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
         'spinner_style' => $website_styles['spinner-style'] ?? 'circles',
+        'custom_css' => $website_styles['custom-css'] ?? null,
 
         // Currency
         'currency_mode' => $website_currency['currency-mode'] ?? 'property',
@@ -3284,7 +3285,12 @@ function developer_developer_custom_css() {
     $lg_radius = $api['lg_radius'] ?? (intval($btn_radius) > 0 ? intval($btn_radius) * 2 : 0);
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
     $section_spacing = !empty($api['section_spacing']) ? intval($api['section_spacing']) : 20;
-    $custom_css = get_theme_mod('developer_custom_css', '');
+    // Web Builder → Styles → Custom CSS. API value wins; falls back to
+    // the legacy theme_mod for sites that never touched the Web Builder
+    // field. Mirrors developer-light's line 3729 (this used to be
+    // theme_mod-only, so operators saved Custom CSS in the UI and it
+    // never rendered — CLAUDE.md audit bug #3, Steve 2026-09-17).
+    $custom_css = $api['custom_css'] ?? get_theme_mod('developer_custom_css', '');
     
     // Header - API overrides theme_mod
     $header_bg = $api['header_bg'] ?? get_theme_mod('developer_header_bg_color', '#ffffff');
