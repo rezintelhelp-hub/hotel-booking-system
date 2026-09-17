@@ -240,6 +240,18 @@ if (in_array($page_slug, array('cart', 'checkout'), true)) {
 } elseif ($special_page === 'contact') {
     $hero_val = $api['page_contact_hero_enabled'] ?? true;
     $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif (in_array($page_slug, array('properties', 'apartments'), true)) {
+    // Steve 2026-09-17 — Mimo dark theme: Web Builder hero toggle for
+    // the properties page was ignored (only about/contact were wired).
+    $hero_val = $api['page_properties_hero_enabled'] ?? true;
+    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif (in_array($page_slug, array('rooms', 'listings', 'accommodations', 'book-now'), true)) {
+    // Same pattern for rooms/book-now: honour page_rooms_hero_enabled toggle.
+    $hero_val = $api['page_rooms_hero_enabled'] ?? true;
+    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif ($special_page === 'gallery') {
+    $hero_val = $api['page_gallery_hero_enabled'] ?? true;
+    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
 } elseif (empty($special_page)) {
     // Custom pages — check hero-enabled from custom_page_settings
     $cp_settings = ($api['custom_page_settings'] ?? array())[$page_slug] ?? array();
