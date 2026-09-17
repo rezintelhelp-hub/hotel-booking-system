@@ -188,6 +188,26 @@ function stepState(n, state) {
     if (state === 'done') el.querySelector('.ico').textContent = '✓';
 }
 
+// Auto-fire from Beds24 Marketplace. Beds24 links here with
+// ?owner={beds24_account_id}. When present, skip the form and start
+// the build immediately so operators experience true one-click
+// onboarding. Also accepts ?account= as an alias for future-proofing.
+function autoFireFromBeds24() {
+    const params = new URLSearchParams(window.location.search);
+    const owner = (params.get('owner') || params.get('account') || '').trim();
+    if (!owner) return;
+    const input = document.getElementById('owner');
+    if (input) input.value = owner;
+    const statusEl = document.getElementById('status');
+    if (statusEl) {
+        statusEl.className = 'status';
+        statusEl.style.color = '#1e40af';
+        statusEl.textContent = 'Auto-starting from Beds24 Marketplace…';
+    }
+    startBuild();
+}
+document.addEventListener('DOMContentLoaded', autoFireFromBeds24);
+
 async function startBuild() {
     const owner = document.getElementById('owner').value.trim();
     const btn = document.getElementById('go-btn');
