@@ -833,8 +833,9 @@ for ($i = 1; $i <= 8; $i++) {
     $image = $api["services_item_{$i}_image"] ?? '';
     $title = $api["services_item_{$i}_title"] ?? '';
     $text = $api["services_item_{$i}_text"] ?? '';
+    $link = $api["services_item_{$i}_link"] ?? '';
     if ($title || $text || $icon || $image) {
-        $services_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text);
+        $services_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text, 'link' => $link);
     }
 }
 ?>
@@ -874,8 +875,19 @@ for ($i = 1; $i <= 8; $i++) {
                 $_text_clean = trim(preg_replace('/<br\s*\/?>/i', '', (string)($item['text'] ?? '')));
                 $_has_text  = $_text_clean !== '';
                 if (!$_has_media && !$_has_title && !$_has_text) continue;
+
+                // Wrap each card in an <a> when the operator has set a link
+                // URL in Web Builder. Mirrors the USP card link pattern.
+                $svc_link_url = !empty($item['link']) ? trim($item['link']) : '';
+                $svc_is_external = $svc_link_url && preg_match('#^https?://#i', $svc_link_url) && stripos($svc_link_url, $_SERVER['HTTP_HOST'] ?? '') === false;
+                $svc_tag = $svc_link_url ? 'a' : 'div';
+                $svc_extra_attrs = '';
+                if ($svc_link_url) {
+                    $svc_extra_attrs = ' href="' . esc_url($svc_link_url) . '"';
+                    if ($svc_is_external) $svc_extra_attrs .= ' target="_blank" rel="noopener noreferrer"';
+                }
             ?>
-                <div class="developer-services-card<?php echo $services_card_style_class; ?>" style="background: <?php echo esc_attr($services_card_bg); ?>; --card-hover-bg: <?php echo esc_attr($services_card_hover_bg); ?>;">
+                <<?php echo $svc_tag; ?> class="developer-services-card<?php echo $services_card_style_class; ?><?php echo $svc_link_url ? ' developer-services-card--linked' : ''; ?>" style="background: <?php echo esc_attr($services_card_bg); ?>; --card-hover-bg: <?php echo esc_attr($services_card_hover_bg); ?>;<?php echo $svc_link_url ? ' text-decoration: none; color: inherit;' : ''; ?>"<?php echo $svc_extra_attrs; ?>>
                     <?php if (!empty($item['image'])) : ?>
                         <img src="<?php echo esc_url($item['image']); ?>" alt="" class="developer-services-icon-img">
                     <?php elseif (!empty($item['icon'])) : ?>
@@ -887,7 +899,7 @@ for ($i = 1; $i <= 8; $i++) {
                     <?php if (!empty($item['text'])) : ?>
                         <p style="color: <?php echo esc_attr($services_card_text_color); ?>; opacity: 0.8;"><?php echo nl2br(wp_kses_post($item['text'])); ?></p>
                     <?php endif; ?>
-                </div>
+                </<?php echo $svc_tag; ?>>
             <?php endforeach; ?>
         </div>
     </div>

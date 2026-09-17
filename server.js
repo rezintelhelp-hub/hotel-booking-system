@@ -61352,14 +61352,47 @@ async function resolveDepositRule(pool, propertyId, accountId, offerRefundPolicy
       dr.created_at DESC
   `, [propertyId, accountId, buId]);
 
-  if (result.rows.length === 0) return null;
-
   const wantedMatch = result.rows.find(r => {
     const policy = r.refund_policy || '';
     return wantsNonRefundable ? policy === 'non_refundable' : policy !== 'non_refundable';
   });
 
-  return wantedMatch || result.rows[0];
+  if (wantedMatch) return wantedMatch;
+
+  // Non-refundable OFFER means the guest chose a rate that MUST charge 100%
+  // at checkout. If no matching non_refundable deposit_rule exists on the
+  // property, falling back to a refundable rule silently gave the guest the
+  // standard-rate deposit — Cleveland 2026-09-17: three "Non refundable"
+  // offers were charging the 25% moderate deposit. Synthesize a 100% basic
+  // rule so the offer's meaning is honoured without operator setup.
+  //
+  // Scope this synthesis to `offerRefundPolicy === 'non_refundable'` ONLY.
+  // The short-term-window branch (SHORT_TERM_NON_REFUNDABLE_DAYS) has been
+  // silently falling back to the refundable rule for years; operators rely
+  // on that behaviour, so we preserve it here to avoid an estate-wide
+  // change to every arrival within 30 days.
+  if (offerRefundPolicy === 'non_refundable') {
+    return {
+      id: null,
+      account_id: accountId,
+      property_id: propertyId,
+      bookable_unit_id: bookableUnitId || null,
+      rule_name: 'Non-refundable (synthetic)',
+      deposit_type: 'percentage',
+      deposit_percentage: '100.00',
+      deposit_fixed_amount: null,
+      refund_policy: 'non_refundable',
+      schedule_mode: 'basic',
+      payment_schedule: null,
+      balance_due_days: 0,
+      auto_charge_balance: false,
+      is_active: true,
+      is_synthetic: true
+    };
+  }
+
+  if (result.rows.length === 0) return null;
+  return result.rows[0];
 }
 
 // ── Payment Schedule: helper to calculate multi-tier schedule for a booking ──

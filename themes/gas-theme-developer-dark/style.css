@@ -1296,6 +1296,15 @@ img {
     .developer-usp {
         margin-bottom: 16px;
     }
+
+    /* Cards stack 1-col on mobile so the section becomes very tall.
+       Recompute the bottom band as fixed pixels — 15% of a stacked
+       USP would overflow ~200px into the next section and hide its
+       heading behind the band. */
+    .developer-usp::after {
+        bottom: -16px;
+        height: 16px;
+    }
 }
 
 /* ==========================================================================
