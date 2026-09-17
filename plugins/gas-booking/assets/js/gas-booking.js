@@ -5543,22 +5543,30 @@ jQuery(document).ready(function($) {
             }
         }
         
-        // Poll every 250ms until all rooms are checked. Force-hide the
-        // spinner after 3s regardless (was 10s until 2026-08-19). The
-        // .checking-sentinel bugs shipped earlier today made the 10s
-        // cap the actual UX — the real "all done" event usually fires
-        // in ~300ms, and a defensive 3s cap keeps worst-case within
-        // reason if a future leak ever slips through.
+        // Poll every 250ms until all rooms are checked. Defensive force-
+        // clear timeout scales with room count — a 5-room site needs 3s,
+        // a 60-room estate (Cotswolds Retreats) needs ~15s or the fallback
+        // fires while most ajax calls are still in flight and reorderRooms
+        // runs with incomplete class state (Steve 2026-09-17). The scale
+        // is 250ms per room + 1s base, capped at 30s.
         reorderTimer = setInterval(tryReorder, 250);
+        var forceClearMs = Math.min(30000, Math.max(3000, ($rooms.length * 250) + 1000));
         setTimeout(function() {
             clearInterval(reorderTimer);
-            // Force-clear any remaining .checking so future runs of
-            // tryReorder don't see stale sentinels. This is a defence-
-            // in-depth net for any not-yet-caught leak path.
-            $('.gas-room-card.checking, .gas-room-row.checking').removeClass('checking');
+            // Force-clear any remaining .checking. Cards that never
+            // resolved get treated as unavailable so sortRooms drops
+            // them into group 2 (bottom) instead of group 0 alongside
+            // real available cards. Was previously just removing
+            // .checking with no fallback class — silently broke sort
+            // order on large estates.
+            $('.gas-room-card.checking, .gas-room-row.checking').each(function() {
+                $(this).removeClass('checking').addClass('unavailable');
+                $(this).find('.gas-room-price, .gas-room-row-price').html('—');
+                $(this).find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': ''}).text(t('booking', 'view_calendar', 'View Calendar'));
+            });
             reorderRooms();
             $('.gas-loading-spinner').remove();
-        }, 3000);
+        }, forceClearMs);
     }
     
     // Reorder rooms - unavailable at bottom, always show ALL available rooms
