@@ -35845,6 +35845,112 @@ const promo = await fetch('/api/v1/offers/validate', {
             return token ? { 'Authorization': 'Bearer ' + token } : {};
         }
 
+        // ────────────────────────────────────────────────────────────
+        // Global 401 interceptor — session-expired re-login modal.
+        // Steve 2026-09-17 — sessions expire after 7 days. Cordelia
+        // (Belmont), Sarah + Scott (Hebden), and others were hitting
+        // "Auth required" / "Authentication required" toasts when
+        // their token expired mid-session, with no way to recover
+        // short of logging out + back in from memory.
+        //
+        // This wraps window.fetch so ANY /api/* call that returns 401
+        // pauses, shows a friendly re-login modal, and after successful
+        // re-auth retries the original request transparently. The
+        // caller's .then() sees a normal response — no code changes
+        // to the ~500 fetch call sites in this file.
+        // ────────────────────────────────────────────────────────────
+        (function installSessionExpiryHandler() {
+            const _origFetch = window.fetch.bind(window);
+            let _reloginInFlight = null; // Promise that resolves when modal is dismissed
+
+            function _isApiCall(input) {
+                try {
+                    const url = typeof input === 'string' ? input : (input && input.url) || '';
+                    // Only intercept our own admin API — leave 3rd-party (Stripe, R2, etc.) alone
+                    return /^\/api\//.test(url) || /admin\.gas\.travel\/api\//.test(url);
+                } catch (_) { return false; }
+            }
+
+            function _showReloginModal() {
+                if (_reloginInFlight) return _reloginInFlight;
+                _reloginInFlight = new Promise((resolve) => {
+                    const overlay = document.createElement('div');
+                    overlay.id = 'sessionExpiredOverlay';
+                    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                    const currentEmail = (function () {
+                        try { const u = JSON.parse(localStorage.getItem('gas_account') || '{}'); return u.email || ''; } catch (_) { return ''; }
+                    })();
+                    overlay.innerHTML =
+                        '<div style="background:white;border-radius:12px;padding:24px 28px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:-apple-system,BlinkMacSystemFont,sans-serif;">' +
+                        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">' +
+                            '<div style="font-size:22px;">🔒</div>' +
+                            '<h3 style="margin:0;font-size:1.15rem;color:#1e293b;">Your session has expired</h3>' +
+                        '</div>' +
+                        '<p style="margin:0 0 16px;color:#64748b;font-size:0.9rem;line-height:1.5;">For your security, GAS logs you out after 7 days. Please sign in again to continue — we\'ll pick up right where you left off.</p>' +
+                        '<form id="sessionExpiredForm">' +
+                            '<label style="display:block;font-size:0.8rem;color:#374151;margin-bottom:4px;font-weight:600;">Email</label>' +
+                            '<input type="email" id="sessionExpiredEmail" value="' + currentEmail.replace(/"/g, '&quot;') + '" required style="width:100%;padding:0.55rem 0.7rem;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-size:0.9rem;box-sizing:border-box;">' +
+                            '<label style="display:block;font-size:0.8rem;color:#374151;margin-bottom:4px;font-weight:600;">Password</label>' +
+                            '<input type="password" id="sessionExpiredPassword" required autofocus style="width:100%;padding:0.55rem 0.7rem;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:12px;font-size:0.9rem;box-sizing:border-box;">' +
+                            '<div id="sessionExpiredError" style="color:#dc2626;font-size:0.85rem;margin-bottom:10px;min-height:1.2em;"></div>' +
+                            '<button type="submit" id="sessionExpiredSubmit" style="width:100%;padding:0.65rem;background:linear-gradient(135deg,#0ea5e9,#0369a1);color:white;border:none;border-radius:8px;font-weight:600;font-size:0.95rem;cursor:pointer;">Log in and continue</button>' +
+                        '</form>' +
+                        '</div>';
+                    document.body.appendChild(overlay);
+                    setTimeout(() => document.getElementById('sessionExpiredPassword')?.focus(), 50);
+
+                    document.getElementById('sessionExpiredForm').addEventListener('submit', async function (e) {
+                        e.preventDefault();
+                        const email = document.getElementById('sessionExpiredEmail').value.trim();
+                        const password = document.getElementById('sessionExpiredPassword').value;
+                        const btn = document.getElementById('sessionExpiredSubmit');
+                        const errEl = document.getElementById('sessionExpiredError');
+                        btn.disabled = true;
+                        btn.textContent = 'Signing in…';
+                        errEl.textContent = '';
+                        try {
+                            const r = await _origFetch('/api/accounts/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email, password }),
+                            });
+                            const data = await r.json();
+                            if (!data.success || !data.token) {
+                                errEl.textContent = data.error || 'Invalid email or password';
+                                btn.disabled = false;
+                                btn.textContent = 'Log in and continue';
+                                return;
+                            }
+                            localStorage.setItem('gas_token', data.token);
+                            if (data.account) localStorage.setItem('gas_account', JSON.stringify(data.account));
+                            overlay.remove();
+                            _reloginInFlight = null;
+                            resolve(true);
+                        } catch (err) {
+                            errEl.textContent = 'Network error: ' + err.message;
+                            btn.disabled = false;
+                            btn.textContent = 'Log in and continue';
+                        }
+                    });
+                });
+                return _reloginInFlight;
+            }
+
+            window.fetch = async function (input, init) {
+                const resp = await _origFetch(input, init);
+                if (resp.status !== 401 || !_isApiCall(input)) return resp;
+                // Skip auto-relogin for the login endpoint itself
+                const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
+                if (/\/api\/accounts\/login$/.test(urlStr)) return resp;
+                // Show modal, wait for successful re-auth, then retry with fresh token
+                await _showReloginModal();
+                const retryInit = Object.assign({}, init || {});
+                const freshToken = localStorage.getItem('gas_token');
+                retryInit.headers = Object.assign({}, (init && init.headers) || {}, freshToken ? { 'Authorization': 'Bearer ' + freshToken } : {});
+                return await _origFetch(input, retryInit);
+            };
+        })();
+
         // Property Marketplace interstitial — the feature isn't live yet.
         // Every click on the card (main tile or any sub-link) lands here
         // instead of the real views, giving clients a clear "Coming Soon"

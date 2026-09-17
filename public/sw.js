@@ -3,7 +3,7 @@
 // at least opens to a familiar screen on a flaky connection.
 // Cache version: bump the integer to force every installed PWA to
 // throw away its old cache on next visit.
-const CACHE_VERSION = 'gas-admin-v151-20260917-charge-sca-friendly-prompt';
+const CACHE_VERSION = 'gas-admin-v152-20260917-session-expiry-auto-relogin';
 const SHELL_ASSETS = [
     '/gas-admin.html',
     '/gas-compass-color.png',
