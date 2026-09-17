@@ -75631,18 +75631,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Refresh the detail modal so ledger + status update.
                     if (typeof viewBooking === 'function') viewBooking(bookingId);
                 } else {
-                    // Decline / SCA / other
+                    // Decline / SCA / other. Server marks recoverable failures
+                    // with needs_card_relink=true — offer the "send guest a
+                    // payment link" prompt for those regardless of booking
+                    // source. Hebden (Sarah) 2026-09-17 — was gated to
+                    // Channex-only, leaving direct bookings stuck.
                     let msg = data.error || 'Charge failed';
-                    if (data.decline_code) msg += ` (decline: ${data.decline_code})`;
-                    if (data.client_secret) msg += `\n\n3D-Secure required — this flow doesn't handle SCA yet, ask the guest to update their card via the capture link.`;
+                    if (data.decline_code && !msg.includes(data.decline_code)) msg += ` (${data.decline_code})`;
 
-                    // For Channex-imported bookings, prompt to send a fresh
-                    // payment link to the guest so they can add a new card.
-                    // Only Channex bookings — direct bookings have their own
-                    // add-card path already visible in the UI.
-                    if (data.is_channex_booking) {
+                    const offerLink = data.needs_card_relink || data.is_channex_booking || !!data.client_secret;
+                    if (offerLink) {
                         const guestName = [b.guest_first_name, b.guest_last_name].filter(Boolean).join(' ') || 'the guest';
-                        const doIt = confirm('❌ ' + msg + '\n\n───────────────\n\nCharge failed. Send ' + guestName + ' an email with a link to add a fresh card?');
+                        const doIt = confirm('❌ ' + msg + '\n\n───────────────\n\nSend ' + guestName + ' a payment link so they can complete the charge in their browser?');
                         if (doIt) {
                             // Skip the SEND/PREVIEW + note prompts — one-click
                             // send with the charge-failed email copy.

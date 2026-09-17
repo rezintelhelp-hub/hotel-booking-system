@@ -165459,14 +165459,37 @@ app.post('/api/admin/bookings/:id/charge-stripe-card', async (req, res) => {
         // SCA / decline: Stripe throws with a raw.payment_intent for the
         // requires_action path. Surface so the UI can prompt.
         const rawPi = err.raw?.payment_intent || err.payment_intent;
+        // Friendlier operator-facing message for the two most common
+        // failure modes on this flow. Hebden (Sarah) 2026-09-17 —
+        // authentication_required (SCA) hit her Carr booking (GAS-615246)
+        // when the card required 3D Secure. Raw Stripe message reads
+        // as "Error authorisation required" in the toast; operator
+        // was stuck because the send-payment-link prompt was gated to
+        // Channex bookings only.
+        const code = err.code || null;
+        const decline = err.decline_code || null;
+        let friendly = err.message;
+        let needs_card_relink = false;
+        if (code === 'authentication_required') {
+          friendly = 'Card requires 3D Secure verification and cannot be charged silently. Send the guest a payment link so they can complete the charge in their browser.';
+          needs_card_relink = true;
+        } else if (code === 'expired_card' || decline === 'expired_card') {
+          friendly = 'Card has expired. Ask the guest for a fresh card via the payment link.';
+          needs_card_relink = true;
+        } else if (code === 'card_declined' || decline === 'insufficient_funds' || decline === 'generic_decline') {
+          friendly = `Card declined by the bank (${decline || code}). Ask the guest for a different card via the payment link.`;
+          needs_card_relink = true;
+        }
         return res.json({
           success: false,
-          error: err.message,
-          code: err.code || null,
-          decline_code: err.decline_code || null,
+          error: friendly,
+          raw_error: err.message,
+          code,
+          decline_code: decline,
           payment_intent_id: rawPi?.id || null,
           client_secret: rawPi?.client_secret || null,
-          is_channex_booking: _isChannex,   // client uses this to prompt "send fresh link"
+          is_channex_booking: _isChannex,
+          needs_card_relink,   // frontend: offer "send fresh payment link" prompt when true
         });
       }
     }
