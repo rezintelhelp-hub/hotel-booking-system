@@ -337,13 +337,19 @@ $homepage_sections = array(); // position => html
         if ($badge_html && $hero_badge_position !== 'below') echo $badge_html;
         ?>
 
-        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php
-            // Allow only <br> in the headline so operators can force a
-            // line break (e.g. "Miami &<br>Fort Lauderdale"). Everything
-            // else escaped. Steve 2026-09-18.
+        <?php
+        // Inline text-align so nothing in the cascade (or a browser
+        // cache serving stale style.css) can override. Steve 2026-09-18
+        // — !important on the class rule wasn't winning; going inline.
+        $inline_align = $hero_text_align === 'left' ? ' text-align: left;' : '';
+        $inline_subtitle_align = $hero_text_align === 'left'
+            ? ' text-align: left; margin-left: 0; max-width: none;'
+            : '';
+        ?>
+        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;<?php echo $inline_align; ?>"><?php
             echo wp_kses($hero_title, ['br' => []]);
         ?></h1>
-        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
+        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;<?php echo $inline_subtitle_align; ?>"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
         <?php if ($badge_html && $hero_badge_position === 'below') echo $badge_html; ?>
         
         <!-- GAS Search Widget with custom styling -->

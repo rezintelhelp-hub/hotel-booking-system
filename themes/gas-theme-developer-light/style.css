@@ -4,7 +4,7 @@ Theme URI: https://gas.travel
 Author: GAS Booking
 Author URI: https://gas.travel
 Description: A modern vacation rental theme designed for GAS Booking. Features hero search, property listings, and seamless booking integration. Auto-detects GAS Blog, Attractions, About, and Contact plugins.
-Version: 1.6.59
+Version: 1.6.60
 License: GNU General Public License v2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: gas-developer-light
@@ -648,28 +648,23 @@ img {
    max-width. Any nested search wrapper stays block-level so the
    input row still renders full-width regardless of alignment. */
 .developer-hero-content--align-left {
-    text-align: left;
-    /* Keep the block centred horizontally at the same width as the
-       search widget (default 900px, matches .developer-search-wrapper
-       max-width). Text-aligns left INSIDE this centred block, so the
-       headline / subtitle share the search widget's left edge — whether
-       the search is INSIDE hero-content (position=center) OR emitted as
-       a sibling below (position=bottom). Steve 2026-09-18. */
-    max-width: 900px;
+    text-align: left !important;
     margin-left: auto;
     margin-right: auto;
 }
+/* Force H1 + subtitle to text-align:left too (the parent has a rule
+   with the same specificity as .developer-hero-content — using
+   !important here + on children so the cascade can't lose. Steve
+   2026-09-18). */
+.developer-hero-content--align-left h1,
 .developer-hero-content--align-left .developer-hero-subtitle {
-    margin-left: 0;
-    margin-right: auto;
+    text-align: left !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
 }
-/* When the copy is left-aligned, also left-align the search wrapper so
-   the headline/subtitle line up with the check-in box's left edge
-   instead of the text sitting far to the left of the search widget.
-   Steve 2026-09-18. */
 .developer-hero-content--align-left .developer-search-wrapper {
-    margin-left: 0;
-    margin-right: auto;
+    margin-left: 0 !important;
+    margin-right: auto !important;
 }
 /* Badge rendered BELOW the subtitle (position=below). Default has
    margin-bottom for spacing before the H1; the below variant flips

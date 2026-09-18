@@ -636,18 +636,19 @@ img {
 /* Left-align variant + below-badge modifier — Steve 2026-09-18.
    Mirrors developer-light. */
 .developer-hero-content--align-left {
-    text-align: left;
-    max-width: 900px;
+    text-align: left !important;
     margin-left: auto;
     margin-right: auto;
 }
+.developer-hero-content--align-left h1,
 .developer-hero-content--align-left .developer-hero-subtitle {
-    margin-left: 0;
-    margin-right: auto;
+    text-align: left !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
 }
 .developer-hero-content--align-left .developer-search-wrapper {
-    margin-left: 0;
-    margin-right: auto;
+    margin-left: 0 !important;
+    margin-right: auto !important;
 }
 .developer-hero-badge--below {
     margin-top: 24px;

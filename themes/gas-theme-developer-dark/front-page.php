@@ -301,11 +301,16 @@ $homepage_sections = array(); // position => html
         if ($badge_html && $hero_badge_position !== 'below') echo $badge_html;
         ?>
 
-        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php
-            // Allow only <br> in the headline (line-break support).
+        <?php
+        $inline_align = $hero_text_align === 'left' ? ' text-align: left;' : '';
+        $inline_subtitle_align = $hero_text_align === 'left'
+            ? ' text-align: left; margin-left: 0; max-width: none;'
+            : '';
+        ?>
+        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;<?php echo $inline_align; ?>"><?php
             echo wp_kses($hero_title, ['br' => []]);
         ?></h1>
-        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
+        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;<?php echo $inline_subtitle_align; ?>"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
         <?php if ($badge_html && $hero_badge_position === 'below') echo $badge_html; ?>
         
         <!-- GAS Search Widget with custom styling -->
