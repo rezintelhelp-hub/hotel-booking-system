@@ -16,6 +16,7 @@
  *   railway run node scripts/sparks_media_migrate.js --apply
  *   railway run node scripts/sparks_media_migrate.js --apply --account=4 --limit=5
  */
+require('dotenv').config();
 const { Pool } = require('pg');
 const axios = require('axios');
 const path = require('path');
@@ -43,6 +44,33 @@ const SETSEED_SOURCES = {
   'www.walnutcanyoncabins.com': {
     ssh: 'root@139.162.234.112',
     base: '/var/www/html/sites/wwwwalnutcanyoncabinscoms0vrf6knsk8',
+  },
+  // Added 2026-09-10 — pre-decommission sweep for end-of-month cutoff.
+  // Steve deleted content from the setseed app but files remain on FS.
+  'www.alakaibb.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwalakaibbcomgy0acq3x3ek',
+  },
+  'alakaibb.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwalakaibbcomgy0acq3x3ek',
+  },
+  'www.carboncountrysshadyrest.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwcarboncountrysshadyrestcomimportss9lvws',
+  },
+  'carboncountrysshadyrest.com': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwcarboncountrysshadyrestcomimportss9lvws',
+  },
+  // Belmont's proxy-image URLs decode to this old-server subdomain.
+  'www.thebelmonthotel.co.uk.app2.rezintel.net': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwthebelmonthotelcoukovo4jwggtas',
+  },
+  'thebelmonthotel.co.uk.app2.rezintel.net': {
+    ssh: 'root@139.162.234.112',
+    base: '/var/www/html/sites/wwwthebelmonthotelcoukovo4jwggtas',
   },
 };
 
@@ -76,7 +104,8 @@ const r2Client = new S3Client({
   },
 });
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gas-property-images';
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+if (!process.env.R2_PUBLIC_URL) { console.error('R2_PUBLIC_URL env var required (see server.js note on why the R2_ACCOUNT_ID fallback was removed)'); process.exit(1); }
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
 // Hosts we already own — skip these.
 const OWNED_HOST = /(^|\.)(gas\.travel|r2\.dev|cloudflarestorage\.com|cloudfront\.net)$/i;
@@ -94,6 +123,22 @@ function extractImageUrls(html) {
   while ((m = reImg.exec(html)) !== null) if (!seen.has(m[1])) { seen.add(m[1]); out.push(m[1]); }
   while ((m = reBg.exec(html))  !== null) if (!seen.has(m[1])) { seen.add(m[1]); out.push(m[1]); }
   return out;
+}
+
+// Unwrap Belmont-style proxy URLs like
+// https://admin.gas.travel/api/public/proxy-image?url=<encoded_target>
+// into their inner target URL. Non-proxy URLs pass through unchanged.
+// Added 2026-09-10 for the pre-decommission sweep — without this the
+// isExternal check treats the proxy URL as owned and skips it.
+function unwrapProxyUrl(u) {
+  try {
+    const url = new URL(u, 'https://placeholder.local/');
+    if (url.host === 'admin.gas.travel' && url.pathname === '/api/public/proxy-image') {
+      const inner = url.searchParams.get('url');
+      if (inner) return inner;
+    }
+  } catch (_) {}
+  return u;
 }
 
 function isExternal(u) {
@@ -143,11 +188,28 @@ async function downloadAndUpload(origUrl, sparkId) {
   let ct;
   let source;
   if (sshSrc) {
-    const remotePath = sshSrc.base + url.pathname;
-    buffer = await sshCatFile(remotePath, sshSrc.ssh);
-    if (buffer.length > MAX_BYTES) throw new Error('file exceeds MAX_BYTES (' + buffer.length + ')');
-    ct = inferContentType(null, safeName);
-    source = 'ssh:' + sshSrc.ssh + remotePath;
+    // Try the URL pathname directly first, then fall back to stripping
+    // any /images/galleries/ prefix (SetSeed URLs use `/images/galleries/`
+    // but disk layout is `/images/`; the gallery segment is a virtual
+    // Apache URL-rewrite that no longer works once the vhost is gone).
+    // DO NOT HTTP-fallback when SSH fails — the source-server domain
+    // now returns a "No website configured" HTML page, which would
+    // poison R2 with 161-byte error stubs. Steve 2026-09-18.
+    const candidates = [
+      sshSrc.base + url.pathname,
+      sshSrc.base + url.pathname.replace('/images/galleries/', '/images/')
+    ];
+    let lastErr;
+    for (const remotePath of candidates) {
+      try {
+        buffer = await sshCatFile(remotePath, sshSrc.ssh);
+        if (buffer.length > MAX_BYTES) throw new Error('file exceeds MAX_BYTES (' + buffer.length + ')');
+        ct = inferContentType(null, safeName);
+        source = 'ssh:' + sshSrc.ssh + remotePath;
+        break;
+      } catch (e) { lastErr = e; buffer = null; }
+    }
+    if (!buffer) throw lastErr;
   } else {
     const resp = await axios.get(origUrl, {
       responseType: 'arraybuffer',
@@ -180,13 +242,16 @@ async function downloadAndUpload(origUrl, sparkId) {
   console.log('');
 
   const params = [];
-  let where = `WHERE s.body IS NOT NULL AND s.body <> ''`;
+  // Include sparks that either have body OR hero_image_url — pre-2026-09-10
+  // this script only cared about body, but hero_image_url is a separate
+  // column that also needs migration (Belmont's 25 hero images).
+  let where = `WHERE (s.body IS NOT NULL AND s.body <> '') OR (s.hero_image_url IS NOT NULL AND s.hero_image_url <> '')`;
   if (ACCOUNT_FILTER) { params.push(ACCOUNT_FILTER); where += ` AND s.account_id = $${params.length}`; }
   if (SPARK_FILTER)   { params.push(SPARK_FILTER);   where += ` AND s.id = $${params.length}`; }
   const limitSql = LIMIT ? ` LIMIT ${LIMIT}` : '';
 
   const sparks = await pool.query(`
-    SELECT s.id, s.account_id, s.slug, s.title, s.body
+    SELECT s.id, s.account_id, s.slug, s.title, s.body, s.hero_image_url
       FROM sparks s ${where}
      ORDER BY s.account_id, s.id ${limitSql}
   `, params);
@@ -201,9 +266,14 @@ async function downloadAndUpload(origUrl, sparkId) {
   let sparksTouched = 0, sparksWritten = 0;
 
   for (const sp of sparks.rows) {
-    const urls = extractImageUrls(sp.body);
-    urlsScanned += urls.length;
-    const external = urls.filter(isExternal);
+    // Body images + hero_image_url. Unwrap proxy URLs before external check
+    // so admin.gas.travel/api/public/proxy-image?url=X → X (Belmont pattern).
+    const bodyUrls = extractImageUrls(sp.body).map(unwrapProxyUrl);
+    const heroRaw = sp.hero_image_url ? unwrapProxyUrl(sp.hero_image_url) : null;
+    const allUrls = [...bodyUrls];
+    if (heroRaw && !allUrls.includes(heroRaw)) allUrls.push(heroRaw);
+    urlsScanned += allUrls.length;
+    const external = allUrls.filter(isExternal);
     if (external.length === 0) continue;
     urlsExternal += external.length;
 
@@ -211,7 +281,9 @@ async function downloadAndUpload(origUrl, sparkId) {
     console.log('— spark id=' + sp.id + '  slug=' + sp.slug + '  (' + external.length + ' external image' + (external.length === 1 ? '' : 's') + ')');
 
     let newBody = sp.body;
+    let newHero = sp.hero_image_url;
     let changed = false;
+    let heroChanged = false;
 
     for (const orig of external) {
       let target = urlCache.get(orig);
@@ -238,18 +310,38 @@ async function downloadAndUpload(origUrl, sparkId) {
         }
       }
       if (APPLY && target && target !== '(pending)') {
+        // Body substitutions — also try replacing the raw proxy-wrapped
+        // form (Belmont stores images as proxy URLs in body HTML too).
         const before = newBody;
-        newBody = newBody.split(orig).join(target);
+        if (newBody) {
+          newBody = newBody.split(orig).join(target);
+          // Also replace any proxy-wrapped variant that unwrapped to `orig`
+          const proxyWrapped = 'https://admin.gas.travel/api/public/proxy-image?url=' + encodeURIComponent(orig);
+          newBody = newBody.split(proxyWrapped).join(target);
+        }
         if (newBody !== before) changed = true;
+        // Hero image swap — matches both raw and proxy-wrapped forms.
+        if (heroRaw === orig) {
+          newHero = target;
+          heroChanged = true;
+        }
       }
     }
 
-    if (changed) {
+    if (changed || heroChanged) {
       sparksTouched++;
       if (APPLY) {
-        await pool.query('UPDATE sparks SET body = $1, updated_at = NOW() WHERE id = $2', [newBody, sp.id]);
+        if (changed && heroChanged) {
+          await pool.query('UPDATE sparks SET body = $1, hero_image_url = $2, updated_at = NOW() WHERE id = $3', [newBody, newHero, sp.id]);
+          console.log('    UPDATED spark body + hero_image_url');
+        } else if (changed) {
+          await pool.query('UPDATE sparks SET body = $1, updated_at = NOW() WHERE id = $2', [newBody, sp.id]);
+          console.log('    UPDATED spark body');
+        } else {
+          await pool.query('UPDATE sparks SET hero_image_url = $1, updated_at = NOW() WHERE id = $2', [newHero, sp.id]);
+          console.log('    UPDATED spark hero_image_url');
+        }
         sparksWritten++;
-        console.log('    UPDATED spark body');
       }
     }
   }

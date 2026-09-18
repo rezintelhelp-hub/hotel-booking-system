@@ -5226,7 +5226,17 @@ const r2Client = new S3Client({
 });
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gas-property-images';
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+// R2_PUBLIC_URL MUST be set — Cloudflare uses a per-bucket random hash
+// for the public subdomain (pub-<hash>.r2.dev), NOT the account ID.
+// The old fallback `pub-${R2_ACCOUNT_ID}.r2.dev` silently produced
+// broken 401 URLs — 89 rows had to be repaired 2026-09-18. Fail loud
+// instead: crash on startup if the env var is missing so the operator
+// notices immediately instead of shipping broken image URLs.
+if (!process.env.R2_PUBLIC_URL) {
+  console.error('FATAL: R2_PUBLIC_URL env var is required. Should be your bucket-specific public URL like https://pub-XXXXXXXX.r2.dev (find it in Cloudflare dashboard → R2 → your bucket → Settings → R2.dev subdomain).');
+  process.exit(1);
+}
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
 // =========================================================
 // MULTER CONFIGURATION (Memory storage for processing)

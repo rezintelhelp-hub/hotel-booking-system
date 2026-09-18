@@ -13,7 +13,8 @@ const sharp = require('sharp');
 const { S3Client, PutObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gas-property-images';
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+if (!process.env.R2_PUBLIC_URL) { console.error('R2_PUBLIC_URL env var required'); process.exit(1); }
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 
 const r2Client = new S3Client({
   region: 'auto',
