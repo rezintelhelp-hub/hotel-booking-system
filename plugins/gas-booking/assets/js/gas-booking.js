@@ -4432,13 +4432,22 @@ jQuery(document).ready(function($) {
             if (offer.rate_plan_total != null) {
                 offerTotal = parseFloat(offer.rate_plan_total);
                 discountAmount = Math.max(0, standardTotal - offerTotal);
-            }
-            // Extras surcharge (extra adult / child × nights). Server
-            // computes against base_occupancy and emits this alongside
-            // the offer; we add it on top of the discounted accommodation.
-            var extraSurcharge = parseFloat(offer.rate_plan_extra_person_total);
-            if (!isNaN(extraSurcharge) && extraSurcharge > 0) {
-                offerTotal = offerTotal + extraSurcharge;
+                // rate_plan_total ALREADY INCLUDES the extra-person / child
+                // surcharge (server.js:114893 — sum + surcharge). Do NOT
+                // re-add rate_plan_extra_person_total on top or the child
+                // fee gets counted twice — Steve 2026-09-18, Cleveland King
+                // Suite: 1A+1C showed £180 (base £140 + £20×2) instead of
+                // £160. rate_plan_extra_person_total stays available on
+                // the response for optional breakdown display.
+            } else {
+                // Non-CM offer path (percentage/fixed discount) — offerTotal
+                // was computed above from baseTotal without any surcharge
+                // baked in. Add the server's separately-computed extras
+                // surcharge here.
+                var extraSurcharge = parseFloat(offer.rate_plan_extra_person_total);
+                if (!isNaN(extraSurcharge) && extraSurcharge > 0) {
+                    offerTotal = offerTotal + extraSurcharge;
+                }
             }
             var perNightOffer = Math.round(offerTotal / nights);
             var savingsPercent = Math.round((discountAmount / standardTotal) * 100);
