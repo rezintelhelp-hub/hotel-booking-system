@@ -115826,6 +115826,59 @@ app.post('/api/public/calculate-price', async (req, res) => {
   }
 });
 
+// POST /api/public/calculate-price-batch — fan-out wrapper around
+// /api/public/calculate-price. The /book-now/ grid used to fire one
+// ajax per room; on RocketStay (192 rooms) the browser's 6-connection
+// cap turned this into ~10 sequential batches taking 8-13s. Now the
+// client fires ONE batch call; we run each unit's calculation via
+// internal HTTP in Promise.all so DB queries share the connection pool
+// and no browser cap applies.
+//
+// Guaranteed availability parity: this endpoint literally calls the
+// same /api/public/calculate-price handler per unit — no re-implementation
+// of computeRoomAvailability or per-unit price logic. If the underlying
+// endpoint changes, the batch response changes with it.
+//
+// Body: { items: [{ unit_id, ...same fields as single call }] }
+// Response: { success, count, results: [{ unit_id, ...same shape }] }
+app.post('/api/public/calculate-price-batch', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : null;
+    if (!items || items.length === 0) {
+      return res.json({ success: false, error: 'items[] required' });
+    }
+    // Hard cap so a malicious/misconfigured client can't fan-out the
+    // entire estate. RocketStay's real max is 192.
+    if (items.length > 300) {
+      return res.json({ success: false, error: `items too large (${items.length} > 300)` });
+    }
+
+    const port = process.env.PORT || 3000;
+    const base = `http://127.0.0.1:${port}`;
+
+    const results = await Promise.all(items.map(async (item) => {
+      try {
+        const r = await fetch(`${base}/api/public/calculate-price`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item)
+        });
+        const data = await r.json();
+        // Always include unit_id so the client can map results back to
+        // cards even if the handler omits it on error paths.
+        return { unit_id: item.unit_id, ...data };
+      } catch (e) {
+        return { unit_id: item.unit_id, success: false, error: e.message };
+      }
+    }));
+
+    res.json({ success: true, count: results.length, results });
+  } catch (e) {
+    console.error('[calculate-price-batch] error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Get min stay for a room's date range (public - for calendar display)
 app.get('/api/public/rooms/:roomId/min-stay', async (req, res) => {
   try {
