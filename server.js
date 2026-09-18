@@ -88888,7 +88888,9 @@ app.post('/api/admin/accounts/:id/cm-offers-import/backfill-prices', async (req,
       return res.json({ success: false, error: 'No Beds24-mapped rooms on this account' });
     }
 
-    const totalCalls = roomRes.rows.length * horizonDays;
+    // Steve 2026-09-18 — rewrite uses /calendar (1 call per room, whole
+    // horizon in one shot) instead of /offers (1 call per day per room).
+    const totalCalls = roomRes.rows.length;
     const progress = {
       status: 'running',
       account_id: accountId,
@@ -88931,48 +88933,66 @@ app.post('/api/admin/accounts/:id/cm-offers-import/backfill-prices', async (req,
         const dateStr = (d) => d.toISOString().slice(0, 10);
         const priceMap = new Map();
 
+        const rangeEnd = new Date(startDate);
+        rangeEnd.setDate(rangeEnd.getDate() + horizonDays - 1);
+
+        // Rewrite Steve 2026-09-18: /inventory/rooms/offers was the wrong
+        // endpoint — it asks Beds24 "what offers are bookable for arrival
+        // X + 1 night?" so any date failing a min-advance, min-stay, or
+        // closed-to-arrival rule returned nothing. Cleveland's Late Escape
+        // (£95 daily in Beds24) was missing 17 days of prices for exactly
+        // this reason.
+        //
+        // Correct endpoint: /inventory/rooms/calendar with includePrices,
+        // which returns per-date entries with price1..price16 — the raw
+        // per-rate-plan daily calendar values (position N maps to the
+        // rate plan at position N on this room, matching our external_id
+        // suffix `{beds24RoomId}_{N}`). One HTTP call per room covers
+        // the whole horizon instead of one call per day.
         for (const room of roomRes.rows) {
           const beds24RoomId = room.beds24_room_id;
           if (!beds24RoomId) continue;
           progress.current_room = { beds24_room_id: beds24RoomId, gas_room_id: room.gas_room_id, room_name: room.room_name };
           let roomCalls = 0, roomErrs = 0, roomOffers = 0;
-          for (let i = 0; i < horizonDays; i++) {
-            const arrival = new Date(startDate);
-            arrival.setDate(arrival.getDate() + i);
-            const departure = new Date(arrival);
-            departure.setDate(departure.getDate() + 1);
-            try {
-              const resp = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-                headers: { token: accessToken },
-                params: {
-                  roomId: beds24RoomId,
-                  arrival: dateStr(arrival),
-                  departure: dateStr(departure),
-                  numAdults: numAdultsQuery
-                },
-                timeout: 30000
-              });
-              roomCalls++;
-              progress.api_calls_done++;
-              const rows = resp.data?.data || [];
-              const roomRow = rows[0];
-              const offers = roomRow?.offers || [];
-              for (const off of offers) {
-                const offerId = off.offerId ?? off.id;
-                if (offerId == null || off.price == null) continue;
-                const externalId = `${beds24RoomId}_${offerId}`;
-                if (!priceMap.has(externalId)) priceMap.set(externalId, {});
-                priceMap.get(externalId)[dateStr(arrival)] = parseFloat(off.price);
-                roomOffers++;
-                progress.offer_price_points_captured++;
+          try {
+            const resp = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { token: accessToken },
+              params: {
+                roomId: parseInt(beds24RoomId),
+                startDate: dateStr(startDate),
+                endDate: dateStr(rangeEnd),
+                includePrices: true,
+                includeLinkedPrices: true
+              },
+              timeout: 60000
+            });
+            roomCalls++;
+            progress.api_calls_done++;
+            // Calendar entries are date-range grouped: [{ from, to, price1, price2, ..., price16 }, ...]
+            // Expand each entry to per-day, then per rate-plan slot with a value.
+            const cal = resp.data?.data?.[0]?.calendar || [];
+            for (const entry of cal) {
+              const fromD = new Date(entry.from);
+              const toD = new Date(entry.to);
+              for (let d = new Date(fromD); d <= toD; d.setDate(d.getDate() + 1)) {
+                const ds = d.toISOString().slice(0, 10);
+                for (let n = 1; n <= 16; n++) {
+                  const v = entry['price' + n];
+                  if (v == null || v === '' || parseFloat(v) <= 0) continue;
+                  const externalId = `${beds24RoomId}_${n}`;
+                  if (!priceMap.has(externalId)) priceMap.set(externalId, {});
+                  priceMap.get(externalId)[ds] = parseFloat(v);
+                  roomOffers++;
+                  progress.offer_price_points_captured++;
+                }
               }
-            } catch (apiErr) {
-              roomErrs++;
-              progress.api_errors++;
             }
-            progress.estimated_seconds_remaining = Math.max(0, Math.round((progress.api_calls_total_expected - progress.api_calls_done) * 0.5));
-            await new Promise(r => setTimeout(r, 500));
+          } catch (apiErr) {
+            roomErrs++;
+            progress.api_errors++;
           }
+          await new Promise(r => setTimeout(r, 300));
+          progress.estimated_seconds_remaining = Math.max(0, Math.round((roomRes.rows.length - progress.rooms_processed - 1) * 1));
           progress.rooms_processed++;
           progress.per_room.push({
             beds24_room_id: beds24RoomId,
