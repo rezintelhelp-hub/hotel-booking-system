@@ -3630,6 +3630,8 @@ function developer_get_api_settings() {
         'badge_row_image_3' => ($website['badge-row'] ?? array())['image-3'] ?? '',
         'badge_row_image_4' => ($website['badge-row'] ?? array())['image-4'] ?? '',
         'badge_row_image_5' => ($website['badge-row'] ?? array())['image-5'] ?? '',
+        'badge_row_image_6' => ($website['badge-row'] ?? array())['image-6'] ?? '',
+        'badge_row_size' => ($website['badge-row'] ?? array())['size'] ?? 70,
         'section_order_badge_row' => ($website['badge-row'] ?? array())['position'] ?? null,
     );
     

@@ -637,8 +637,13 @@ img {
    Mirrors developer-light. */
 .developer-hero-content--align-left {
     text-align: left !important;
-    margin-left: auto;
-    margin-right: auto;
+    margin-left: 200px !important;
+    margin-right: auto !important;
+}
+@media (max-width: 768px) {
+    .developer-hero-content--align-left {
+        margin-left: 0 !important;
+    }
 }
 .developer-hero-content--align-left h1,
 .developer-hero-content--align-left .developer-hero-subtitle {

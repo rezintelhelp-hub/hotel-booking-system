@@ -649,8 +649,18 @@ img {
    input row still renders full-width regardless of alignment. */
 .developer-hero-content--align-left {
     text-align: left !important;
-    margin-left: auto;
-    margin-right: auto;
+    /* Sits ~80px from the hero's left edge — middle ground between
+       viewport-flush (24px, was too far left) and centred-1200
+       (~175px, was too far right). Steve 2026-09-18. */
+    margin-left: 200px !important;
+    margin-right: auto !important;
+}
+@media (max-width: 768px) {
+    .developer-hero-content--align-left {
+        /* Mobile: fall back to hero padding — 80px would push text off
+           screen on narrow viewports. */
+        margin-left: 0 !important;
+    }
 }
 /* Force H1 + subtitle to text-align:left too (the parent has a rule
    with the same specificity as .developer-hero-content — using

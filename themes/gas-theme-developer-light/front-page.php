@@ -1367,9 +1367,9 @@ for ($ir = 1; $ir <= 4; $ir++) {
                 <?php foreach ($ir_items as $iri) :
                     $card_bg_style = !empty($iri['card_bg']) ? 'background:' . esc_attr($iri['card_bg']) . ';padding:24px;border-radius:' . esc_attr($card_radius) . 'px;box-shadow:0 4px 20px rgba(0,0,0,0.06);' : '';
                 ?>
-                <div style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
+                <div class="developer-image-row-card<?php echo !empty($iri['card_bg']) ? ' developer-image-row-card--has-bg' : ''; ?>" style="text-align: <?php echo esc_attr($ir_align); ?>; <?php echo $card_bg_style; ?>">
                     <?php if ($iri['image']) : ?>
-                    <div style="aspect-ratio: 4/3; overflow: hidden; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                    <div class="developer-image-row-media" style="aspect-ratio: 4/3; overflow: hidden; border-radius: <?php echo esc_attr($card_radius); ?>px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                         <img src="<?php echo esc_url($iri['image']); ?>" alt="<?php echo esc_attr($iri['title']); ?>" style="width: 100%; height: 100%; object-fit: cover; display: block;">
                     </div>
                     <?php endif; ?>
@@ -1412,8 +1412,10 @@ $badge_enabled = $api['badge_row_enabled'] ?? false;
 if ($badge_enabled && $badge_enabled !== 'false' && $badge_enabled !== '0') {
     $badge_heading = $api['badge_row_heading'] ?? '';
     $badge_bg = $api['badge_row_bg'] ?? '#f8fafc';
+    // Badge size in px. Web Builder slider 40-160, default 70. Steve 2026-09-18.
+    $badge_size = max(20, min(300, intval($api['badge_row_size'] ?? 70)));
     $badge_items = array();
-    for ($bi = 1; $bi <= 5; $bi++) {
+    for ($bi = 1; $bi <= 6; $bi++) {
         $bimg = $api['badge_row_image_' . $bi] ?? '';
         if ($bimg) $badge_items[] = $bimg;
     }
@@ -1428,7 +1430,7 @@ if ($badge_enabled && $badge_enabled !== 'false' && $badge_enabled !== '0') {
                 <?php endif; ?>
                 <div style="display: flex; justify-content: center; align-items: center; gap: 32px; flex-wrap: wrap;">
                     <?php foreach ($badge_items as $badge_img) : ?>
-                    <img src="<?php echo esc_url($badge_img); ?>" alt="" style="height: 70px; width: auto; opacity: 0.7; filter: grayscale(30%); transition: all 0.3s;" onmouseover="this.style.opacity='1';this.style.filter='none'" onmouseout="this.style.opacity='0.7';this.style.filter='grayscale(30%)'">
+                    <img src="<?php echo esc_url($badge_img); ?>" alt="" style="height: <?php echo esc_attr($badge_size); ?>px; width: auto; opacity: 0.7; filter: grayscale(30%); transition: all 0.3s;" onmouseover="this.style.opacity='1';this.style.filter='none'" onmouseout="this.style.opacity='0.7';this.style.filter='grayscale(30%)'">
                     <?php endforeach; ?>
                 </div>
             </div>
