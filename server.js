@@ -86570,16 +86570,41 @@ app.put('/api/bookings/:id', async (req, res) => {
     // for marketplace accounts and silently fails (or worse, updates the
     // wrong account) on per-account OAuth properties like Steve's gîte.
     let beds24Synced = false;
+    let beds24Debug = null;  // Steve 2026-09-18 — surface raw response so
+                             // silent failures can be diagnosed from the
+                             // client without Railway log access.
     if (existingBooking.beds24_booking_id) {
       try {
         const accessToken = await getBeds24AccessTokenForProperty(pool, existingBooking.property_id, existingBooking.bookable_unit_id);
-        // Look up beds24_property_id so the update uses the same org-token
-        // path that created the booking (apiSourceId 70 / Rezintel).
+        // Look up beds24_property_id from the UNIT's sync mapping — NOT
+        // the GAS property row. Steve 2026-09-18 — Hebden exclusive-hire
+        // (GAS unit 2211) lives on GAS property 523, but its Beds24 room
+        // (559756) is on Beds24 property 267241 (the "Exclusive Hire"
+        // property), not 152958 (the main hostel property that GAS's
+        // property 523 maps to). Sending the master token scoped to
+        // p152958 for a booking on p267241 makes Beds24 silently reject.
+        // The unit's sync_room_types → sync_properties chain knows the
+        // real Beds24 property.
         let beds24PropId = null;
         try {
-          const propLookup = await pool.query('SELECT beds24_property_id FROM properties WHERE id = $1', [existingBooking.property_id]);
-          beds24PropId = propLookup.rows[0]?.beds24_property_id || null;
+          const unitPropLookup = await pool.query(`
+            SELECT gsp.external_id AS beds24_property_id
+              FROM gas_sync_room_types gsrt
+              JOIN gas_sync_properties gsp ON gsp.id = gsrt.sync_property_id
+             WHERE gsrt.gas_room_id = $1 AND gsp.external_id IS NOT NULL
+             LIMIT 1`,
+            [existingBooking.bookable_unit_id]
+          );
+          beds24PropId = unitPropLookup.rows[0]?.beds24_property_id || null;
         } catch (_) { /* non-fatal */ }
+        // Fallback to GAS-property mapping (works for single-Beds24-property
+        // accounts where the unit isn't cross-mapped).
+        if (!beds24PropId) {
+          try {
+            const propLookup = await pool.query('SELECT beds24_property_id FROM properties WHERE id = $1', [existingBooking.property_id]);
+            beds24PropId = propLookup.rows[0]?.beds24_property_id || null;
+          } catch (_) { /* non-fatal */ }
+        }
         if (accessToken) {
           const beds24Update = [{
             id: parseInt(existingBooking.beds24_booking_id),
@@ -86605,14 +86630,17 @@ app.put('/api/bookings/:id', async (req, res) => {
 
           console.log('Beds24 update response:', JSON.stringify(beds24Response.data));
           beds24Synced = beds24Response.data?.[0]?.success || false;
+          beds24Debug = { property_used: beds24PropId, response: beds24Response.data };
           if (!beds24Synced) {
-            console.error('[beds24] PUT cancel did not succeed for booking', id, '— response:', JSON.stringify(beds24Response.data));
+            console.error('[beds24] PUT update did not succeed for booking', id, '— property_used:', beds24PropId, '— response:', JSON.stringify(beds24Response.data));
           }
         } else {
           console.error('[beds24] No access token resolvable for booking', id, '(property', existingBooking.property_id, ', unit', existingBooking.bookable_unit_id, ')');
+          beds24Debug = { error: 'no access token', property_id: existingBooking.property_id, unit_id: existingBooking.bookable_unit_id };
         }
       } catch (beds24Error) {
         console.error('Beds24 update error:', beds24Error.response?.data || beds24Error.message);
+        beds24Debug = { error: beds24Error.response?.data || beds24Error.message };
       }
     }
 
@@ -86648,7 +86676,9 @@ app.put('/api/bookings/:id', async (req, res) => {
     res.json({
       success: true,
       beds24_synced: beds24Synced,
-      smoobu_synced: smoobuSynced
+      smoobu_synced: smoobuSynced,
+      beds24_debug: beds24Debug  // Steve 2026-09-18 — verbose payload for
+                                 // troubleshooting silent CM push failures
     });
 
   } catch (error) {
