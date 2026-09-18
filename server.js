@@ -86575,7 +86575,6 @@ app.put('/api/bookings/:id', async (req, res) => {
                              // client without Railway log access.
     if (existingBooking.beds24_booking_id) {
       try {
-        const accessToken = await getBeds24AccessTokenForProperty(pool, existingBooking.property_id, existingBooking.bookable_unit_id);
         // Look up beds24_property_id from the UNIT's sync mapping — NOT
         // the GAS property row. Steve 2026-09-18 — Hebden exclusive-hire
         // (GAS unit 2211) lives on GAS property 523, but its Beds24 room
@@ -86605,6 +86604,8 @@ app.put('/api/bookings/:id', async (req, res) => {
             beds24PropId = propLookup.rows[0]?.beds24_property_id || null;
           } catch (_) { /* non-fatal */ }
         }
+
+        const accessToken = await getBeds24AccessTokenForProperty(pool, existingBooking.property_id, existingBooking.bookable_unit_id);
         if (accessToken) {
           const beds24Update = [{
             id: parseInt(existingBooking.beds24_booking_id),
