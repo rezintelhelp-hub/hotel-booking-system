@@ -65948,7 +65948,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
                 const data = await resp.json();
-                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                const sections = data.settings || {};  // API returns settings as object keyed by section name, not array
                 const posMap = {
                     'wb-intro-position': 'intro',
                     'wb-wrap-position': 'wrap',
@@ -66033,7 +66033,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
                 const data = await resp.json();
-                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                const sections = data.settings || {};  // API returns settings as object keyed by section name, not array
                 const orderMap = {
                     'wb-page-rooms-menu-order': 'page-rooms',
                     'wb-page-about-menu-order': 'page-about',
@@ -66147,7 +66147,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
                 const data = await resp.json();
-                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                const sections = data.settings || {};  // API returns settings as object keyed by section name, not array
                 // Build enriched list with each section's actual saved position
                 // (falls back to its default when unset).
                 const enriched = PAGE_ORDER_SECTIONS.map(s => {
