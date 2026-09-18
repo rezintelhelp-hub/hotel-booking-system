@@ -9261,6 +9261,7 @@
                     <div id="editor-panel-homepage" class="editor-panel" style="display: none;">
                         <!-- Sub-tabs for home page sections -->
                         <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <button class="sub-tab" data-subtab="page-order" onclick="switchHomeSubTab('page-order')" style="padding: 0.5rem 1rem; border: 1px solid #a78bfa; border-radius: 20px; background: white; color: #6d28d9; cursor: pointer; font-size: 0.875rem; font-weight: 600;">🔀 Page Order</button>
                             <button class="sub-tab active" data-subtab="hero" onclick="switchHomeSubTab('hero')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: #7c3aed; color: white; cursor: pointer; font-size: 0.875rem;"> Hero</button>
                             <button class="sub-tab" data-subtab="intro" onclick="switchHomeSubTab('intro')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Intro</button>
                             <button class="sub-tab" data-subtab="wrap" onclick="switchHomeSubTab('wrap')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Wrap</button>
@@ -11004,6 +11005,28 @@
                                         <input type="range" id="wb-badge-row-size" min="40" max="160" step="5" value="70" style="width:100%;" oninput="document.getElementById('wb-badge-row-size-display').textContent = this.value">
                                         <small class="form-hint">Sets the height of every badge (image auto-scales width). 40 = small, 70 = default, 160 = large.</small>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Page Order — Steve 2026-09-18. Drag-and-drop reorder
+                             of every homepage section. On Save Order, JS renumbers
+                             the sections 1..N in the new visual order and posts
+                             each section's position to /api/deployed-sites/:id/
+                             settings/:section. No schema change — writes into the
+                             existing position field each section already has. -->
+                        <div id="editor-homepage-page-order" class="home-subtab-panel" style="display: none;">
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>Page Order</h3></div>
+                                <div class="card-body">
+                                    <p style="margin: 0 0 1rem; color: #64748b; font-size: 0.9rem;">Drag any section up or down to change the order it renders on the home page. Hero is always first and can't be moved. Click <strong>Save Order</strong> when you're done.</p>
+                                    <div id="page-order-list" style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                        <div style="padding: 2rem; text-align: center; color: #94a3b8;">Loading sections…</div>
+                                    </div>
+                                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                                        <button id="page-order-save-btn" onclick="savePageOrder(this)" class="btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 10px 24px;">💾 Save Order</button>
+                                    </div>
+                                    <div id="page-order-status" style="margin-top: 0.75rem; font-size: 0.85rem; color: #64748b;"></div>
                                 </div>
                             </div>
                         </div>
@@ -37094,6 +37117,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadWebsiteBuilderSection(subTabName).finally(() => {
                     loadFeaturedRoomPicker().then(() => syncFeaturedIdsToSelect());
                 });
+            } else if (subTabName === 'page-order') {
+                // Steve 2026-09-18 — drag-and-drop reorder of homepage sections.
+                // Reads the current position from every wb-*-position input
+                // (already populated by prior loads across the other tabs)
+                // and renders them in order. On drop + Save Order, we
+                // renumber 1..N and PATCH each section.
+                if (typeof loadPageOrderList === 'function') loadPageOrderList();
             } else if (subTabName === 'custom-sections') {
                 // Custom Sections tab (Steve 2026-09-18) — position + enable
                 // live in website_settings section 'custom-sections'. The
@@ -65872,6 +65902,123 @@ const promo = await fetch('/api/v1/offers/validate', {
             setTimeout(validate, 800);
             setTimeout(validate, 2500);
         })();
+
+        // ── Page Order (drag-and-drop reorder of homepage sections) ──
+        // Steve 2026-09-18. Reads each section's current position from its
+        // wb-*-position input (populated by loadWebsiteBuilderSection when
+        // the sub-tab was last opened, or by pre-loading the settings on
+        // Homepage tab entry). Renders them in ascending order as a
+        // sortable list. Save Order renumbers 1..N in the new visual order
+        // and POSTs each changed section's new position via the existing
+        // /api/deployed-sites/:id/settings/:section endpoint.
+        //
+        // NOT included: Hero (always position 0/1, not reorderable — always
+        // first). Image Rows have huge default positions (91-94, off-screen)
+        // and only show up in the list when the operator has actually
+        // enabled + given one a real position. We still list them so the
+        // operator can pull them into play.
+        const PAGE_ORDER_SECTIONS = [
+            { key: 'intro', label: 'Intro', inputId: 'wb-intro-position', defaultPos: 3, sectionSlug: 'intro' },
+            { key: 'wrap', label: 'Wrap', inputId: 'wb-wrap-position', defaultPos: 4, sectionSlug: 'wrap' },
+            { key: 'featured', label: 'Featured', inputId: 'wb-featured-position', defaultPos: 5, sectionSlug: 'featured' },
+            { key: 'usp', label: 'USP', inputId: 'wb-usp-position', defaultPos: 7, sectionSlug: 'usp' },
+            { key: 'custom-sections', label: '🧱 Custom Sections', inputId: 'wb-custom-sections-position', defaultPos: 8, sectionSlug: 'custom-sections' },
+            { key: 'about', label: 'About', inputId: 'wb-about-position', defaultPos: 9, sectionSlug: 'about' },
+            { key: 'services', label: 'Services', inputId: 'wb-services-position', defaultPos: 11, sectionSlug: 'services' },
+            { key: 'reviews', label: 'Reviews', inputId: 'wb-reviews-position', defaultPos: 13, sectionSlug: 'reviews' },
+            { key: 'cta', label: 'CTA', inputId: 'wb-cta-position', defaultPos: 15, sectionSlug: 'cta' },
+            { key: 'badge-row', label: 'Badge Row', inputId: 'wb-badge-row-position', defaultPos: 16, sectionSlug: 'badge-row' },
+            { key: 'image-row-1', label: 'Image Row 1', inputId: 'wb-image-row-1-position', defaultPos: 91, sectionSlug: 'image-row-1' },
+            { key: 'image-row-2', label: 'Image Row 2', inputId: 'wb-image-row-2-position', defaultPos: 92, sectionSlug: 'image-row-2' },
+            { key: 'image-row-3', label: 'Image Row 3', inputId: 'wb-image-row-3-position', defaultPos: 93, sectionSlug: 'image-row-3' },
+            { key: 'image-row-4', label: 'Image Row 4', inputId: 'wb-image-row-4-position', defaultPos: 94, sectionSlug: 'image-row-4' }
+        ];
+
+        async function loadPageOrderList() {
+            const listEl = document.getElementById('page-order-list');
+            const statusEl = document.getElementById('page-order-status');
+            if (!listEl) return;
+            if (!selectedDeployedSiteId) {
+                listEl.innerHTML = '<div style="padding: 2rem; text-align: center; color: #dc2626;">Select a website first.</div>';
+                return;
+            }
+            // Fetch every section's saved position from the API (avoids relying
+            // on whether each sub-tab has been opened this session, which is
+            // the only way the wb-*-position inputs would be populated).
+            statusEl.textContent = 'Loading current order…';
+            try {
+                const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
+                const data = await resp.json();
+                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                // Build enriched list with each section's actual saved position
+                // (falls back to its default when unset).
+                const enriched = PAGE_ORDER_SECTIONS.map(s => {
+                    const saved = sections[s.sectionSlug] || {};
+                    const pos = parseInt(saved.position, 10);
+                    const enabled = saved.enabled === true || saved.enabled === 'true' || saved.enabled === 1 || saved.enabled === '1';
+                    return { ...s, position: Number.isFinite(pos) ? pos : s.defaultPos, enabled };
+                });
+                enriched.sort((a, b) => a.position - b.position);
+                listEl.innerHTML = enriched.map(s => `
+                    <div class="page-order-item" data-section-slug="${s.sectionSlug}" data-current-pos="${s.position}" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: white; border-bottom: 1px solid #e2e8f0; cursor: grab;">
+                        <span class="page-order-drag" style="color: #94a3b8; font-size: 1.1rem; user-select: none;">⋮⋮</span>
+                        <span style="font-weight: 600; color: #1e293b; flex: 1;">${s.label}</span>
+                        <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: ${s.enabled ? '#dcfce7' : '#f3f4f6'}; color: ${s.enabled ? '#166534' : '#9ca3af'};">${s.enabled ? '● On' : '○ Off'}</span>
+                        <span style="font-size: 0.8rem; color: #94a3b8; min-width: 32px; text-align: right;">#${s.position}</span>
+                    </div>
+                `).join('');
+                // Wire SortableJS on the list — animation + ghost class match
+                // the existing rooms-drag pattern (styles already loaded).
+                if (typeof Sortable !== 'undefined') {
+                    Sortable.create(listEl, {
+                        animation: 150,
+                        ghostClass: 'rooms-drag-ghost',
+                        handle: '.page-order-drag'
+                    });
+                }
+                statusEl.textContent = `${enriched.length} sections loaded. Drag to reorder.`;
+            } catch (e) {
+                listEl.innerHTML = `<div style="padding: 2rem; text-align: center; color: #dc2626;">Failed to load: ${e.message}</div>`;
+            }
+        }
+
+        async function savePageOrder(btn) {
+            if (!selectedDeployedSiteId) return;
+            const items = Array.from(document.querySelectorAll('#page-order-list .page-order-item'));
+            if (!items.length) return;
+            const statusEl = document.getElementById('page-order-status');
+            const orig = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = 'Saving…'; btn.style.opacity = '0.7';
+            statusEl.textContent = 'Saving new order…';
+            // Renumber 1..N (skipping 0 which is reserved for Hero).
+            let ok = 0, fail = 0;
+            for (let i = 0; i < items.length; i++) {
+                const el = items[i];
+                const slug = el.dataset.sectionSlug;
+                const newPos = i + 1;
+                if (parseInt(el.dataset.currentPos, 10) === newPos) { continue; } // unchanged, skip
+                try {
+                    const r = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${slug}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ settings: { position: newPos } })
+                    });
+                    const d = await r.json();
+                    if (d.success) ok++;
+                    else fail++;
+                } catch (e) { fail++; }
+            }
+            btn.disabled = false; btn.innerHTML = orig; btn.style.opacity = '';
+            if (fail === 0) {
+                showNotification(`Page order saved (${ok} sections updated)`, 'success');
+                statusEl.textContent = `✓ Saved. ${ok} sections got a new position number. Refresh the site to see the new order.`;
+                // Refresh the list so the # badges match the new order
+                setTimeout(loadPageOrderList, 400);
+            } else {
+                showNotification(`Order saved with ${fail} failures — check console`, 'warning');
+                statusEl.textContent = `✗ ${ok} saved, ${fail} failed.`;
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', function() {
             const occupancyEnabled = document.getElementById('occupancy-enabled');
