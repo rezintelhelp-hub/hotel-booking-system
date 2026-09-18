@@ -637,9 +637,9 @@ img {
    Mirrors developer-light. */
 .developer-hero-content--align-left {
     text-align: left;
+    max-width: 900px;
+    margin-left: auto;
     margin-right: auto;
-    margin-left: 0;
-    max-width: 600px;
 }
 .developer-hero-content--align-left .developer-hero-subtitle {
     margin-left: 0;

@@ -649,14 +649,15 @@ img {
    input row still renders full-width regardless of alignment. */
 .developer-hero-content--align-left {
     text-align: left;
-    /* Break out of parent's justify-content:center so the whole content
-       block hugs the left edge instead of sitting middle. margin-right:auto
-       inside a flex parent yanks the item leftmost. max-width capped so a
-       narrow copy block sits over the left third of the hero and the
-       background image (e.g. countryside on the right) stays visible. */
+    /* Keep the block centred horizontally at the same width as the
+       search widget (default 900px, matches .developer-search-wrapper
+       max-width). Text-aligns left INSIDE this centred block, so the
+       headline / subtitle share the search widget's left edge — whether
+       the search is INSIDE hero-content (position=center) OR emitted as
+       a sibling below (position=bottom). Steve 2026-09-18. */
+    max-width: 900px;
+    margin-left: auto;
     margin-right: auto;
-    margin-left: 0;
-    max-width: 600px;
 }
 .developer-hero-content--align-left .developer-hero-subtitle {
     margin-left: 0;

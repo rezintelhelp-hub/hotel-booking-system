@@ -266,8 +266,11 @@ $homepage_sections = array(); // position => html
     $hero_text_align = $api['hero_text_align'] ?? 'center';
     $hero_align_class = $hero_text_align === 'left' ? ' developer-hero-content--align-left' : '';
     $hero_badge_position = $api['hero_badge_position'] ?? 'above';
+    $hero_align_style = $hero_text_align === 'left'
+        ? ' style="max-width: ' . esc_attr($search_max_width) . 'px;"'
+        : '';
     ?>
-    <div class="developer-hero-content<?php echo $hero_align_class; ?>">
+    <div class="developer-hero-content<?php echo $hero_align_class; ?>"<?php echo $hero_align_style; ?>>
         <?php
         // Steve 2026-08-15 — badge: optional logo + new-tab. See
         // developer-light front-page.php for full commentary.

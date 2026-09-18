@@ -287,8 +287,14 @@ $homepage_sections = array(); // position => html
     // Badge placement: 'above' (before H1, default) or 'below' (after subtitle
     // as a CTA-style button). Rendered from $badge_html regardless of position.
     $hero_badge_position = $api['hero_badge_position'] ?? 'above';
+    // Inline max-width matches the search widget's max-width so the
+    // headline/subtitle line up with the check-in box's left edge even
+    // when position=bottom (search rendered as a sibling below hero).
+    $hero_align_style = $hero_text_align === 'left'
+        ? ' style="max-width: ' . esc_attr($search_max_width) . 'px;"'
+        : '';
     ?>
-    <div class="developer-hero-content<?php echo $hero_align_class; ?>">
+    <div class="developer-hero-content<?php echo $hero_align_class; ?>"<?php echo $hero_align_style; ?>>
         <?php
         // Steve 2026-08-15 — badge now supports optional logo image + new-tab
         // toggle on the link. Image REPLACES the text pill when set (styling
