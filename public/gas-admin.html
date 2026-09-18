@@ -65717,6 +65717,68 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Add event listeners
+        // ── Web Builder section-position duplicate detection (Steve 2026-09-18) ──
+        // Setting two sections to the same order number silently loses the one
+        // rendered first (empty ob_get_clean of a disabled section can also
+        // overwrite — theme now guards against that too). Here we visually flag
+        // any duplicate position numbers across all homepage sections so the
+        // operator sees the conflict before saving.
+        (function() {
+            const POSITION_IDS = [
+                'wb-intro-position','wb-wrap-position','wb-featured-position',
+                'wb-usp-position','wb-about-position','wb-services-position',
+                'wb-reviews-position','wb-cta-position','wb-badge-row-position',
+                'wb-image-row-1-position','wb-image-row-2-position',
+                'wb-image-row-3-position','wb-image-row-4-position'
+            ];
+            function labelFor(id) {
+                // strip 'wb-' prefix + '-position' suffix, title-case the rest
+                return id.replace(/^wb-/,'').replace(/-position$/,'')
+                    .replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+            }
+            function validate() {
+                const values = {};
+                const seen = {};
+                for (const id of POSITION_IDS) {
+                    const el = document.getElementById(id);
+                    if (!el || el.value === '' || el.value == null) continue;
+                    const v = parseInt(el.value, 10);
+                    if (!Number.isFinite(v)) continue;
+                    values[id] = v;
+                    seen[v] = (seen[v] || []).concat(id);
+                }
+                for (const id of POSITION_IDS) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const v = values[id];
+                    const dupes = v !== undefined ? seen[v] : null;
+                    if (dupes && dupes.length > 1) {
+                        el.style.background = '#fee2e2';
+                        el.style.borderColor = '#ef4444';
+                        el.style.color = '#991b1b';
+                        el.title = 'Duplicate position ' + v + ' — also used by: ' +
+                            dupes.filter(x => x !== id).map(labelFor).join(', ') +
+                            '. Change one before saving or only one will render.';
+                    } else {
+                        el.style.background = '';
+                        el.style.borderColor = '';
+                        el.style.color = '';
+                        el.title = '';
+                    }
+                }
+            }
+            document.addEventListener('input', function(e) {
+                if (e.target && e.target.id && POSITION_IDS.indexOf(e.target.id) !== -1) {
+                    validate();
+                }
+            });
+            // Run on load + shortly after (in case values populate async from
+            // the settings fetch)
+            document.addEventListener('DOMContentLoaded', validate);
+            setTimeout(validate, 800);
+            setTimeout(validate, 2500);
+        })();
+
         document.addEventListener('DOMContentLoaded', function() {
             const occupancyEnabled = document.getElementById('occupancy-enabled');
             if (occupancyEnabled) {

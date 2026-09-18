@@ -495,7 +495,7 @@ $homepage_sections = array(); // position => html
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['intro']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['intro']] = $_h; ?>
 
 <?php
 // Wrap Section — magazine-style: body text wraps around a floated image or
@@ -640,7 +640,17 @@ if ($wrap_enabled && $wrap_enabled !== 'false' && !empty($wrap_text)) :
     </style>
 </section>
 <?php endif;
-$homepage_sections[$section_positions['wrap']] = ob_get_clean();
+// Only claim the wrap position when wrap actually rendered content.
+// When wrap is disabled, ob_get_clean() returns '' — and if intro (or
+// any other section) is set to the same position, that empty string
+// silently OVERWRITES the intro's HTML in $homepage_sections. Steve
+// 2026-09-18 — moving intro to position 4 lost it entirely because
+// wrap defaults to 4 and its disabled-buffer clobbered intro.
+$_wrap_out = ob_get_clean();
+if (trim($_wrap_out) !== '') {
+    $homepage_sections[$section_positions['wrap']] = $_wrap_out;
+}
+?>
 ?>
 
 <?php ob_start(); ?>
@@ -686,7 +696,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['featured']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['featured']] = $_h; ?>
 
 <?php ob_start(); ?>
 <?php if ($usp_enabled && count($usp_items) > 0) : ?>
@@ -767,7 +777,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['usp']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['usp']] = $_h; ?>
 
 <?php ob_start(); ?>
 <?php if ($about_enabled) : ?>
@@ -849,7 +859,7 @@ $homepage_sections[$section_positions['wrap']] = ob_get_clean();
 <?php endif; ?>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['about']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['about']] = $_h; ?>
 
 <?php ob_start(); ?>
 <?php
@@ -940,7 +950,7 @@ for ($i = 1; $i <= 8; $i++) {
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['services']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['services']] = $_h; ?>
 
 <?php ob_start(); ?>
 <?php
@@ -1251,7 +1261,7 @@ if (!is_wp_error($hostaway_response)) {
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['reviews']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['reviews']] = $_h; ?>
 
 <?php ob_start(); ?>
 <?php
@@ -1283,7 +1293,7 @@ if ($cta_enabled) :
     </div>
 </section>
 <?php endif; ?>
-<?php $homepage_sections[$section_positions['cta']] = ob_get_clean(); ?>
+<?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['cta']] = $_h; ?>
 
 <?php
 // --- Image Row Sections (1-4) ---
