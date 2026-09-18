@@ -298,7 +298,10 @@ $homepage_sections = array(); // position => html
         if ($badge_html && $hero_badge_position !== 'below') echo $badge_html;
         ?>
 
-        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
+        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php
+            // Allow only <br> in the headline (line-break support).
+            echo wp_kses($hero_title, ['br' => []]);
+        ?></h1>
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
         <?php if ($badge_html && $hero_badge_position === 'below') echo $badge_html; ?>
         

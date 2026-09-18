@@ -649,6 +649,14 @@ img {
    input row still renders full-width regardless of alignment. */
 .developer-hero-content--align-left {
     text-align: left;
+    /* Break out of parent's justify-content:center so the whole content
+       block hugs the left edge instead of sitting middle. margin-right:auto
+       inside a flex parent yanks the item leftmost. max-width capped so a
+       narrow copy block sits over the left third of the hero and the
+       background image (e.g. countryside on the right) stays visible. */
+    margin-right: auto;
+    margin-left: 0;
+    max-width: 600px;
 }
 .developer-hero-content--align-left .developer-hero-subtitle {
     margin-left: 0;
