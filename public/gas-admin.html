@@ -65379,18 +65379,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                             let displayPrice;
                             const ovPx = parseFloat(dpOv?.[dateStr]);
                             const cmPx = parseFloat(dpCm?.[dateStr]);
-                            // Steve 2026-09-18 — CM-imported offer branch is
-                            // authoritative when the offer has ANY daily_prices.
-                            // If this specific date is NOT in the map, leave
-                            // the cell blank (don't fake it with 0% discount
-                            // math showing standard price — that misled the
-                            // operator into thinking the rate applies).
                             if (ovPx > 0) {
                                 displayPrice = ovPx;
                             } else if (isFlatRate) {
                                 displayPrice = flatRate;
-                            } else if (hasCmDailyPrices) {
-                                displayPrice = cmPx > 0 ? cmPx : 0; // 0 → blank cell below
+                            } else if (hasCmDailyPrices && cmPx > 0) {
+                                displayPrice = cmPx;
                             } else if (hasOffset) {
                                 displayPrice = stdPrice > 0 ? stdPrice * offMult : 0;
                             } else if (offer.discount_type === 'percentage') {
