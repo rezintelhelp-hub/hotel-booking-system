@@ -65314,6 +65314,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const dpOv = _parseMap(offer.daily_prices_override);
                         const hasCmDailyPrices = !!(dpCm && Object.keys(dpCm).length);
 
+                        // When this is a CM-imported offer with daily_prices, the
+                        // "+0% from Standard" label lies — discount_value is 0
+                        // because the real prices live in daily_prices, not in
+                        // the discount math. Compute the true average delta
+                        // vs standard across the currently-visible date range
+                        // so operators see the honest number. Steve 2026-09-18.
+                        if (hasCmDailyPrices) {
+                            let sumCm = 0, sumStd = 0, count = 0, missing = 0;
+                            dates.forEach(d => {
+                                const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                                const cm = parseFloat(dpCm[ds]);
+                                const dayData = data.availability?.find(dd => dd.date === ds) || {};
+                                const std = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
+                                if (cm > 0 && std > 0) { sumCm += cm; sumStd += std; count++; }
+                                else missing++;
+                            });
+                            if (count > 0) {
+                                const avgDelta = Math.round(((sumCm / sumStd) - 1) * 1000) / 10;
+                                const sign = avgDelta > 0 ? '+' : '';
+                                discountLabel = `${sign}${avgDelta}% avg (Beds24 rate plan${missing ? ` · ${missing}/${dates.length} dates unset` : ''})`;
+                            } else {
+                                discountLabel = `Beds24 rate plan · no prices for this range`;
+                            }
+                        }
+
                         // Website-visibility toggle. Default true if column null
                         // (older offers pre-column). Click flips via PATCH.
                         const _visible = offer.available_website !== false;
@@ -65354,12 +65379,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             let displayPrice;
                             const ovPx = parseFloat(dpOv?.[dateStr]);
                             const cmPx = parseFloat(dpCm?.[dateStr]);
+                            // Steve 2026-09-18 — CM-imported offer branch is
+                            // authoritative when the offer has ANY daily_prices.
+                            // If this specific date is NOT in the map, leave
+                            // the cell blank (don't fake it with 0% discount
+                            // math showing standard price — that misled the
+                            // operator into thinking the rate applies).
                             if (ovPx > 0) {
                                 displayPrice = ovPx;
                             } else if (isFlatRate) {
                                 displayPrice = flatRate;
-                            } else if (hasCmDailyPrices && cmPx > 0) {
-                                displayPrice = cmPx;
+                            } else if (hasCmDailyPrices) {
+                                displayPrice = cmPx > 0 ? cmPx : 0; // 0 → blank cell below
                             } else if (hasOffset) {
                                 displayPrice = stdPrice > 0 ? stdPrice * offMult : 0;
                             } else if (offer.discount_type === 'percentage') {
