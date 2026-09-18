@@ -18,7 +18,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 4.4.18
+ * Version: 4.4.19
  * Author: GAS
  * License: Proprietary - All Rights Reserved
  * License URI: https://gas.travel/license
@@ -27,7 +27,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '4.4.18');
+define('GAS_BOOKING_VERSION', '4.4.19');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3812,6 +3812,14 @@ class GAS_Booking {
             'currentLanguage' => $current_lang,
             'spinnerStyle' => $spinner_style,
             'nonce' => wp_create_nonce('gas_booking_nonce'),
+            // Batch-price feature flag — per site. When true, /book-now/
+            // fires ONE call to /api/public/calculate-price-batch instead
+            // of N per-room calls, saving the browser 6-concurrent cap
+            // (Cotswolds 60 rooms, RocketStay 192 rooms). Set per site:
+            //   wp option update gas_use_batch_price 1
+            // Falls back to per-room ajax if the batch response is missing
+            // or errors — safe rollback path.
+            'useBatchPrice' => (bool) get_option('gas_use_batch_price', false),
             'buttonColor' => $this->get_effective_button_color(),
             // Shop palette so JS-injected surfaces (event banner etc.) follow
             // the same brand colours as the booking widget + shop.

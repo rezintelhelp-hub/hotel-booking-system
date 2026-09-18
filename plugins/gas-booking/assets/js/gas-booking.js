@@ -5327,7 +5327,65 @@ jQuery(document).ready(function($) {
     // Rooms Grid Functions (for Book Now page)
     // ========================================
     
-    function checkAllAvailability(checkin, checkout, guests) {
+    // Per-card apply function — shared by per-room ajax path and the
+    // batch-price path (behind gasBooking.useBatchPrice). Zero drift
+    // between paths because both call this exact same function.
+    function _applyRoomPriceResult($room, response) {
+        if (response && response.success && response.available) {
+            $room.removeClass('unavailable checking').addClass('available');
+            var standardTotal = response.accommodation_total || 0;
+            var lowestPrice = standardTotal;
+            var pricingTier = gasBooking.pricingTier || 'standard';
+            var nights = parseInt(response.nights, 10) || 1;
+            var accommodationTotal = parseFloat(response.accommodation_total) || standardTotal;
+            var cmTotal = parseFloat(response.cm_total) || accommodationTotal;
+            if (Array.isArray(response.all_offers)) {
+                response.all_offers.forEach(function(offer) {
+                    if (offer.pricing_tier && offer.pricing_tier !== 'standard' && offer.pricing_tier !== pricingTier) return;
+                    var baseTotal = offer.replaces_standard ? cmTotal : accommodationTotal;
+                    var offerTotal;
+                    if (offer.rate_plan_total != null) offerTotal = parseFloat(offer.rate_plan_total);
+                    else if (offer.price_per_night) offerTotal = parseFloat(offer.price_per_night) * nights;
+                    else if (offer.discount_type === 'percentage') offerTotal = baseTotal * (1 - parseFloat(offer.discount_value) / 100);
+                    else offerTotal = baseTotal - (parseFloat(offer.discount_value) || 0);
+                    if (isFinite(offerTotal) && offerTotal < lowestPrice) lowestPrice = offerTotal;
+                });
+            }
+            var totalPrice = lowestPrice;
+            var roomCurrency = resolveCurrency(response.currency);
+            $room.data('price', totalPrice);
+            var priceHtml = formatPriceShort(totalPrice, roomCurrency);
+            priceHtml += '<span class="gas-price-from-label" style="display:block;font-size:0.75rem;color:#64748b;font-weight:400;margin-top:2px;">' + t('booking', 'prices_from', 'Prices from') + '</span>';
+            if ($room.hasClass('has-offers') && pricingTier === 'standard') {
+                priceHtml += '<div class="gas-offers-badge">🏷️ Offers available*</div>';
+            }
+            $room.find('.gas-room-price, .gas-room-row-price').html(priceHtml);
+            $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
+            $room.find('.gas-pool-left-pill').remove();
+            if (response.pool_aware && typeof response.available_count === 'number' && response.total_capacity > 1) {
+                var left = response.available_count;
+                var total = response.total_capacity;
+                var unitPlural = response.capacity_unit || 'rooms';
+                var unitSingular = unitPlural.replace(/s$/, '');
+                var pillBg, pillColor, pillTxt;
+                if (left === 1) { pillBg = '#fef3c7'; pillColor = '#92400e'; pillTxt = 'Only 1 ' + unitSingular + ' left'; }
+                else { pillBg = '#dcfce7'; pillColor = '#166534'; pillTxt = left + ' of ' + total + ' ' + unitPlural + ' left'; }
+                $room.find('.gas-room-meta').first().append('<span class="gas-pool-left-pill" style="display:inline-block;margin-left:8px;padding:2px 8px;background:' + pillBg + ';color:' + pillColor + ';border-radius:999px;font-size:0.75rem;font-weight:600;">' + pillTxt + '</span>');
+            }
+        } else if (response && response.min_stay_required) {
+            $room.removeClass('unavailable checking available dates-blocked').addClass('min-stay-warning');
+            var nightsWord = response.min_stay_required > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
+            $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-min-stay-label" style="color:#b45309;font-weight:600;">Min ' + response.min_stay_required + ' ' + nightsWord + '</span>');
+            $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#f59e0b', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
+        } else {
+            $room.removeClass('available checking').addClass('unavailable dates-blocked');
+            $room.find('.gas-pool-left-pill').remove();
+            $room.find('.gas-room-price, .gas-room-row-price').html('—');
+            $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': ''}).text(t('booking', 'view_calendar', 'View Calendar')).attr('title', t('booking', 'check_other_dates', 'Check other dates'));
+        }
+    }
+
+    function checkAllAvailability(checkin, checkout, guests, _bypassBatch) {
         var $rooms = $('.gas-room-card, .gas-room-row');
 
         // Show fixed spinner at top of page
@@ -5343,6 +5401,84 @@ jQuery(document).ready(function($) {
         // state without knowing to clear .checking. We're about to
         // re-establish the sentinel below on rooms we actually check.
         $rooms.filter('.guest-exceeded, .min-stay-warning').removeClass('checking');
+
+        // Batch-price path — one HTTP call for all rooms instead of N.
+        // Behind gasBooking.useBatchPrice (per-site WP option). Cuts
+        // Cotswolds 60-rooms ~10s → ~2s, RocketStay 192 → ~3s. Same
+        // /api/public/calculate-price handler on the server side so
+        // response shape is identical. Falls back to per-room path on
+        // failure (safe rollback).
+        if (!_bypassBatch && gasBooking && gasBooking.useBatchPrice && checkin && checkout) {
+            var _lpBatch = new URLSearchParams(window.location.search).get('linked_product');
+            var toCheck = [];
+            $rooms.each(function() {
+                var $room = $(this);
+                var unitId = $room.data('room-id');
+                var maxGuests = parseInt($room.data('max-guests')) || 2;
+                if (selectedGuests > maxGuests) {
+                    $room.removeClass('available checking').addClass('unavailable guest-exceeded');
+                    $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-too-small">' + t('booking', 'max_guests', 'Max %s guests').replace('%s', maxGuests) + '</span>');
+                    $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': 'none'}).text(t('booking', 'not_available', 'Not Available'));
+                    return;
+                }
+                $room.removeClass('unavailable available dates-blocked guest-exceeded').addClass('checking');
+                $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-checking">⏳ Checking...</span>');
+                $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#6366f1', 'pointer-events': 'none'}).text(t('booking', 'checking_availability', 'Checking availability...'));
+                toCheck.push({
+                    unit_id: unitId,
+                    check_in: checkin,
+                    check_out: checkout,
+                    guests: selectedGuests,
+                    pricing_tier: gasBooking.pricingTier || 'standard',
+                    lang: currentLanguage,
+                    linked_product: _lpBatch ? parseInt(_lpBatch, 10) : undefined
+                });
+            });
+            if (toCheck.length === 0) {
+                // No rooms to check — jump straight to reorder.
+                setTimeout(function() { reorderRooms(); $('.gas-loading-spinner').remove(); }, 50);
+                return;
+            }
+            $.ajax({
+                url: gasBooking.apiUrl + '/api/public/calculate-price-batch',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ items: toCheck }),
+                success: function(batchResp) {
+                    if (!batchResp || !batchResp.success || !Array.isArray(batchResp.results)) {
+                        console.warn('[gas-booking] batch price response malformed, falling back to per-room', batchResp);
+                        // Clear the .checking marks so the fallback path can re-set them cleanly.
+                        $rooms.removeClass('checking');
+                        return checkAllAvailability(checkin, checkout, guests, true);
+                    }
+                    batchResp.results.forEach(function(response) {
+                        var $room = $('.gas-room-card[data-room-id="' + response.unit_id + '"], .gas-room-row[data-room-id="' + response.unit_id + '"]');
+                        if (!$room.length) return;
+                        _applyRoomPriceResult($room, response);
+                    });
+                    // Any card still in .checking (e.g. batch skipped it silently)
+                    // → treat as unavailable so sortRooms doesn't mix it with real
+                    // available cards.
+                    $('.gas-room-card.checking, .gas-room-row.checking').each(function() {
+                        $(this).removeClass('checking').addClass('unavailable');
+                        $(this).find('.gas-room-price, .gas-room-row-price').html('—');
+                    });
+                    reorderRooms();
+                    $('.gas-loading-spinner').remove();
+                    var $firstAvailable = $('.gas-room-card.available, .gas-room-row.available').first();
+                    if ($firstAvailable.length) {
+                        $('html, body').animate({ scrollTop: $firstAvailable.offset().top - 80 }, 500);
+                    }
+                },
+                error: function(xhr, status, err) {
+                    console.warn('[gas-booking] batch price ajax errored, falling back to per-room:', status, err);
+                    $rooms.removeClass('checking');
+                    checkAllAvailability(checkin, checkout, guests, true);
+                }
+            });
+            return;
+        }
+        // ── batch path ends; per-room path below (unchanged) ──
         
         $rooms.each(function() {
             var $room = $(this);
