@@ -37090,6 +37090,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Load language settings before rendering tabs
             await loadLanguageSettings(true);
 
+            // Prime tab-label numbers on Home Editor entry — bulk-fetches
+            // every section's saved position once per site so the tab bar
+            // shows the running order (e.g. "3. Intro") even before the
+            // operator has visited each sub-tab. Memoised per site.
+            if (typeof preloadHomeSubTabPositions === 'function') {
+                preloadHomeSubTabPositions();
+            }
+
             // Update sub-tab buttons
             document.querySelectorAll('#editor-panel-homepage .sub-tab').forEach(tab => {
                 if (tab.dataset.subtab === subTabName) {
@@ -37146,6 +37154,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             // harmless.
             setTimeout(() => {
                 if (typeof gasWysiwygInit === 'function') gasWysiwygInit();
+                // The just-opened sub-tab's position input now has its
+                // freshly-loaded value — refresh labels so its number is
+                // current (e.g. after a Save that changed position).
+                if (typeof refreshHomeSubTabLabels === 'function') refreshHomeSubTabLabels();
             }, 200);
         }
 
@@ -37469,6 +37481,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function switchSubPageTab(subTabName) {
+            // Prime numbered labels ("3. Gallery") on Sub Pages entry.
+            if (typeof preloadSubPageMenuOrders === 'function') preloadSubPageMenuOrders();
+            // Also refresh after the freshly-loaded panel populates its
+            // own menu-order input.
+            setTimeout(() => { if (typeof refreshSubPageTabLabels === 'function') refreshSubPageTabLabels(); }, 400);
+
             // Check if user is master_admin AND not viewing a different account
             // If viewing another account, show client experience (restricted)
             const baseAllowedForClients = ['page-rooms', 'page-contact'];
@@ -65894,14 +65912,194 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.addEventListener('input', function(e) {
                 if (e.target && e.target.id && POSITION_IDS.indexOf(e.target.id) !== -1) {
                     validate();
+                    refreshHomeSubTabLabels();
                 }
             });
             // Run on load + shortly after (in case values populate async from
             // the settings fetch)
-            document.addEventListener('DOMContentLoaded', validate);
-            setTimeout(validate, 800);
-            setTimeout(validate, 2500);
+            document.addEventListener('DOMContentLoaded', function() {
+                validate();
+                refreshHomeSubTabLabels();
+            });
+            setTimeout(function(){ validate(); refreshHomeSubTabLabels(); }, 800);
+            setTimeout(function(){ validate(); refreshHomeSubTabLabels(); }, 2500);
         })();
+
+        // ── Sub-tab labels show live position number ──
+        // Steve 2026-09-18. Prefixes each homepage sub-tab with its section's
+        // current position (e.g. "3. Intro") so the operator sees section
+        // order at a glance from the tab bar. Refreshed on any position
+        // change + on initial settings load. Hero is always "1." (fixed
+        // first). Page Order + Custom Sections stay unnumbered — Page Order
+        // is a meta tab, Custom Sections shows its own position from its
+        // input like everything else.
+        // Bulk-fetch every section's saved position once per site and
+        // stamp the value into each wb-*-position input if empty. That
+        // primes the sub-tab labels + Page Order list without waiting for
+        // the operator to visit each tab. Memoised so repeat opens don't
+        // re-hit the API.
+        window.__homePosPreloadedFor = null;
+        window.preloadHomeSubTabPositions = async function() {
+            if (typeof selectedDeployedSiteId === 'undefined' || !selectedDeployedSiteId) return;
+            if (window.__homePosPreloadedFor === selectedDeployedSiteId) {
+                if (typeof refreshHomeSubTabLabels === 'function') refreshHomeSubTabLabels();
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
+                const data = await resp.json();
+                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                const posMap = {
+                    'wb-intro-position': 'intro',
+                    'wb-wrap-position': 'wrap',
+                    'wb-featured-position': 'featured',
+                    'wb-usp-position': 'usp',
+                    'wb-about-position': 'about',
+                    'wb-services-position': 'services',
+                    'wb-reviews-position': 'reviews',
+                    'wb-cta-position': 'cta',
+                    'wb-badge-row-position': 'badge-row',
+                    'wb-custom-sections-position': 'custom-sections',
+                    'wb-image-row-1-position': 'image-row-1',
+                    'wb-image-row-2-position': 'image-row-2',
+                    'wb-image-row-3-position': 'image-row-3',
+                    'wb-image-row-4-position': 'image-row-4'
+                };
+                for (const inputId in posMap) {
+                    const input = document.getElementById(inputId);
+                    if (!input) continue;
+                    const saved = sections[posMap[inputId]];
+                    if (!saved) continue;
+                    const pos = parseInt(saved.position, 10);
+                    if (Number.isFinite(pos)) input.value = pos;
+                }
+                window.__homePosPreloadedFor = selectedDeployedSiteId;
+                if (typeof refreshHomeSubTabLabels === 'function') refreshHomeSubTabLabels();
+            } catch (e) {
+                // Silent — labels just stay unnumbered until sub-tabs get
+                // visited individually. Non-critical UX polish.
+            }
+        };
+
+        // Same treatment for the Sub Pages tab bar — prefixes each page
+        // tab with its menu-order (the WordPress nav position). Skips
+        // pages with no menu-order input (page-reviews). Custom pages
+        // (data-subtab="page-custom-*") aren't included; their order is
+        // managed elsewhere.
+        window.refreshSubPageTabLabels = function() {
+            const map = {
+                'page-rooms': 'wb-page-rooms-menu-order',
+                'page-about': 'wb-page-about-menu-order',
+                'page-gallery': 'wb-page-gallery-menu-order',
+                'page-offers': 'wb-page-offers-menu-order',
+                'page-properties': 'wb-page-properties-menu-order',
+                'page-dining': 'wb-page-dining-menu-order',
+                'page-portal': 'wb-page-portal-menu-order',
+                'page-blog': 'wb-page-blog-menu-order',
+                'page-attractions': 'wb-page-attractions-menu-order',
+                'page-shop': 'wb-page-shop-menu-order',
+                'page-contact': 'wb-page-contact-menu-order'
+            };
+            const container = document.getElementById('editor-panel-subpages') || document;
+            for (const subtab in map) {
+                const btn = container.querySelector('.sub-tab[data-subtab="' + subtab + '"]');
+                if (!btn) continue;
+                // Grab the label text node (the one between page-status-dot
+                // and the optional feature-lock-icon). Cache the original
+                // trimmed label on first run.
+                let textNode = null;
+                for (const n of btn.childNodes) {
+                    if (n.nodeType === 3 && n.textContent.trim()) { textNode = n; break; }
+                }
+                if (!textNode) continue;
+                if (!btn.dataset.baseLabel) {
+                    btn.dataset.baseLabel = textNode.textContent.trim().replace(/^\d+\.\s*/, '');
+                }
+                const input = document.getElementById(map[subtab]);
+                const v = input && input.value !== '' ? parseInt(input.value, 10) : NaN;
+                textNode.textContent = ' ' + (Number.isFinite(v) ? v + '. ' : '') + btn.dataset.baseLabel + ' ';
+            }
+        };
+
+        // Bulk-preload every sub-page's menu_order once per site so the
+        // Sub Pages tab bar shows numbers on first open.
+        window.__subpageOrderPreloadedFor = null;
+        window.preloadSubPageMenuOrders = async function() {
+            if (typeof selectedDeployedSiteId === 'undefined' || !selectedDeployedSiteId) return;
+            if (window.__subpageOrderPreloadedFor === selectedDeployedSiteId) {
+                if (typeof refreshSubPageTabLabels === 'function') refreshSubPageTabLabels();
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings`, { headers: authHeaders() });
+                const data = await resp.json();
+                const sections = (data.settings || []).reduce((m, r) => { m[r.section] = r.settings || {}; return m; }, {});
+                const orderMap = {
+                    'wb-page-rooms-menu-order': 'page-rooms',
+                    'wb-page-about-menu-order': 'page-about',
+                    'wb-page-gallery-menu-order': 'page-gallery',
+                    'wb-page-offers-menu-order': 'page-offers',
+                    'wb-page-properties-menu-order': 'page-properties',
+                    'wb-page-dining-menu-order': 'page-dining',
+                    'wb-page-portal-menu-order': 'page-portal',
+                    'wb-page-blog-menu-order': 'page-blog',
+                    'wb-page-attractions-menu-order': 'page-attractions',
+                    'wb-page-shop-menu-order': 'page-shop',
+                    'wb-page-contact-menu-order': 'page-contact'
+                };
+                for (const inputId in orderMap) {
+                    const input = document.getElementById(inputId);
+                    if (!input) continue;
+                    const saved = sections[orderMap[inputId]];
+                    if (!saved) continue;
+                    const mo = parseInt(saved.menu_order, 10);
+                    if (Number.isFinite(mo)) input.value = mo;
+                }
+                window.__subpageOrderPreloadedFor = selectedDeployedSiteId;
+                if (typeof refreshSubPageTabLabels === 'function') refreshSubPageTabLabels();
+            } catch (e) { /* silent — labels stay unnumbered */ }
+        };
+
+        // Refresh sub-page tab labels whenever a menu-order input changes.
+        document.addEventListener('input', function(e) {
+            if (e.target && e.target.id && /^wb-page-.*-menu-order$/.test(e.target.id)) {
+                if (typeof refreshSubPageTabLabels === 'function') refreshSubPageTabLabels();
+            }
+        });
+
+        window.refreshHomeSubTabLabels = function() {
+            const map = {
+                intro: 'wb-intro-position',
+                wrap: 'wb-wrap-position',
+                featured: 'wb-featured-position',
+                usp: 'wb-usp-position',
+                about: 'wb-about-position',
+                services: 'wb-services-position',
+                reviews: 'wb-reviews-position',
+                cta: 'wb-cta-position',
+                'image-row-1': 'wb-image-row-1-position',
+                'image-row-2': 'wb-image-row-2-position',
+                'image-row-3': 'wb-image-row-3-position',
+                'image-row-4': 'wb-image-row-4-position',
+                'badge-row': 'wb-badge-row-position',
+                'custom-sections': 'wb-custom-sections-position'
+            };
+            const container = document.querySelector('#editor-homepage-content, [data-editor-homepage]') || document;
+            // Hero — fixed first
+            const heroBtn = container.querySelector('.sub-tab[data-subtab="hero"]');
+            if (heroBtn) {
+                if (!heroBtn.dataset.baseLabel) heroBtn.dataset.baseLabel = heroBtn.textContent.trim().replace(/^\d+\.\s*/, '');
+                heroBtn.textContent = '1. ' + heroBtn.dataset.baseLabel;
+            }
+            for (const subtab in map) {
+                const btn = container.querySelector('.sub-tab[data-subtab="' + subtab + '"]');
+                if (!btn) continue;
+                if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.textContent.trim().replace(/^\d+\.\s*/, '');
+                const input = document.getElementById(map[subtab]);
+                const v = input && input.value !== '' ? parseInt(input.value, 10) : NaN;
+                btn.textContent = (Number.isFinite(v) ? v + '. ' : '') + btn.dataset.baseLabel;
+            }
+        };
 
         // ── Page Order (drag-and-drop reorder of homepage sections) ──
         // Steve 2026-09-18. Reads each section's current position from its
