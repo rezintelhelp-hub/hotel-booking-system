@@ -3049,6 +3049,15 @@ function developer_get_api_settings() {
         'hero_badge_image' => $website_hero['badge-image-url'] ?? null,
         'hero_badge_image_size' => intval($website_hero['badge-image-size'] ?? 60),
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
+        // Hero copy alignment — 'center' (default) or 'left'. Applied via
+        // a class on .developer-hero-content so the H1, subtitle and any
+        // trust badges follow the operator's choice. Steve 2026-09-18.
+        'hero_text_align' => in_array(($website_hero['text-align'] ?? ''), ['left','center'], true)
+            ? $website_hero['text-align'] : 'center',
+        // Badge placement — 'above' (default: renders before the H1) or
+        // 'below' (renders as a CTA-style button after the subtitle).
+        'hero_badge_position' => in_array(($website_hero['badge-position'] ?? ''), ['above','below'], true)
+            ? $website_hero['badge-position'] : 'above',
         // Trust Badges hide toggle. Default TRUE so any existing site that
         // never saved a value keeps rendering them (was implicit-on before).
         'hero_show_trust' => array_key_exists('show-trust', (array)$website_hero) ? !empty($website_hero['show-trust']) : true,

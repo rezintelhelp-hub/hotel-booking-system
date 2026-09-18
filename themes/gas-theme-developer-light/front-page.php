@@ -280,42 +280,60 @@ $homepage_sections = array(); // position => html
     <?php endif; ?>
     <div class="developer-hero-overlay" style="background: rgba(<?php echo "$r, $g, $b"; ?>, <?php echo esc_attr($overlay_opacity); ?>);"></div>
     
-    <div class="developer-hero-content">
+    <?php
+    // Hero copy alignment (left/center) via a modifier class. Steve 2026-09-18.
+    $hero_text_align = $api['hero_text_align'] ?? 'center';
+    $hero_align_class = $hero_text_align === 'left' ? ' developer-hero-content--align-left' : '';
+    // Badge placement: 'above' (before H1, default) or 'below' (after subtitle
+    // as a CTA-style button). Rendered from $badge_html regardless of position.
+    $hero_badge_position = $api['hero_badge_position'] ?? 'above';
+    ?>
+    <div class="developer-hero-content<?php echo $hero_align_class; ?>">
         <?php
         // Steve 2026-08-15 — badge now supports optional logo image + new-tab
         // toggle on the link. Image REPLACES the text pill when set (styling
         // colours are ignored in image mode). Toggle checkbox controls
         // target=_blank when the badge is a link. Falls back to the text pill
         // + colours from the Badge Styling card when no image is uploaded.
+        //
+        // 2026-09-18 — badge is now stored in $badge_html and emitted either
+        // ABOVE the H1 (position='above') or AFTER the subtitle (position='below')
+        // as an operator-controlled Web Builder option.
         $hero_badge_image  = trim((string)($api['hero_badge_image'] ?? ''));
         $hero_badge_image_size = max(20, intval($api['hero_badge_image_size'] ?? 60));
         $hero_badge_newtab = !empty($api['hero_badge_new_tab']);
         $show_badge_flag   = !empty($api['hero_show_badge']);
-        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) :
+        $badge_html = '';
+        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) {
             $badge_target_attr = ($hero_badge_link && $hero_badge_newtab) ? ' target="_blank" rel="noopener noreferrer"' : '';
             $badge_inner = $hero_badge_image
                 ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:' . $hero_badge_image_size . 'px; width:auto; display:block;">'
                 : esc_html($hero_badge);
-            // In IMAGE mode drop the .developer-hero-badge class entirely so
-            // the theme's pill CSS (padding, border-radius, border) doesn't
-            // apply. Steve 2026-08-15: operator wants a raw logo, not a
-            // logo-in-a-button. In TEXT mode keep the class + inline styles.
             if ($hero_badge_image) {
                 $badge_wrap_class = 'developer-hero-badge-image';
                 $badge_wrap_style = 'display:inline-block; text-decoration:none; background:transparent; border:0; padding:0;';
             } else {
                 $badge_wrap_class = 'developer-hero-badge';
+                // Add --below modifier when position=below so the CTA has
+                // top-margin (spacing from subtitle) instead of the default
+                // bottom-margin (spacing before H1).
+                if ($hero_badge_position === 'below') $badge_wrap_class .= ' developer-hero-badge--below';
                 $badge_wrap_style = 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
             }
             if ($hero_badge_link) {
-                echo '<a href="' . esc_url($hero_badge_link) . '" class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+                $badge_html = '<a href="' . esc_url($hero_badge_link) . '" class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
             } else {
-                echo '<span class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
+                $badge_html = '<span class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
             }
-        endif; ?>
-        
+        }
+        // Emit above by default. When position=below, the same $badge_html is
+        // echoed after the subtitle further down.
+        if ($badge_html && $hero_badge_position !== 'below') echo $badge_html;
+        ?>
+
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
+        <?php if ($badge_html && $hero_badge_position === 'below') echo $badge_html; ?>
         
         <!-- GAS Search Widget with custom styling -->
         <?php $show_search = $api['hero_show_search'] ?? true; ?>

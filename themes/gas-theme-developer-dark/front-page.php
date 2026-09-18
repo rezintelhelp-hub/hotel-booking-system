@@ -260,7 +260,14 @@ $homepage_sections = array(); // position => html
     <?php endif; ?>
     <div class="developer-hero-overlay" style="background: rgba(<?php echo "$r, $g, $b"; ?>, <?php echo esc_attr($overlay_opacity); ?>);"></div>
     
-    <div class="developer-hero-content">
+    <?php
+    // Hero copy alignment + badge position — Steve 2026-09-18. Mirrors
+    // developer-light front-page.php.
+    $hero_text_align = $api['hero_text_align'] ?? 'center';
+    $hero_align_class = $hero_text_align === 'left' ? ' developer-hero-content--align-left' : '';
+    $hero_badge_position = $api['hero_badge_position'] ?? 'above';
+    ?>
+    <div class="developer-hero-content<?php echo $hero_align_class; ?>">
         <?php
         // Steve 2026-08-15 — badge: optional logo + new-tab. See
         // developer-light front-page.php for full commentary.
@@ -268,7 +275,8 @@ $homepage_sections = array(); // position => html
         $hero_badge_image_size = max(20, intval($api['hero_badge_image_size'] ?? 60));
         $hero_badge_newtab = !empty($api['hero_badge_new_tab']);
         $show_badge_flag   = !empty($api['hero_show_badge']);
-        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) :
+        $badge_html = '';
+        if ($show_badge_flag && ($hero_badge || $hero_badge_image)) {
             $badge_target_attr = ($hero_badge_link && $hero_badge_newtab) ? ' target="_blank" rel="noopener noreferrer"' : '';
             $badge_inner = $hero_badge_image
                 ? '<img src="' . esc_url($hero_badge_image) . '" alt="' . esc_attr($hero_badge) . '" style="max-height:' . $hero_badge_image_size . 'px; width:auto; display:block;">'
@@ -278,17 +286,21 @@ $homepage_sections = array(); // position => html
                 $badge_wrap_style = 'display:inline-block; text-decoration:none; background:transparent; border:0; padding:0;';
             } else {
                 $badge_wrap_class = 'developer-hero-badge';
+                if ($hero_badge_position === 'below') $badge_wrap_class .= ' developer-hero-badge--below';
                 $badge_wrap_style = 'background: ' . esc_attr($hero_badge_bg) . '; color: ' . esc_attr($hero_badge_text) . '; border-color: ' . esc_attr($hero_badge_border) . '; text-decoration: none;';
             }
             if ($hero_badge_link) {
-                echo '<a href="' . esc_url($hero_badge_link) . '" class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
+                $badge_html = '<a href="' . esc_url($hero_badge_link) . '" class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '"' . $badge_target_attr . '>' . $badge_inner . '</a>';
             } else {
-                echo '<span class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
+                $badge_html = '<span class="' . $badge_wrap_class . '" style="' . $badge_wrap_style . '">' . $badge_inner . '</span>';
             }
-        endif; ?>
-        
+        }
+        if ($badge_html && $hero_badge_position !== 'below') echo $badge_html;
+        ?>
+
         <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
         <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo nl2br(wp_kses_post($hero_subtitle)); ?></p>
+        <?php if ($badge_html && $hero_badge_position === 'below') echo $badge_html; ?>
         
         <!-- GAS Search Widget with custom styling -->
         <?php

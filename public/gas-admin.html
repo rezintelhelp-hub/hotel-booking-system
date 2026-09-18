@@ -15296,6 +15296,15 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Text alignment for headline + subheadline (Steve 2026-09-18) -->
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Text Alignment</label>
+                            <select class="form-input" id="wb-hero-text-align">
+                                <option value="center">Center (default)</option>
+                                <option value="left">Left</option>
+                            </select>
+                            <small class="form-hint">Aligns the headline + subheadline within the hero.</small>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Badge Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
@@ -15510,6 +15519,15 @@
                             <small class="form-hint">The badge appears above the headline on the hero section. Upload a logo to render as an image, or leave it blank to use the text pill below.</small>
                         </div>
                         <div id="wb-hero-badge-options" style="display: none;">
+                            <!-- Badge position (above headline default, or as a CTA button below subtitle). Steve 2026-09-18. -->
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Badge Position</label>
+                                <select class="form-input" id="wb-hero-badge-position">
+                                    <option value="above">Above headline (default)</option>
+                                    <option value="below">Below text (as a button)</option>
+                                </select>
+                                <small class="form-hint">"Below" renders the badge under the subheadline as a CTA-style button.</small>
+                            </div>
                             <!-- Badge Text (multilingual) — falls back to
                                  the theme default 'Welcome to Paradise' when
                                  all languages are blank. Also used as the

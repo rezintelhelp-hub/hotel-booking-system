@@ -633,6 +633,17 @@ img {
     text-align: center;
     max-width: 900px;
 }
+/* Left-align variant + below-badge modifier — Steve 2026-09-18.
+   Mirrors developer-light. */
+.developer-hero-content--align-left { text-align: left; }
+.developer-hero-content--align-left .developer-hero-subtitle {
+    margin-left: 0;
+    margin-right: auto;
+}
+.developer-hero-badge--below {
+    margin-top: 24px;
+    margin-bottom: 0;
+}
 
 .developer-hero-badge {
     display: inline-block;

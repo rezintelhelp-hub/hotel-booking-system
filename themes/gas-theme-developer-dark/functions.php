@@ -2864,6 +2864,10 @@ function developer_get_api_settings() {
         'hero_badge_image' => $website_hero['badge-image-url'] ?? null,
         'hero_badge_image_size' => intval($website_hero['badge-image-size'] ?? 60),
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
+        'hero_text_align' => in_array(($website_hero['text-align'] ?? ''), ['left','center'], true)
+            ? $website_hero['text-align'] : 'center',
+        'hero_badge_position' => in_array(($website_hero['badge-position'] ?? ''), ['above','below'], true)
+            ? $website_hero['badge-position'] : 'above',
         // See developer-light for full note.
         'hero_show_trust' => array_key_exists('show-trust', (array)$website_hero) ? !empty($website_hero['show-trust']) : true,
         'hero_badge_link' => $website_hero['badge-link'] ?? null,

@@ -642,6 +642,25 @@ img {
     text-align: center;
     max-width: 900px;
 }
+/* Left-align variant (Web Builder → Hero → Text Alignment).
+   Steve 2026-09-18. Kills the subtitle auto-margins so it hugs the
+   left edge alongside the H1 instead of centring inside its own
+   max-width. Any nested search wrapper stays block-level so the
+   input row still renders full-width regardless of alignment. */
+.developer-hero-content--align-left {
+    text-align: left;
+}
+.developer-hero-content--align-left .developer-hero-subtitle {
+    margin-left: 0;
+    margin-right: auto;
+}
+/* Badge rendered BELOW the subtitle (position=below). Default has
+   margin-bottom for spacing before the H1; the below variant flips
+   to margin-top for spacing from the subtitle. Steve 2026-09-18. */
+.developer-hero-badge--below {
+    margin-top: 24px;
+    margin-bottom: 0;
+}
 
 .developer-hero-badge {
     display: inline-block;
