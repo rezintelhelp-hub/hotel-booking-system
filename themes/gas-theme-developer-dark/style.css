@@ -645,6 +645,10 @@ img {
     margin-left: 0;
     margin-right: auto;
 }
+.developer-hero-content--align-left .developer-search-wrapper {
+    margin-left: 0;
+    margin-right: auto;
+}
 .developer-hero-badge--below {
     margin-top: 24px;
     margin-bottom: 0;
@@ -769,7 +773,7 @@ img {
         width: calc(100% - 24px) !important;
         margin: 20px auto 0 !important;
         padding: 12px !important;
-        border-radius: 16px !important;
+        border-radius: var(--developer-btn-radius, 16px) !important;
         box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
         overflow: visible !important;
         border: none !important;

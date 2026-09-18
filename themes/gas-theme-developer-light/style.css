@@ -662,6 +662,14 @@ img {
     margin-left: 0;
     margin-right: auto;
 }
+/* When the copy is left-aligned, also left-align the search wrapper so
+   the headline/subtitle line up with the check-in box's left edge
+   instead of the text sitting far to the left of the search widget.
+   Steve 2026-09-18. */
+.developer-hero-content--align-left .developer-search-wrapper {
+    margin-left: 0;
+    margin-right: auto;
+}
 /* Badge rendered BELOW the subtitle (position=below). Default has
    margin-bottom for spacing before the H1; the below variant flips
    to margin-top for spacing from the subtitle. Steve 2026-09-18. */
@@ -789,7 +797,11 @@ img {
         width: calc(100% - 24px) !important;
         margin: 20px auto 0 !important;
         padding: 12px !important;
-        border-radius: 16px !important;
+        /* Follow the operator's btn-radius setting instead of a
+           hardcoded 16px so sharp-corner sites (Steve 2026-09-18 —
+           Sterling Scott set radius=4 but mobile search overrode to
+           16px) render consistent corners on mobile. */
+        border-radius: var(--developer-btn-radius, 16px) !important;
         box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
         overflow: visible !important;
         border: none !important;
