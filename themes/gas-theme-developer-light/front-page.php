@@ -222,6 +222,11 @@ $section_positions = array(
     'services' => intval($api['section_order_services'] ?? 11),
     'reviews'  => intval($api['section_order_reviews'] ?? 13),
     'cta'      => intval($api['section_order_cta'] ?? 15),
+    // Section Builder block on home page — dynamic sections stored per
+    // slug 'home' via the same infrastructure as About/Custom pages.
+    // Position 8 sits between USP (7) and About (9) by default. Steve
+    // 2026-09-18. Only rendered when custom_sections_enabled=true.
+    'custom_sections' => intval($api['section_order_custom_sections'] ?? 8),
 );
 
 // Image Row sections (4 available, even positions)
@@ -1294,6 +1299,25 @@ if ($cta_enabled) :
 </section>
 <?php endif; ?>
 <?php $_h = ob_get_clean(); if (trim($_h) !== '') $homepage_sections[$section_positions['cta']] = $_h; ?>
+
+<?php
+// --- Custom Sections (Section Builder block on home page) ---
+// Steve 2026-09-18. Opt-in per site via custom_sections_enabled. When on,
+// pulls dynamic sections for slug 'home' via the same page-sections API
+// About + Custom Pages use. Renders zero HTML when disabled or when no
+// sections exist — so it can't clobber anything at its position.
+ob_start();
+if (!empty($api['custom_sections_enabled']) && $api['custom_sections_enabled'] !== 'false' && $api['custom_sections_enabled'] !== '0') {
+    if (!function_exists('gas_render_page_sections')) {
+        require_once get_template_directory() . '/gas-page-sections.php';
+    }
+    gas_render_page_sections('home', $primary_color);
+}
+$_h = ob_get_clean();
+if (trim($_h) !== '') {
+    $homepage_sections[$section_positions['custom_sections']] = $_h;
+}
+?>
 
 <?php
 // --- Image Row Sections (1-4) ---

@@ -9275,6 +9275,7 @@
                             <button class="sub-tab" data-subtab="image-row-3" onclick="switchHomeSubTab('image-row-3')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #0d9488; cursor: pointer; font-size: 0.875rem;">Image Row 3</button>
                             <button class="sub-tab" data-subtab="image-row-4" onclick="switchHomeSubTab('image-row-4')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #0d9488; cursor: pointer; font-size: 0.875rem;">Image Row 4</button>
                             <button class="sub-tab" data-subtab="badge-row" onclick="switchHomeSubTab('badge-row')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #b45309; cursor: pointer; font-size: 0.875rem;">Badge Row</button>
+                            <button class="sub-tab" data-subtab="custom-sections" onclick="switchHomeSubTab('custom-sections')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #7c3aed; cursor: pointer; font-size: 0.875rem;">🧱 Custom Sections</button>
                         </div>
                         <div id="editor-homepage-hero" class="home-subtab-panel">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
@@ -11004,6 +11005,59 @@
                                         <small class="form-hint">Sets the height of every badge (image auto-scales width). 40 = small, 70 = default, 160 = large.</small>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Sections — Section Builder block on the home page.
+                             Steve 2026-09-18. Same SB engine as About + Custom Pages;
+                             wired to slug 'home'. Opt-in per site via the enable toggle.
+                             Positional (default 8, editable) so operator can slot the
+                             whole SB block between any two existing sections. -->
+                        <div id="editor-homepage-custom-sections" class="home-subtab-panel" style="display: none;">
+                            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 1rem;">
+                                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#64748b;">Position: <input type="number" id="wb-custom-sections-position" min="1" max="20" value="8" style="width:50px;padding:4px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;font-size:0.85rem;"></label>
+                                <button class="btn" onclick="saveWebsiteSection('custom-sections', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Position</button>
+                            </div>
+
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-body">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+                                            <input type="checkbox" id="wb-custom-sections-enabled"> Enable Custom Sections
+                                        </label>
+                                        <small class="form-hint">Uses the same Section Builder as About + Custom Pages. Add hero banners, text blocks, image+text, galleries, FAQs, testimonials, etc. Renders at the position number above.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section list -->
+                            <div id="custom-home-sb-sections" style="margin-bottom: 1rem;"></div>
+
+                            <!-- Add section bar -->
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div style="padding: 1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                    <span style="font-weight: 600; color: #475569; font-size: 0.85rem; margin-right: 0.5rem;">Add Section:</span>
+                                    <button onclick="sbAddSection('hero', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Hero</button>
+                                    <button onclick="sbAddSection('hero_slider', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Hero Slider</button>
+                                    <button onclick="sbAddSection('text', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Text</button>
+                                    <button onclick="sbAddSection('image_text', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Image + Text</button>
+                                    <button onclick="sbAddSection('media_wrap', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Media + Wrap Text</button>
+                                    <button onclick="sbAddSection('cta', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">CTA</button>
+                                    <button onclick="sbAddSection('gallery', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Gallery</button>
+                                    <button onclick="sbAddSection('videos', 'home')" class="btn btn-sm" style="background: #dc2626; font-size: 0.78rem; padding: 5px 12px;">Videos</button>
+                                    <button onclick="sbAddSection('faq', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">FAQ</button>
+                                    <button onclick="sbAddSection('image_faq', 'home')" class="btn btn-sm" style="background: #6b21a8; font-size: 0.78rem; padding: 5px 12px;">Image + FAQ</button>
+                                    <button onclick="sbAddSection('cards', 'home')" class="btn btn-sm" style="background: #0d9488; font-size: 0.78rem; padding: 5px 12px;">Cards</button>
+                                    <button onclick="sbAddSection('testimonials', 'home')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Testimonials</button>
+                                    <button onclick="sbAddSection('reviews', 'home')" class="btn btn-sm" style="background: #eab308; font-size: 0.78rem; padding: 5px 12px;">Reviews</button>
+                                    <button onclick="sbAddSection('form', 'home')" class="btn btn-sm" style="background: #10b981; font-size: 0.78rem; padding: 5px 12px;">Form</button>
+                                    <button onclick="sbAddSection('gas_form', 'home')" class="btn btn-sm" style="background: #0ea5e9; font-size: 0.78rem; padding: 5px 12px;">Lead Form</button>
+                                </div>
+                            </div>
+
+                            <!-- Save bar -->
+                            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                <button id="custom-home-sb-save-btn" onclick="sbSaveSections('home')" class="btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 10px 24px;">Save Sections</button>
                             </div>
                         </div>
                     </div>
@@ -37040,6 +37094,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadWebsiteBuilderSection(subTabName).finally(() => {
                     loadFeaturedRoomPicker().then(() => syncFeaturedIdsToSelect());
                 });
+            } else if (subTabName === 'custom-sections') {
+                // Custom Sections tab (Steve 2026-09-18) — position + enable
+                // live in website_settings section 'custom-sections'. The
+                // actual sections live in page-sections API under slug 'home',
+                // loaded via the shared Section Builder.
+                loadWebsiteBuilderSection('custom-sections');
+                if (typeof checkPageSectionsExist === 'function') {
+                    checkPageSectionsExist('home').finally(() => {
+                        if (typeof sbRenderSections === 'function') sbRenderSections('home');
+                    });
+                }
             } else {
                 loadWebsiteBuilderSection(subTabName);
             }
@@ -38977,7 +39042,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'image-row-2': 'editor-homepage-image-row-2',
                     'image-row-3': 'editor-homepage-image-row-3',
                     'image-row-4': 'editor-homepage-image-row-4',
-                    'badge-row': 'editor-homepage-badge-row'
+                    'badge-row': 'editor-homepage-badge-row',
+                    'custom-sections': 'editor-homepage-custom-sections'
                 };
                 
                 // Get container for this section
@@ -40647,7 +40713,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'image-row-2': 'editor-homepage-image-row-2',
                     'image-row-3': 'editor-homepage-image-row-3',
                     'image-row-4': 'editor-homepage-image-row-4',
-                    'badge-row': 'editor-homepage-badge-row'
+                    'badge-row': 'editor-homepage-badge-row',
+                    'custom-sections': 'editor-homepage-custom-sections'
                 };
                 
                 const editorContainerId = editorPanelMap[section];
@@ -40703,7 +40770,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'image-row-2': 'editor-homepage-image-row-2',
                     'image-row-3': 'editor-homepage-image-row-3',
                     'image-row-4': 'editor-homepage-image-row-4',
-                    'badge-row': 'editor-homepage-badge-row'
+                    'badge-row': 'editor-homepage-badge-row',
+                    'custom-sections': 'editor-homepage-custom-sections'
                 };
 
                 const clonedContainerId = clonedPanelMap[section];
@@ -65728,6 +65796,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 'wb-intro-position','wb-wrap-position','wb-featured-position',
                 'wb-usp-position','wb-about-position','wb-services-position',
                 'wb-reviews-position','wb-cta-position','wb-badge-row-position',
+                'wb-custom-sections-position',
                 'wb-image-row-1-position','wb-image-row-2-position',
                 'wb-image-row-3-position','wb-image-row-4-position'
             ];

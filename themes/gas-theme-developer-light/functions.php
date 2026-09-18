@@ -3621,6 +3621,12 @@ function developer_get_api_settings() {
         'image_row_4_row_btn_link' => ($website['image-row-4'] ?? array())['row-btn-link'] ?? '',
         'section_order_image_row_4' => ($website['image-row-4'] ?? array())['position'] ?? null,
 
+        // Custom Sections — Section Builder block on the home page (Steve
+        // 2026-09-18). Positional slot that renders whatever the operator
+        // built via the Section Builder against slug 'home'. Opt-in per site.
+        'custom_sections_enabled' => ($website['custom-sections'] ?? array())['enabled'] ?? false,
+        'section_order_custom_sections' => ($website['custom-sections'] ?? array())['position'] ?? null,
+
         // Badge Row (partner logos, trust badges)
         'badge_row_enabled' => ($website['badge-row'] ?? array())['enabled'] ?? false,
         'badge_row_heading' => developer_get_ml_value($website['badge-row'] ?? array(), 'heading', $lang),

@@ -2928,6 +2928,10 @@ function developer_get_api_settings() {
         'about_feature_5' => developer_get_ml_value($website_about, 'feature-5', $lang),
         'about_feature_6' => developer_get_ml_value($website_about, 'feature-6', $lang),
         
+        // Custom Sections — Section Builder block on home page (Steve 2026-09-18).
+        'custom_sections_enabled' => ($website['custom-sections'] ?? array())['enabled'] ?? false,
+        'section_order_custom_sections' => ($website['custom-sections'] ?? array())['position'] ?? null,
+
         // Services Section - MULTILINGUAL
         'services_enabled' => $website_services['enabled'] ?? false,
         'services_card_style' => $website_services['card-style'] ?? 'icon',
