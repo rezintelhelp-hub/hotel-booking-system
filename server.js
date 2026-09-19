@@ -146445,18 +146445,18 @@ async function runGasSyncScheduler() {
               // consumed the returned field, so every marketplace-adapter
               // account had cta_source=null across the estate. GoSlopes
               // set Dec 31 blocked in Beds24 and GAS treated it as free.
-              // Field-name defensive: v1 rezintel.net has been observed to
-              // return `override` as a string ("noCheckIn"/"noCheckOut"/
-              // "noCheckInOut") on some responses and separate booleans
-              // (`overrideCheckIn`/`overrideCheckOut` OR `noCheckIn`/
-              // `noCheckOut`) on others. Match all shapes.
-              const _ov = String(day.override || '').toLowerCase();
-              const cta = _ov === 'nocheckin' || _ov === 'nocheckinout'
-                       || day.overrideCheckIn === 1 || day.overrideCheckIn === '1' || day.overrideCheckIn === true
-                       || day.noCheckIn === 1 || day.noCheckIn === '1' || day.noCheckIn === true;
-              const ctd = _ov === 'nocheckout' || _ov === 'nocheckinout'
-                       || day.overrideCheckOut === 1 || day.overrideCheckOut === '1' || day.overrideCheckOut === true
-                       || day.noCheckOut === 1 || day.noCheckOut === '1' || day.noCheckOut === true;
+              //
+              // The rezintel.net getRoomDates response encodes override as
+              // a numeric bitmask `o` field (only present when non-zero).
+              // Confirmed values seen 2026-09-19:
+              //   o=1 → noCheckIn
+              //   o=2 → noCheckOut
+              //   o=3 → noCheckIn + noCheckOut (bits 0+1)
+              //   o=4 → "no bookings" (bit 2) — Beds24 UI shows as
+              //         'No check in or out' — treat as CTA+CTD
+              const _o = parseInt(day.o, 10) || 0;
+              const cta = (_o & 1) !== 0 || (_o & 4) !== 0;
+              const ctd = (_o & 2) !== 0 || (_o & 4) !== 0;
 
               await pool.query(`
                 INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, cta_source, ctd_source, source, updated_at)
