@@ -142566,6 +142566,36 @@ async function runBeds24AvailabilityHeal() {
           continue;
         }
       }
+      // Marketplace-adapter fallback (2026-09-19): connections created via
+      // the Rezintel marketplace store propKey + propId in credentials but
+      // have no refresh_token — the OAuth path above skips them silently
+      // and every marketplace account had 0 cta/ctd rows estate-wide until
+      // GoSlopes surfaced it. Bridge V1 → V2 via /json/getV2RefreshToken
+      // (documented pattern used by /api/beds24/marketplace/*), then trade
+      // for a V2 access token. Result works with the exact same
+      // V2 /inventory/rooms/calendar call the OAuth path uses below.
+      if (!accessToken && conn.adapter_code === 'beds24-marketplace') {
+        try {
+          const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
+          const propKey = creds.propKey;
+          const apiKey = process.env.BEDS24_MASTER_API_KEY;
+          if (!propKey || !apiKey) throw new Error('marketplace conn missing propKey or BEDS24_MASTER_API_KEY');
+          const bridgeResp = await axios.post('https://api.beds24.com/json/getV2RefreshToken',
+            { authentication: { apiKey, propKey } },
+            { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+          );
+          const v2Refresh = bridgeResp.data?.token || bridgeResp.data?.refreshToken;
+          if (!v2Refresh || typeof v2Refresh !== 'string') throw new Error('no refresh token from bridge');
+          const tokResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': v2Refresh }
+          });
+          accessToken = tokResp.data?.token;
+          if (!accessToken) throw new Error('no access token from V2 exchange');
+        } catch (mpErr) {
+          errors.push({ connection: connectionId, error: `marketplace token mint failed: ${mpErr.message}` });
+          continue;
+        }
+      }
       if (!accessToken) { errors.push({ connection: connectionId, error: 'no access token' }); continue; }
 
       for (const room of rooms) {
@@ -146410,17 +146440,41 @@ async function runGasSyncScheduler() {
 
               const minStay = parseInt(day.m) || 1;
 
+              // CTA / CTD (no check-in / no check-out) — the request includes
+              // incOverride:1 but until 2026-09-19 the write path never
+              // consumed the returned field, so every marketplace-adapter
+              // account had cta_source=null across the estate. GoSlopes
+              // set Dec 31 blocked in Beds24 and GAS treated it as free.
+              // Field-name defensive: v1 rezintel.net has been observed to
+              // return `override` as a string ("noCheckIn"/"noCheckOut"/
+              // "noCheckInOut") on some responses and separate booleans
+              // (`overrideCheckIn`/`overrideCheckOut` OR `noCheckIn`/
+              // `noCheckOut`) on others. Match all shapes.
+              const _ov = String(day.override || '').toLowerCase();
+              const cta = _ov === 'nocheckin' || _ov === 'nocheckinout'
+                       || day.overrideCheckIn === 1 || day.overrideCheckIn === '1' || day.overrideCheckIn === true
+                       || day.noCheckIn === 1 || day.noCheckIn === '1' || day.noCheckIn === true;
+              const ctd = _ov === 'nocheckout' || _ov === 'nocheckinout'
+                       || day.overrideCheckOut === 1 || day.overrideCheckOut === '1' || day.overrideCheckOut === true
+                       || day.noCheckOut === 1 || day.noCheckOut === '1' || day.noCheckOut === true;
+
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-marketplace', NOW())
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, closed_to_arrival, closed_to_departure, cta_source, ctd_source, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, $8, 'beds24', 'beds24', 'beds24-marketplace', NOW())
                 ON CONFLICT (room_id, date) DO UPDATE SET
                   price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                   cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   direct_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.direct_price END,
                   is_available = $4, is_blocked = $5,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                  cm_min_stay = $6, source = 'beds24-marketplace', updated_at = NOW()
-              `, [room.gas_room_id, dateFormatted, bestPrice, inventory > 0 && bestPrice !== null, inventory === 0, minStay]);
+                  cm_min_stay = $6,
+                  -- Sticky operator override on CTA/CTD (same rule as beds24_heal path)
+                  closed_to_arrival   = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.closed_to_arrival ELSE $7 END,
+                  closed_to_departure = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.closed_to_departure ELSE $8 END,
+                  cta_source = CASE WHEN COALESCE(room_availability.cta_source, '') = 'operator' THEN room_availability.cta_source ELSE 'beds24' END,
+                  ctd_source = CASE WHEN COALESCE(room_availability.ctd_source, '') = 'operator' THEN room_availability.ctd_source ELSE 'beds24' END,
+                  source = 'beds24-marketplace', updated_at = NOW()
+              `, [room.gas_room_id, dateFormatted, bestPrice, inventory > 0 && bestPrice !== null, inventory === 0, minStay, cta, ctd]);
             }
 
             // Update tier sync timestamp
