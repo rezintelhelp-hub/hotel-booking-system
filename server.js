@@ -116126,11 +116126,30 @@ app.post('/api/public/book', async (req, res) => {
     // (Rebecca / Janet). Server now re-computes deposit from grand_total
     // (== total_price, post-shop-link-override) so the numbers always add
     // up. Client-provided deposit_amount is ignored — server truth wins.
+    // Resolve the offer's refund_policy BEFORE resolving the deposit rule.
+    // Prior to 2026-09-19 this call passed offerRefundPolicy=null, so a
+    // non-refundable-offer booking (which SHOULD collect 100% upfront)
+    // fell through to the account default 20% rule and undercharged.
+    // Later in this endpoint the SAME rule is resolved a second time
+    // WITH the offer policy and pinned to deposit_rule_id — so the row
+    // ended up with the correct rule id but the wrong deposit_amount.
+    // Booking 1282143 (Cotswolds, Eve Mulvaney) surfaced this on
+    // 2026-09-19: rule 360 pinned (100% non_refundable) yet only 20%
+    // charged. Compute once here + pass into both call sites.
+    let _bookOfferRefundPolicy = null;
+    try {
+      const _obId = parseInt(req.body.offer_id) || parseInt(price_breakdown?.offer_applied?.id) || null;
+      if (_obId) {
+        const _obRow = await pool.query('SELECT refund_policy FROM offers WHERE id = $1', [_obId]);
+        const _obRp = _obRow.rows[0]?.refund_policy;
+        if (_obRp && _obRp !== 'inherit') _bookOfferRefundPolicy = _obRp;
+      }
+    } catch (_) { /* fall through — null policy = pre-fix behaviour */ }
     try {
       const _grand = parseFloat(total_price || 0);
       if (_grand > 0) {
         const _depRule = await resolveDepositRule(pool,
-          unit.rows[0].property_id, unit.rows[0].account_id, null, check_in, new Date(), unit_id);
+          unit.rows[0].property_id, unit.rows[0].account_id, _bookOfferRefundPolicy, check_in, new Date(), unit_id);
         if (_depRule) {
           let _newDep = null;
           // 2026-08-12 — schedule-mode branch. Only fires when the operator
@@ -116904,16 +116923,11 @@ app.post('/api/public/book', async (req, res) => {
     // as 14 on every booking — booking 260425 was the visible case).
     let _resolvedDepositRule = null;
     try {
-      const _offerIdForRule = parseInt(req.body.offer_id) || parseInt(price_breakdown?.offer_applied?.id) || null;
-      let _offerRefundPolicy = null;
-      if (_offerIdForRule) {
-        const _offerRow = await pool.query('SELECT refund_policy FROM offers WHERE id = $1', [_offerIdForRule]);
-        const rp = _offerRow.rows[0]?.refund_policy;
-        if (rp && rp !== 'inherit') _offerRefundPolicy = rp;
-      }
+      // Same offer refund policy computed earlier (line ~116129) so this
+      // call sees the same rule the deposit_amount was calculated against.
       _resolvedDepositRule = await resolveDepositRule(
         pool, unit.rows[0].property_id, unit.rows[0].account_id,
-        _offerRefundPolicy, check_in, new Date(), unit_id
+        _bookOfferRefundPolicy, check_in, new Date(), unit_id
       );
     } catch (e) {
       console.error('[public/book] resolveDepositRule failed:', e.message);
